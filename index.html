@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CORTEX ARENA — Neural Tank Combat</title>
+<title>CORTEX ARENA v4 — Neural Tank Combat</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -47,7 +47,7 @@ canvas#c{display:block;width:100%;height:100%}
 .egrid .ei{display:flex;justify-content:space-between;color:var(--muted)}.egrid .ev{font-family:var(--mono);font-size:9px}
 .bsec{padding:8px 12px;overflow-y:auto;border-right:1px solid var(--border)}.bsec:last-child{border:none}
 .log{font-size:10px;font-family:var(--mono);padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
-.log.kill{color:var(--red)}.log.spawn{color:var(--green)}.log.win{color:var(--yellow)}.log.info{color:var(--cyan)}
+.log.kill{color:var(--red)}.log.spawn{color:var(--green)}.log.win{color:var(--yellow)}.log.sys{color:var(--cyan)}.log.error{color:var(--red);font-weight:700}
 .crow{display:flex;align-items:center;gap:4px;font-size:10px;margin-bottom:2px}
 .crow .cl{width:56px;color:var(--muted);flex-shrink:0}
 .crow .ct{flex:1;height:6px;background:var(--dim);border-radius:3px;overflow:hidden}
@@ -56,11 +56,14 @@ canvas#c{display:block;width:100%;height:100%}
 table.lb{width:100%;border-collapse:collapse;font-size:10px}
 table.lb th{text-align:left;color:var(--muted);font-weight:600;padding:2px 3px;border-bottom:1px solid var(--border)}
 table.lb td{padding:2px 3px;font-family:var(--mono)}
-#overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.75);z-index:10;opacity:0;pointer-events:none;transition:opacity .3s}
+#overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.8);z-index:10;opacity:0;pointer-events:none;transition:opacity .3s}
 #overlay.show{opacity:1;pointer-events:auto}
-#overlay h2{font-size:26px;text-align:center;margin-bottom:6px}
-#overlay p{color:var(--muted);text-align:center;font-size:13px}
-#overlay .err{color:var(--red)}
+#overlay .inner{text-align:center;max-width:500px;padding:20px}
+#overlay h2{font-size:24px;margin-bottom:8px}
+#overlay p{color:var(--muted);font-size:13px;line-height:1.5}
+#overlay .err{color:var(--red);font-size:12px;margin-top:10px;text-align:left;font-family:var(--mono);background:rgba(231,76,60,.1);padding:10px;border-radius:4px;white-space:pre-wrap;word-break:break-all}
+#overlay .paths{color:var(--muted);font-size:11px;margin-top:8px;text-align:left;font-family:var(--mono)}
+#load-status{font-size:11px;color:var(--cyan);margin-top:6px}
 @media(max-width:960px){
   #app{grid-template-columns:1fr;grid-template-rows:44px 1fr 180px}
   #left,#right{display:none}
@@ -76,19 +79,22 @@ table.lb td{padding:2px 3px;font-family:var(--mono)}
     <div class="hstat">Tick <b id="h-tick">0</b></div>
     <div class="hstat">Alive <b id="h-alive">0</b></div>
     <div class="hstat">FPS <b id="h-fps">0</b></div>
+    <div class="hstat" id="h-cortex-status" style="color:var(--yellow)">⏳ Loading…</div>
     <div class="spacer"></div>
     <select id="sel-spd"><option value="0">Paused</option><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option><option value="8">8×</option></select>
     <select id="sel-cnt"><option value="4">4 Tanks</option><option value="6" selected>6</option><option value="8">8</option><option value="12">12</option></select>
-    <button class="primary" id="btn-go">▶ START</button>
+    <button class="primary" id="btn-go" disabled>▶ START</button>
     <button class="danger" id="btn-rst">↻</button>
   </header>
   <div id="left"><div class="ptitle">Combatants</div><div id="tank-list"></div></div>
   <div id="arena-wrap">
     <canvas id="c"></canvas>
     <div id="overlay" class="show">
-      <div>
+      <div class="inner">
         <h2 id="ov-title">CORTEX ARENA</h2>
-        <p id="ov-text">Loading cortex.js…</p>
+        <p id="ov-text">Loading neural engine…</p>
+        <div id="load-status"></div>
+        <div id="load-error"></div>
       </div>
     </div>
   </div>
@@ -101,339 +107,451 @@ table.lb td{padding:2px 3px;font-family:var(--mono)}
 </div>
 
 <script type="module">
+
 // ═══════════════════════════════════════════════════════════════════════════
-// IMPORT FULL CORTEX2BRAIN FROM EXTERNAL FILE
+// 1. LOGGER — Structured logging with levels and UI integration
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { Cortex2Brain } from './cortex.js';
+class Logger {
+  static Level = Object.freeze({ DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 });
 
-// Validate import
-if (typeof Cortex2Brain !== 'function') {
-  document.getElementById('ov-text').innerHTML =
-    '<span class="err">ERROR: cortex.js not found or invalid.<br>Place cortex.js next to this HTML file.</span>';
-  throw new Error('Cortex2Brain import failed');
+  constructor(minLevel = Logger.Level.INFO) {
+    this._level = minLevel;
+    this._entries = [];
+    this._maxEntries = 200;
+    this._listeners = [];
+  }
+
+  debug(ctx, msg, data) { this._log(Logger.Level.DEBUG, ctx, msg, data); }
+  info(ctx, msg, data)  { this._log(Logger.Level.INFO, ctx, msg, data); }
+  warn(ctx, msg, data)  { this._log(Logger.Level.WARN, ctx, msg, data); }
+  error(ctx, msg, data) { this._log(Logger.Level.ERROR, ctx, msg, data); }
+
+  onEntry(fn) { this._listeners.push(fn); }
+  getEntries(level) { return level != null ? this._entries.filter(e => e.level >= level) : [...this._entries]; }
+
+  _log(level, context, message, data) {
+    if (level < this._level) return;
+    const names = ['DBG', 'INF', 'WRN', 'ERR'];
+    const entry = {
+      level, context, message, data,
+      timestamp: performance.now(),
+      label: names[level] || '???',
+    };
+    this._entries.push(entry);
+    if (this._entries.length > this._maxEntries) this._entries.shift();
+
+    const consoleFn = level >= 3 ? console.error : level >= 2 ? console.warn : console.log;
+    consoleFn(`[${entry.label}][${context}] ${message}`, data ?? '');
+
+    for (const fn of this._listeners) {
+      try { fn(entry); } catch (e) { console.error('Logger listener error', e); }
+    }
+  }
 }
 
-console.log('[Arena] Cortex2Brain loaded successfully');
+const logger = new Logger(Logger.Level.DEBUG);
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MATH UTILITIES
+// 2. CORTEX LOADER — Dynamic import with multiple path fallbacks
+//    Handles: GitHub Pages, local dev, subfolders, CDN
+// ═══════════════════════════════════════════════════════════════════════════
+
+class CortexLoader {
+  /**
+   * Attempts to load Cortex2Brain from multiple paths.
+   * Returns the constructor or throws with diagnostics.
+   */
+  static async load() {
+    const statusEl = document.getElementById('load-status');
+    const errorEl = document.getElementById('load-error');
+
+    // Build candidate paths relative to this HTML file
+    const base = new URL('.', window.location.href).href;
+    const paths = [
+      './cortex.js',
+      './core/cortex.js',
+      '../cortex.js',
+      './js/cortex.js',
+      './src/cortex.js',
+      './lib/cortex.js',
+      `${base}cortex.js`,
+    ];
+
+    // Deduplicate resolved URLs
+    const tried = new Set();
+    const errors = [];
+
+    for (const path of paths) {
+      let resolved;
+      try {
+        resolved = new URL(path, base).href;
+      } catch {
+        resolved = path;
+      }
+      if (tried.has(resolved)) continue;
+      tried.add(resolved);
+
+      if (statusEl) statusEl.textContent = `Trying: ${path}`;
+      logger.info('Loader', `Attempting import: ${resolved}`);
+
+      try {
+        const module = await import(resolved);
+
+        // Validate: must export Cortex2Brain as a constructor
+        const Ctor = module.Cortex2Brain || module.default?.Cortex2Brain || module.default;
+        if (typeof Ctor !== 'function') {
+          throw new Error(`Module loaded but Cortex2Brain is ${typeof Ctor}, not a function`);
+        }
+
+        // Smoke test: can we instantiate?
+        const test = new Ctor({ seed: '__smoke_test__' });
+        if (typeof test.forward !== 'function') {
+          throw new Error('Cortex2Brain instance missing forward() method');
+        }
+        if (typeof test.learn !== 'function' && typeof test.tdLearn !== 'function') {
+          throw new Error('Cortex2Brain instance missing learn()/tdLearn() method');
+        }
+
+        logger.info('Loader', `✓ Loaded from ${resolved}`);
+        if (statusEl) statusEl.textContent = `✓ Loaded from ${path}`;
+        return Ctor;
+      } catch (err) {
+        const msg = `✗ ${path}: ${err.message}`;
+        errors.push(msg);
+        logger.warn('Loader', msg);
+      }
+    }
+
+    // Also check if it's on window (script tag fallback)
+    if (typeof window.Cortex2Brain === 'function') {
+      logger.info('Loader', '✓ Found Cortex2Brain on window (script tag)');
+      if (statusEl) statusEl.textContent = '✓ Loaded from global scope';
+      return window.Cortex2Brain;
+    }
+
+    // All paths failed
+    const fullError = `Failed to load cortex.js from any path:\n\n${errors.join('\n')}\n\nFile structure required:\n  index.html\n  cortex.js  ← place here`;
+    logger.error('Loader', fullError);
+
+    if (errorEl) {
+      errorEl.innerHTML = `<div class="err">${fullError}</div>`;
+    }
+    throw new Error(fullError);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 3. MATH UTILITIES — Pure functions, no side effects
 // ═══════════════════════════════════════════════════════════════════════════
 
 const clamp = (v, mn, mx) => v < mn ? mn : v > mx ? mx : v;
-const lerp = (a, b, t) => a + (b - a) * clamp(t, 0, 1);
+const lerp  = (a, b, t) => a + (b - a) * clamp(t, 0, 1);
+const normAngle = a => { a %= 2*Math.PI; if(a>Math.PI)a-=2*Math.PI; if(a<-Math.PI)a+=2*Math.PI; return a; };
 
 const V2 = Object.freeze({
-  create: (x = 0, y = 0) => ({ x, y }),
-  add: (a, b) => ({ x: a.x + b.x, y: a.y + b.y }),
-  sub: (a, b) => ({ x: a.x - b.x, y: a.y - b.y }),
-  scale: (v, s) => ({ x: v.x * s, y: v.y * s }),
-  len: v => Math.sqrt(v.x * v.x + v.y * v.y),
-  lenSq: v => v.x * v.x + v.y * v.y,
-  norm: v => { const l = V2.len(v) || 1; return { x: v.x / l, y: v.y / l }; },
-  dist: (a, b) => V2.len(V2.sub(a, b)),
-  distSq: (a, b) => V2.lenSq(V2.sub(a, b)),
-  dot: (a, b) => a.x * b.x + a.y * b.y,
-  angle: v => Math.atan2(v.y, v.x),
-  fromAngle: (a, l = 1) => ({ x: Math.cos(a) * l, y: Math.sin(a) * l }),
-  perp: v => ({ x: -v.y, y: v.x }),
+  create:   (x=0,y=0) => ({x,y}),
+  add:      (a,b) => ({x:a.x+b.x, y:a.y+b.y}),
+  sub:      (a,b) => ({x:a.x-b.x, y:a.y-b.y}),
+  scale:    (v,s) => ({x:v.x*s, y:v.y*s}),
+  len:      v => Math.sqrt(v.x*v.x+v.y*v.y),
+  lenSq:    v => v.x*v.x+v.y*v.y,
+  norm:     v => { const l=V2.len(v)||1; return {x:v.x/l,y:v.y/l}; },
+  dist:     (a,b) => V2.len(V2.sub(a,b)),
+  distSq:   (a,b) => V2.lenSq(V2.sub(a,b)),
+  dot:      (a,b) => a.x*b.x+a.y*b.y,
+  angle:    v => Math.atan2(v.y,v.x),
+  fromAngle:(a,l=1) => ({x:Math.cos(a)*l, y:Math.sin(a)*l}),
+  perp:     v => ({x:-v.y, y:v.x}),
+  copy:     v => ({x:v.x, y:v.y}),
 });
 
-function normAngle(a) {
-  while (a > Math.PI) a -= 2 * Math.PI;
-  while (a < -Math.PI) a += 2 * Math.PI;
-  return a;
+// ═══════════════════════════════════════════════════════════════════════════
+// 4. DOMAIN ENTITIES — Pure data, no behavior (Single Responsibility)
+// ═══════════════════════════════════════════════════════════════════════════
+
+class TankEntity {
+  constructor(id, name, color, pos) {
+    this.id = id;
+    this.name = name;
+    this.color = color;
+    this.pos = V2.copy(pos);
+    this.prevPos = V2.copy(pos);
+    this.angle = Math.random() * Math.PI * 2;
+    this.turretAngle = this.angle;
+    this.hp = 100;
+    this.maxHp = 100;
+    this.alive = true;
+    this.reload = 0;
+    this.reloadTime = 22;
+    this.respawnTimer = 0;
+    this.cortex = null; // injected separately (D: Dependency Inversion)
+    this.kills = 0;
+    this.deaths = 0;
+    this.totalDamage = 0;
+    this.shotsFired = 0;
+    this.shotsHit = 0;
+    this.wins = 0;
+    this.lastReward = 0;
+    this.lastHitBy = null;
+    this.pendingEvents = [];
+    this.trail = [];
+    this.trailMax = 25;
+  }
+  get accuracy() { return this.shotsFired > 0 ? this.shotsHit / this.shotsFired : 0; }
+}
+
+class BulletEntity {
+  constructor(x, y, vx, vy, owner, dmg = 12) {
+    this.pos = {x, y};
+    this.vel = {x: vx, y: vy};
+    this.owner = owner;
+    this.life = 100;
+    this.dmg = dmg;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// S — SINGLE RESPONSIBILITY: each class does exactly one thing
-// O — OPEN/CLOSED: extend via new services, don't modify existing
-// L — LISKOV: Tank/Bullet are substitutable entity shapes
-// I — INTERFACE SEGREGATION: narrow public APIs per service
-// D — DEPENDENCY INVERSION: GameSimulation receives services, not concretions
+// 5. SERVICES — Each with a single responsibility (S), narrow API (I)
 // ═══════════════════════════════════════════════════════════════════════════
 
-// ── Physics Service ───────────────────────────────────────────────────────
+// ── 5a. Physics ───────────────────────────────────────────────────────────
 
 class PhysicsService {
-  constructor(arenaW, arenaH) {
-    this.w = arenaW;
-    this.h = arenaH;
+  constructor(w, h) { this.w = w; this.h = h; }
+
+  tryMove(pos, vel, r, walls, tanks, skipId) {
+    const nx = pos.x + vel.x, ny = pos.y + vel.y;
+    if (this.hitsWall(nx, ny, r, walls) || this.hitsTank(nx, ny, r, tanks, skipId)) return null;
+    return { x: clamp(nx, r, this.w - r), y: clamp(ny, r, this.h - r) };
   }
 
-  tryMove(pos, vel, radius, walls, tanks, skipId) {
-    const nx = pos.x + vel.x;
-    const ny = pos.y + vel.y;
-    if (this.hitsWall(nx, ny, radius, walls) || this.hitsTank(nx, ny, radius, tanks, skipId)) {
-      return null;
-    }
-    return { x: clamp(nx, radius, this.w - radius), y: clamp(ny, radius, this.h - radius) };
-  }
-
-  trySlide(pos, vel, radius, walls, tanks, skipId) {
-    const full = this.tryMove(pos, vel, radius, walls, tanks, skipId);
-    if (full) return full;
-    const sx = this.tryMove(pos, { x: vel.x, y: 0 }, radius, walls, tanks, skipId);
-    if (sx) return sx;
-    const sy = this.tryMove(pos, { x: 0, y: vel.y }, radius, walls, tanks, skipId);
-    if (sy) return sy;
-    return null;
+  trySlide(pos, vel, r, walls, tanks, skipId) {
+    return this.tryMove(pos, vel, r, walls, tanks, skipId)
+        || this.tryMove(pos, {x:vel.x,y:0}, r, walls, tanks, skipId)
+        || this.tryMove(pos, {x:0,y:vel.y}, r, walls, tanks, skipId);
   }
 
   hitsWall(x, y, r, walls) {
     for (let i = 0; i < walls.length; i++) {
       const w = walls[i];
-      const cx = clamp(x, w.x, w.x + w.w);
-      const cy = clamp(y, w.y, w.y + w.h);
-      const dx = cx - x, dy = cy - y;
-      if (dx * dx + dy * dy < r * r) return true;
+      const cx = clamp(x, w.x, w.x+w.w), cy = clamp(y, w.y, w.y+w.h);
+      if ((cx-x)**2 + (cy-y)**2 < r*r) return true;
     }
     return false;
   }
 
   hitsTank(x, y, r, tanks, skipId) {
-    const threshold = (r * 1.8) ** 2;
+    const rr = (r*1.8)**2;
     for (let i = 0; i < tanks.length; i++) {
       const t = tanks[i];
       if (!t.alive || t.id === skipId) continue;
-      if (V2.distSq({ x, y }, t.pos) < threshold) return true;
+      if (V2.distSq({x,y}, t.pos) < rr) return true;
     }
     return false;
   }
 
   pointInWall(x, y, walls) {
-    for (let i = 0; i < walls.length; i++) {
-      const w = walls[i];
-      if (x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h) return true;
-    }
+    for (const w of walls) if (x>=w.x && x<=w.x+w.w && y>=w.y && y<=w.y+w.h) return true;
     return false;
   }
 
-  raycast(ox, oy, dx, dy, maxDist, walls) {
-    const steps = Math.ceil(maxDist / 4);
+  raycast(ox, oy, dx, dy, max, walls) {
+    const steps = Math.ceil(max / 4);
     for (let i = 1; i <= steps; i++) {
-      const t = (i / steps) * maxDist;
-      if (this.pointInWall(ox + dx * t, oy + dy * t, walls)) return t;
+      const t = (i/steps)*max;
+      if (this.pointInWall(ox+dx*t, oy+dy*t, walls)) return t;
     }
-    return maxDist;
+    return max;
   }
 
   nearestWall(pos, walls) {
-    let bestDist = Infinity, bestDx = 0, bestDy = 0;
+    let best = Infinity, bx = 0, by = 0;
     for (const w of walls) {
-      const cx = clamp(pos.x, w.x, w.x + w.w);
-      const cy = clamp(pos.y, w.y, w.y + w.h);
-      const dx = cx - pos.x, dy = cy - pos.y;
-      const d = Math.sqrt(dx * dx + dy * dy);
-      if (d < bestDist) { bestDist = d; bestDx = dx; bestDy = dy; }
+      const cx = clamp(pos.x, w.x, w.x+w.w), cy = clamp(pos.y, w.y, w.y+w.h);
+      const d = V2.dist(pos, {x:cx,y:cy});
+      if (d < best) { best = d; bx = cx-pos.x; by = cy-pos.y; }
     }
-    return { dist: bestDist, dx: bestDx, dy: bestDy };
+    return { dist: best, dx: bx, dy: by };
   }
 }
 
-// ── Cortex Adapter (D: wraps Cortex2Brain, isolates arena from brain API) ─
+// ── 5b. Cortex Adapter (D: isolates arena from brain internal API) ────────
 
 class CortexAdapter {
-  constructor(seed, config = {}) {
-    this._brain = new Cortex2Brain({
+  /** @param {Function} BrainCtor - the Cortex2Brain constructor */
+  constructor(BrainCtor, seed, config = {}) {
+    if (typeof BrainCtor !== 'function') {
+      throw new Error(`CortexAdapter: BrainCtor must be function, got ${typeof BrainCtor}`);
+    }
+    this._brain = new BrainCtor({
       seed,
       lr: config.lr ?? 0.015,
       gamma: config.gamma ?? 0.99,
       lambda: config.lambda ?? 0.95,
       hebbianRate: config.hebbianRate ?? 0.002,
-      taskSpec: {
-        inputComplexity: 0.7,
-        temporalDepth: 0.5,
-        socialComplexity: 0.3,
-      },
+      taskSpec: { inputComplexity: 0.7, temporalDepth: 0.5, socialComplexity: 0.3 },
     });
-
     this._brain.configurePersonality({
       traits: {
-        bravery: 0.3 + Math.random() * 0.5,
+        bravery:    0.3 + Math.random() * 0.5,
         aggression: 0.3 + Math.random() * 0.5,
-        curiosity: 0.3 + Math.random() * 0.4,
-        patience: 0.3 + Math.random() * 0.4,
+        curiosity:  0.3 + Math.random() * 0.4,
+        patience:   0.3 + Math.random() * 0.4,
       },
     });
+    this._lastForward = null;
+    logger.debug('CortexAdapter', `Created brain seed=${seed}`);
   }
 
-  /** @param {Float32Array|number[]} sensors @param {number} reward @returns {ForwardResult} */
   forward(sensors, reward, combatEvents = null) {
-    return this._brain.forward(sensors, reward, combatEvents);
+    try {
+      this._lastForward = this._brain.forward(sensors, reward, combatEvents);
+      return this._lastForward;
+    } catch (e) {
+      logger.error('CortexAdapter', `forward() failed: ${e.message}`);
+      return { output: new Array(16).fill(0), predictionError: 0, reflexTriggered: false, emotionalStateName: null, stepCount: 0 };
+    }
   }
 
-  /** @param {Experience} exp */
-  learn(exp) {
-    return this._brain.learn(exp);
-  }
-
-  /** Lightweight TD learn from reward only (no next observation needed) */
   learnFromReward(reward) {
-    return this._brain.tdLearn([], [], reward);
+    try {
+      return this._brain.tdLearn([], [], reward);
+    } catch (e) {
+      logger.error('CortexAdapter', `tdLearn() failed: ${e.message}`);
+      return { tdError: 0 };
+    }
   }
 
-  getEmotions() { return this._brain.getEmotions(); }
-  getDebugInfo() { return this._brain.getDebugInfo(); }
-  getStats() { return this._brain.getStats(); }
-  getStep() { return this._brain.step ?? 0; }
+  getEmotions() {
+    try { return this._brain.getEmotions(); }
+    catch { return {}; }
+  }
+
+  getDebugInfo() {
+    try { return this._brain.getDebugInfo(); }
+    catch { return {}; }
+  }
+
+  getStats() {
+    try { return this._brain.getStats(); }
+    catch { return {}; }
+  }
+
+  getStep()             { return this._brain.step ?? 0; }
   getCumulativeReward() { return this._brain.cumulativeReward ?? 0; }
 
-  reset() { this._brain.resetEpisode(); }
+  reset() {
+    try { this._brain.resetEpisode(); }
+    catch (e) { logger.error('CortexAdapter', `reset() failed: ${e.message}`); }
+  }
 }
 
-// ── Sensor Builder (S: builds the 64-dim sensor vector) ───────────────────
-// This is the CONTRACT between the arena world and the brain.
-// Every sensor slot maps to Cortex2Brain's inputSchema.
+// ── 5c. Sensor Builder (S: only builds 64-dim sensor vectors) ─────────────
+// CONTRACT: sensor indices match Cortex2Brain's default inputSchema exactly
 
 class SensorBuilder {
-  constructor(arenaW, arenaH, physics) {
-    this.aw = arenaW;
-    this.ah = arenaH;
-    this.maxDist = Math.sqrt(arenaW ** 2 + arenaH ** 2);
+  constructor(aw, ah, physics) {
+    this.aw = aw; this.ah = ah;
+    this.maxDist = Math.sqrt(aw*aw + ah*ah);
     this.physics = physics;
   }
 
+  /** @returns {Float32Array} 64-dim normalized sensor vector */
   build(tank, allTanks, bullets, walls, tick) {
     const s = new Float32Array(64);
-    const alive = [];
-    for (let i = 0; i < allTanks.length; i++) {
-      if (allTanks[i].alive && allTanks[i].id !== tank.id) alive.push(allTanks[i]);
-    }
+    const alive = allTanks.filter(o => o.alive && o.id !== tank.id);
 
-    // ── Nearest enemy [0-3] ──
     let nearest = null, nDist = Infinity;
-    for (const o of alive) {
-      const d = V2.dist(tank.pos, o.pos);
-      if (d < nDist) { nDist = d; nearest = o; }
-    }
+    for (const o of alive) { const d = V2.dist(tank.pos, o.pos); if (d < nDist) { nDist = d; nearest = o; } }
 
     if (nearest) {
       const rel = V2.sub(nearest.pos, tank.pos);
-      s[0] = rel.x / this.maxDist;                               // enemy_x
-      s[1] = rel.y / this.maxDist;                               // enemy_y
-      s[2] = 1 - clamp(nDist / this.maxDist, 0, 1);             // distance (proximity)
-      s[3] = nearest.hp / nearest.maxHp;                         // enemy_health
-
-      const angleToE = V2.angle(rel);
-      const relAngle = normAngle(angleToE - tank.turretAngle);
-      s[25] = relAngle / Math.PI;                                // angle_to_enemy
-
+      s[0]  = rel.x / this.maxDist;
+      s[1]  = rel.y / this.maxDist;
+      s[2]  = 1 - clamp(nDist / this.maxDist, 0, 1);
+      s[3]  = nearest.hp / nearest.maxHp;
+      const aToE = V2.angle(rel);
+      const relA = normAngle(aToE - tank.turretAngle);
+      s[25] = relA / Math.PI;
       const eToMe = V2.sub(tank.pos, nearest.pos);
-      const eRelAngle = normAngle(V2.angle(eToMe) - nearest.turretAngle);
-      s[26] = Math.abs(eRelAngle) < Math.PI / 4 ? 1 : -1;      // enemy_sees_me
-      s[27] = Math.abs(eRelAngle) < Math.PI / 3 ? 1 : 0;       // in_enemy_arc
-      s[28] = Math.abs(relAngle) < Math.PI / 3 ? 1 : 0;        // enemy_in_my_arc
-
-      const threatDist = 1 - clamp(nDist / 300, 0, 1);
-      const threatAim = Math.abs(eRelAngle) < Math.PI / 4 ? 1 : 0;
-      s[29] = clamp(threatDist * 0.6 + threatAim * 0.4, 0, 1);  // threat_level
-
-      const toE = V2.norm(rel);
-      const perp = V2.perp(toE);
-      s[30] = perp.x;                                            // flank_vector_x
-      s[31] = perp.y;                                            // flank_vector_y
-      s[32] = normAngle(nearest.turretAngle - angleToE) / Math.PI; // angle_from_enemy
-      s[33] = clamp(1 - Math.abs(relAngle) / (Math.PI / 3), -1, 1); // dist_to_arc_edge
-
-      const predPos = V2.add(nearest.pos, V2.fromAngle(nearest.angle, 20));
-      const predRel = V2.sub(predPos, tank.pos);
-      s[35] = predRel.x / this.maxDist;                         // predicted_enemy_x
-      s[36] = predRel.y / this.maxDist;                         // predicted_enemy_y
+      const eRelA = normAngle(V2.angle(eToMe) - nearest.turretAngle);
+      s[26] = Math.abs(eRelA) < Math.PI/4 ? 1 : -1;
+      s[27] = Math.abs(eRelA) < Math.PI/3 ? 1 : 0;
+      s[28] = Math.abs(relA)  < Math.PI/3 ? 1 : 0;
+      s[29] = clamp((1-clamp(nDist/300,0,1))*0.6 + (Math.abs(eRelA)<Math.PI/4?0.4:0), 0, 1);
+      const toEN = V2.norm(rel), perp = V2.perp(toEN);
+      s[30] = perp.x;
+      s[31] = perp.y;
+      s[32] = normAngle(nearest.turretAngle - aToE) / Math.PI;
+      s[33] = clamp(1 - Math.abs(relA)/(Math.PI/3), -1, 1);
+      const pred = V2.add(nearest.pos, V2.fromAngle(nearest.angle, 20));
+      const pRel = V2.sub(pred, tank.pos);
+      s[35] = pRel.x / this.maxDist;
+      s[36] = pRel.y / this.maxDist;
     }
 
-    // ── Nearest wall [4-6] ──
     const nw = this.physics.nearestWall(tank.pos, walls);
-    s[4] = nw.dx / 200;                                          // wall_x
-    s[5] = nw.dy / 200;                                          // wall_y
-    s[6] = 1 - clamp(nw.dist / 200, 0, 1);                      // wall_distance
+    s[4]  = nw.dx / 200;
+    s[5]  = nw.dy / 200;
+    s[6]  = 1 - clamp(nw.dist / 200, 0, 1);
+    s[7]  = tank.pos.x / this.aw * 2 - 1;
+    s[8]  = tank.pos.y / this.ah * 2 - 1;
+    s[9]  = tank.hp / tank.maxHp;
+    s[10] = clamp(tank.lastReward / 5, -1, 1);
+    s[11] = clamp(tank.totalDamage / 500, 0, 1);
+    s[12] = tank.hp / tank.maxHp;
+    s[13] = tank.reload / tank.reloadTime;
+    s[14] = clamp(tick / 5000, 0, 1);
+    s[23] = clamp(tank.deaths / 10, 0, 1);
+    s[24] = alive.length <= 1 ? 1 : 0;
+    s[34] = 1 - tank.hp / tank.maxHp;
 
-    // ── Self state [7-14] ──
-    s[7] = tank.pos.x / this.aw * 2 - 1;                        // self_x
-    s[8] = tank.pos.y / this.ah * 2 - 1;                        // self_y
-    s[9] = tank.hp / tank.maxHp;                                 // self_health
-    s[10] = clamp(tank.lastReward / 5, -1, 1);                  // self_reward
-    s[11] = clamp(tank.totalDamage / 500, 0, 1);                // self_damage
-    s[12] = tank.hp / tank.maxHp;                                // self_dodge
-    s[13] = tank.reload / tank.reloadTime;                       // self_fireRate
-    s[14] = clamp(tick / 5000, 0, 1);                            // step_normalized
-
-    // ── Weapon flags [15-22] unused, zero ──
-
-    s[23] = clamp(tank.deaths / 10, 0, 1);                      // death_count
-    s[24] = alive.length <= 1 ? 1 : 0;                          // forced_combat
-
-    s[34] = 1 - tank.hp / tank.maxHp;                           // self_damage_ratio
-
-    // ── Path blocked [37] ──
     const fwd = V2.fromAngle(tank.angle);
-    const rayDist = this.physics.raycast(
-      tank.pos.x, tank.pos.y, fwd.x, fwd.y, 100, walls
-    );
-    s[37] = rayDist < 50 ? 1 : 0;                               // path_blocked
+    s[37] = this.physics.raycast(tank.pos.x, tank.pos.y, fwd.x, fwd.y, 100, walls) < 50 ? 1 : 0;
 
-    // ── Incoming bullet threat [38-40] ──
-    let maxThreat = 0, dodgeDir = { x: 0, y: 0 };
+    let maxThr = 0, dodgeD = {x:0,y:0};
     for (const b of bullets) {
       if (b.owner === tank.id) continue;
-      const toBullet = V2.sub(tank.pos, b.pos);
-      const d = V2.len(toBullet);
+      const tb = V2.sub(tank.pos, b.pos);
+      const d = V2.len(tb);
       if (d > 200) continue;
-      const bDir = V2.norm(b.vel);
-      const toMeDir = V2.norm(toBullet);
-      const dot = V2.dot(bDir, toMeDir);
-      if (dot > 0.3) {
-        const threat = (1 - d / 200) * dot;
-        if (threat > maxThreat) { maxThreat = threat; dodgeDir = V2.perp(bDir); }
-      }
+      const bd = V2.norm(b.vel), md = V2.norm(tb);
+      const dot = V2.dot(bd, md);
+      if (dot > 0.3) { const thr = (1-d/200)*dot; if (thr > maxThr) { maxThr = thr; dodgeD = V2.perp(bd); } }
     }
-    s[38] = maxThreat;                                           // recent_exposure
-    s[39] = dodgeDir.x;                                          // exposure_level (reused)
-    s[40] = dodgeDir.y;                                          // in_combat_range (reused)
+    s[38] = maxThr;
+    s[39] = dodgeD.x;
+    s[40] = dodgeD.y;
+    s[41] = nw.dist < 40 ? 1 : clamp(nw.dist/200, 0, 1);
+    s[42] = nw.dist < 30 ? (nw.dx > 0 ? -1 : 1) : 0;
 
-    // ── Wall proximity [41-42] ──
-    s[41] = nw.dist < 40 ? 1 : clamp(nw.dist / 200, 0, 1);     // wall_dist_normalized
-    s[42] = nw.dist < 30 ? (nw.dx > 0 ? -1 : 1) : 0;           // wall_avoidance_steer
-
-    // ── Directional wall rays [43-47] ──
     for (let i = 0; i < 5; i++) {
-      const a = tank.angle + (i - 2) * Math.PI / 4;
+      const a = tank.angle + (i-2)*Math.PI/4;
       const dir = V2.fromAngle(a);
-      const rd = this.physics.raycast(tank.pos.x, tank.pos.y, dir.x, dir.y, 120, walls);
-      s[43 + i] = 1 - clamp(rd / 120, 0, 1);
+      s[43+i] = 1 - clamp(this.physics.raycast(tank.pos.x, tank.pos.y, dir.x, dir.y, 120, walls)/120, 0, 1);
     }
 
-    // ── Sorted enemy angular data [48-51] ──
-    const sorted = alive
-      .map(o => ({
-        dist: V2.dist(tank.pos, o.pos),
-        angle: normAngle(V2.angle(V2.sub(o.pos, tank.pos)) - tank.turretAngle),
-      }))
-      .sort((a, b) => a.dist - b.dist);
+    const sorted = alive.map(o => ({ dist: V2.dist(tank.pos,o.pos), angle: normAngle(V2.angle(V2.sub(o.pos,tank.pos))-tank.turretAngle), o })).sort((a,b) => a.dist-b.dist);
     for (let i = 0; i < Math.min(2, sorted.length); i++) {
-      s[48 + i * 2] = sorted[i].angle / Math.PI;
-      s[49 + i * 2] = 1 - clamp(sorted[i].dist / this.maxDist, 0, 1);
+      s[48+i*2] = sorted[i].angle / Math.PI;
+      s[49+i*2] = 1 - clamp(sorted[i].dist / this.maxDist, 0, 1);
     }
 
-    // ── Heading & meta [52-55] ──
     s[52] = Math.cos(tank.turretAngle);
     s[53] = Math.sin(tank.turretAngle);
     s[54] = clamp(alive.length / 12, 0, 1);
     s[55] = tank.reload <= 0 ? 1 : 0;
 
-    // ── Second-nearest [56-59] ──
     if (sorted.length > 1) {
-      const sn = alive.sort((a, b) => V2.dist(tank.pos, a.pos) - V2.dist(tank.pos, b.pos))[1];
-      if (sn) {
-        const rel2 = V2.sub(sn.pos, tank.pos);
-        s[56] = rel2.x / this.maxDist;
-        s[57] = rel2.y / this.maxDist;
-        s[58] = sn.hp / sn.maxHp;
-        s[59] = normAngle(V2.angle(rel2) - tank.turretAngle) / Math.PI;
-      }
+      const sn = sorted[1];
+      const r2 = V2.sub(sn.o.pos, tank.pos);
+      s[56] = r2.x / this.maxDist;
+      s[57] = r2.y / this.maxDist;
+      s[58] = sn.o.hp / sn.o.maxHp;
+      s[59] = sn.angle / Math.PI;
     }
 
-    // ── Edge distances [60-63] ──
     s[60] = tank.pos.x / this.aw;
     s[61] = 1 - tank.pos.x / this.aw;
     s[62] = tank.pos.y / this.ah;
@@ -443,289 +561,161 @@ class SensorBuilder {
   }
 }
 
-// ── Output Interpreter (S: maps 16 brain outputs → tank commands) ─────────
+// ── 5d. Output Interpreter ────────────────────────────────────────────────
 
 class OutputInterpreter {
-  interpret(result, tank, nearestEnemy) {
-    const out = result.output;
+  interpret(result, tank, nearest) {
+    const o = result.output;
+    let moveAngle = Math.atan2(o[1]||0, o[0]||0);
 
-    const moveX = out[0] || 0;
-    const moveY = out[1] || 0;
-    let moveAngle = Math.atan2(moveY, moveX);
-
-    const aimX = out[2] || 0;
-    const aimY = out[3] || 0;
     let aimAngle = tank.turretAngle;
-    if (Math.abs(aimX) > 0.1 || Math.abs(aimY) > 0.1) {
-      aimAngle = Math.atan2(aimY, aimX);
-    } else if (nearestEnemy) {
-      aimAngle = V2.angle(V2.sub(nearestEnemy.pos, tank.pos));
-    }
+    if (Math.abs(o[2]||0) > 0.1 || Math.abs(o[3]||0) > 0.1) aimAngle = Math.atan2(o[3]||0, o[2]||0);
+    else if (nearest) aimAngle = V2.angle(V2.sub(nearest.pos, tank.pos));
 
-    const throttle = clamp(out[4] || 0, -1, 1);
+    const throttle = clamp(o[4]||0, -1, 1);
     const speed = 0.4 + Math.abs(throttle) * 0.6;
+    const shoot = (o[6]||0) > 0.2;
 
-    const aggrBias = clamp(out[6] || 0, 0, 1);
-    const shoot = aggrBias > 0.2;
+    moveAngle += (o[8]||0) * 0.3;
 
-    const steer = (out[8] || 0) * 0.3;
-    moveAngle += steer;
+    const retreat = clamp(o[10]||0, 0, 1);
+    if (retreat > 0.5 && nearest) moveAngle = lerp(moveAngle, V2.angle(V2.sub(tank.pos, nearest.pos)), retreat);
 
-    const retreat = clamp(out[10] || 0, 0, 1);
-    if (retreat > 0.5 && nearestEnemy) {
-      const awayAngle = V2.angle(V2.sub(tank.pos, nearestEnemy.pos));
-      moveAngle = lerp(moveAngle, awayAngle, retreat);
-    }
-
-    const flank = clamp(out[11] || 0, 0, 1);
-    if (flank > 0.3 && nearestEnemy) {
-      const toE = V2.sub(nearestEnemy.pos, tank.pos);
-      const perpAngle = V2.angle(V2.perp(V2.norm(toE)));
-      moveAngle = lerp(moveAngle, perpAngle, flank * 0.5);
-    }
+    const flank = clamp(o[11]||0, 0, 1);
+    if (flank > 0.3 && nearest) moveAngle = lerp(moveAngle, V2.angle(V2.perp(V2.norm(V2.sub(nearest.pos, tank.pos)))), flank*0.5);
 
     return { moveAngle, speed, aimAngle, shoot };
   }
 }
 
-// ── Reward Shaper (S: only computes per-frame reward) ─────────────────────
+// ── 5e. Reward Shaper ─────────────────────────────────────────────────────
 
 class RewardShaper {
-  compute(tank, nearest, walls, physics, prevPos) {
-    let r = 0.005; // alive bonus
+  constructor(physics) { this.physics = physics; }
 
+  compute(tank, nearest, walls, prevPos) {
+    let r = 0.005;
     if (nearest) {
-      const dist = V2.dist(tank.pos, nearest.pos);
-
-      // Optimal distance reward
-      if (dist > 80 && dist < 250) r += 0.02;
-      else if (dist < 40) r -= 0.015;
-      else if (dist > 400) r -= 0.005;
-
-      // Aim reward
-      const toE = V2.angle(V2.sub(nearest.pos, tank.pos));
-      const aimDiff = Math.abs(normAngle(tank.turretAngle - toE));
-      if (aimDiff < Math.PI / 6) r += 0.02;
-      else if (aimDiff < Math.PI / 3) r += 0.008;
-
-      // Positional advantage (enemy not aiming at me)
-      const eToMe = V2.angle(V2.sub(tank.pos, nearest.pos));
-      const eAimDiff = Math.abs(normAngle(nearest.turretAngle - eToMe));
-      if (eAimDiff > Math.PI / 3) r += 0.01;
-      if (eAimDiff > Math.PI / 2) r += 0.015; // flanking
+      const d = V2.dist(tank.pos, nearest.pos);
+      if (d > 80 && d < 250) r += 0.02;
+      else if (d < 40) r -= 0.015;
+      else if (d > 400) r -= 0.005;
+      const aimD = Math.abs(normAngle(tank.turretAngle - V2.angle(V2.sub(nearest.pos, tank.pos))));
+      if (aimD < Math.PI/6) r += 0.02;
+      else if (aimD < Math.PI/3) r += 0.008;
+      const eAimD = Math.abs(normAngle(nearest.turretAngle - V2.angle(V2.sub(tank.pos, nearest.pos))));
+      if (eAimD > Math.PI/3) r += 0.01;
+      if (eAimD > Math.PI/2) r += 0.015;
     }
-
-    // Wall penalty
-    const nw = physics.nearestWall(tank.pos, walls);
+    const nw = this.physics.nearestWall(tank.pos, walls);
     if (nw.dist < 25) r -= 0.025;
-
-    // Edge penalty
-    const margin = 30;
-    if (tank.pos.x < margin || tank.pos.x > physics.w - margin ||
-        tank.pos.y < margin || tank.pos.y > physics.h - margin) {
-      r -= 0.02;
-    }
-
-    // Movement reward (anti-camping)
-    if (prevPos) {
-      const moved = V2.dist(tank.pos, prevPos);
-      if (moved < 0.3) r -= 0.015;
-      else if (moved > 1) r += 0.005;
-    }
-
+    const m = 30;
+    if (tank.pos.x < m || tank.pos.x > this.physics.w-m || tank.pos.y < m || tank.pos.y > this.physics.h-m) r -= 0.02;
+    if (prevPos) { if (V2.dist(tank.pos, prevPos) < 0.3) r -= 0.015; else r += 0.005; }
     return clamp(r, -0.2, 0.2);
   }
 }
 
-// ── Tank Entity (S: state container only) ─────────────────────────────────
-
-class Tank {
-  constructor(id, name, color, pos, cortex) {
-    this.id = id;
-    this.name = name;
-    this.color = color;
-    this.pos = { ...pos };
-    this.prevPos = { ...pos };
-    this.angle = Math.random() * Math.PI * 2;
-    this.turretAngle = this.angle;
-    this.hp = 100;
-    this.maxHp = 100;
-    this.alive = true;
-    this.reload = 0;
-    this.reloadTime = 22;
-    this.respawnTimer = 0;
-    this.cortex = cortex; // CortexAdapter
-
-    this.kills = 0;
-    this.deaths = 0;
-    this.totalDamage = 0;
-    this.shotsFired = 0;
-    this.shotsHit = 0;
-    this.wins = 0;
-    this.lastReward = 0;
-    this.lastHitBy = null;
-
-    this.trail = [];
-    this.trailMax = 25;
-  }
-
-  get accuracy() {
-    return this.shotsFired > 0 ? this.shotsHit / this.shotsFired : 0;
-  }
-}
-
-// ── Bullet Entity ─────────────────────────────────────────────────────────
-
-class Bullet {
-  constructor(x, y, vx, vy, owner, dmg = 12) {
-    this.pos = { x, y };
-    this.vel = { x: vx, y: vy };
-    this.owner = owner;
-    this.life = 100;
-    this.dmg = dmg;
-  }
-}
-
-// ── Wall Generator (S: deterministic wall placement) ──────────────────────
+// ── 5f. Wall Generator ────────────────────────────────────────────────────
 
 class WallGenerator {
   generate(w, h, count, seed) {
     const walls = [];
     let s = this._hash(seed);
     for (let i = 0; i < count; i++) {
-      s = this._next(s);
-      let ww = 50 + (s / 4294967296) * 140;
-      s = this._next(s);
-      let wh = 10 + (s / 4294967296) * 14;
-      s = this._next(s);
-      if ((s / 4294967296) > 0.5) [ww, wh] = [wh, ww];
-      s = this._next(s);
-      const wx = 60 + (s / 4294967296) * (w - 120 - ww);
-      s = this._next(s);
-      const wy = 60 + (s / 4294967296) * (h - 120 - wh);
-      walls.push({ x: wx, y: wy, w: ww, h: wh });
+      s = this._nx(s); let ww = 50 + (s/4294967296)*140;
+      s = this._nx(s); let wh = 10 + (s/4294967296)*14;
+      s = this._nx(s); if ((s/4294967296) > 0.5) [ww,wh] = [wh,ww];
+      s = this._nx(s); const wx = 60 + (s/4294967296)*(w-120-ww);
+      s = this._nx(s); const wy = 60 + (s/4294967296)*(h-120-wh);
+      walls.push({x:wx,y:wy,w:ww,h:wh});
     }
     return walls;
   }
-
-  _hash(seed) {
-    let h = 0x811c9dc5;
-    const s = 'walls_' + seed;
-    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
-    return (h >>> 0) || 1;
-  }
-
-  _next(s) { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) || 1; }
+  _hash(seed) { let h=0x811c9dc5; const s='w_'+seed; for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193)} return(h>>>0)||1; }
+  _nx(s) { s^=s<<13; s^=s>>>17; s^=s<<5; return(s>>>0)||1; }
 }
 
-// ── Particle System (S: visual effects only) ──────────────────────────────
+// ── 5g. Particle System ───────────────────────────────────────────────────
 
 class ParticleSystem {
   constructor() { this.items = []; }
-
-  emit(x, y, color, count, speed) {
-    for (let i = 0; i < count; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const sp = Math.random() * speed;
-      this.items.push({
-        x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-        color, life: 12 + (Math.random() * 20) | 0, maxLife: 32,
-      });
-    }
+  emit(x,y,color,count,speed) {
+    for (let i=0;i<count;i++) { const a=Math.random()*Math.PI*2, sp=Math.random()*speed;
+      this.items.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,color,life:12+(Math.random()*20)|0,maxLife:32}); }
   }
-
   update() {
-    for (let i = this.items.length - 1; i >= 0; i--) {
-      const p = this.items[i];
-      p.x += p.vx; p.y += p.vy;
-      p.vx *= 0.94; p.vy *= 0.94;
-      if (--p.life <= 0) this.items.splice(i, 1);
-    }
+    for (let i=this.items.length-1;i>=0;i--) {
+      const p=this.items[i]; p.x+=p.vx; p.y+=p.vy; p.vx*=.94; p.vy*=.94;
+      if(--p.life<=0) this.items.splice(i,1); }
   }
 }
 
-// ── Event Log (S: stores log entries only) ────────────────────────────────
+// ── 5h. Event Log (battle events, separate from Logger) ───────────────────
 
-class EventLog {
-  constructor(max = 80) { this.entries = []; this.max = max; }
-  add(type, msg, tick) {
-    this.entries.unshift({ type, msg, tick });
-    if (this.entries.length > this.max) this.entries.length = this.max;
-  }
-  clear() { this.entries = []; }
+class BattleLog {
+  constructor(max=80) { this.entries=[]; this.max=max; }
+  add(type,msg,tick) { this.entries.unshift({type,msg,tick}); if(this.entries.length>this.max)this.entries.length=this.max; }
+  clear() { this.entries=[]; }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// GAME SIMULATION (orchestrator — depends on service abstractions)
+// 6. GAME SIMULATION — Orchestrator (O: open for extension via services)
+//    Depends on abstractions, not concretions (D)
 // ═══════════════════════════════════════════════════════════════════════════
 
-const NAMES = ['Apex','Bravo','Cipher','Delta','Echo','Forge','Ghost','Havoc','Iron','Jinx','Krait','Lynx'];
+const NAMES  = ['Apex','Bravo','Cipher','Delta','Echo','Forge','Ghost','Havoc','Iron','Jinx','Krait','Lynx'];
 const COLORS = ['#4f8eff','#e74c3c','#2ecc71','#f1c40f','#a55eea','#00d2d3','#f39c12','#fd79a8','#1abc9c','#8854d0','#eb3b5a','#78e08f'];
 
+const SIM_CFG = Object.freeze({
+  TANK_R: 14, BARREL_LEN: 22, BULLET_SPEED: 6,
+  TANK_SPEED: 2.4, TANK_ROT: 0.06, TURRET_ROT: 0.09,
+  RESPAWN: 120, BULLET_DMG: 12,
+  R_HIT: 2.0, R_KILL: 8.0, R_DAMAGED: -1.5, R_DEATH: -8.0, R_WALL_BUMP: -0.03,
+  WALL_COUNT: 7,
+});
+
 class GameSimulation {
-  constructor(arenaW, arenaH) {
-    this.AW = arenaW;
-    this.AH = arenaH;
+  constructor(aw, ah, BrainCtor) {
+    this.AW = aw; this.AH = ah;
+    this.BrainCtor = BrainCtor;
+    this.cfg = SIM_CFG;
 
-    // Constants
-    this.TANK_R = 14;
-    this.BARREL_LEN = 22;
-    this.BULLET_SPEED = 6;
-    this.TANK_SPEED = 2.4;
-    this.TANK_ROT = 0.06;
-    this.TURRET_ROT = 0.09;
-    this.RESPAWN_TICKS = 120;
-    this.BULLET_DMG = 12;
-
-    // Reward magnitudes
-    this.R_HIT = 2.0;
-    this.R_KILL = 8.0;
-    this.R_DAMAGED = -1.5;
-    this.R_DEATH = -8.0;
-    this.R_WALL_BUMP = -0.03;
-
-    // Services (D: Dependency Inversion)
-    this.physics = new PhysicsService(arenaW, arenaH);
-    this.sensors = new SensorBuilder(arenaW, arenaH, this.physics);
-    this.interpreter = new OutputInterpreter();
-    this.rewardShaper = new RewardShaper();
-    this.wallGen = new WallGenerator();
+    // Inject services (D)
+    this.physics   = new PhysicsService(aw, ah);
+    this.sensors   = new SensorBuilder(aw, ah, this.physics);
+    this.interp    = new OutputInterpreter();
+    this.rewards   = new RewardShaper(this.physics);
+    this.wallGen   = new WallGenerator();
     this.particles = new ParticleSystem();
-    this.log = new EventLog();
+    this.log       = new BattleLog();
 
-    // State
-    this.tanks = [];
-    this.bullets = [];
-    this.walls = [];
-    this.tick = 0;
-    this.round = 1;
-    this.running = false;
-    this.speed = 2;
-    this.tankCount = 6;
+    this.tanks = []; this.bullets = []; this.walls = [];
+    this.tick = 0; this.round = 1;
+    this.running = false; this.speed = 2; this.tankCount = 6;
     this.selectedTankId = null;
     this.leaderboard = new Map();
+
+    logger.info('Sim', `GameSimulation created ${aw}×${ah}`);
   }
 
   init() {
-    this.tanks = [];
-    this.bullets = [];
-    this.tick = 0;
-    this.walls = this.wallGen.generate(this.AW, this.AH, 7, this.round);
-
+    this.tanks = []; this.bullets = []; this.tick = 0;
+    this.walls = this.wallGen.generate(this.AW, this.AH, this.cfg.WALL_COUNT, this.round);
     for (let i = 0; i < this.tankCount; i++) {
-      const cortex = new CortexAdapter(
-        `tank_${i}_r${this.round}_${Date.now()}`,
-        { lr: 0.012 + Math.random() * 0.006 }
-      );
       const pos = this._findSpawn();
-      const tank = new Tank(i, NAMES[i % 12], COLORS[i % 12], pos, cortex);
-      this.tanks.push(tank);
-
-      if (!this.leaderboard.has(tank.name)) {
-        this.leaderboard.set(tank.name, { kills: 0, deaths: 0, damage: 0, wins: 0 });
+      const tank = new TankEntity(i, NAMES[i%12], COLORS[i%12], pos);
+      try {
+        tank.cortex = new CortexAdapter(this.BrainCtor, `t${i}_r${this.round}_${Date.now()}`, { lr: 0.012 + Math.random()*0.006 });
+      } catch (e) {
+        logger.error('Sim', `Failed to create brain for ${tank.name}: ${e.message}`);
+        throw e;
       }
+      this.tanks.push(tank);
+      if (!this.leaderboard.has(tank.name)) this.leaderboard.set(tank.name, {kills:0,deaths:0,damage:0,wins:0});
     }
     this.log.add('spawn', `Round ${this.round}: ${this.tankCount} tanks deployed`, this.tick);
+    logger.info('Sim', `Round ${this.round} initialized, ${this.tankCount} tanks`);
   }
 
   step() {
@@ -735,443 +725,220 @@ class GameSimulation {
 
   _tick() {
     this.tick++;
+    const c = this.cfg;
     const alive = this.tanks.filter(t => t.alive);
 
-    // Round end
     if (alive.length <= 1) {
       if (alive.length === 1) {
-        const w = alive[0];
-        w.wins++;
-        const lb = this.leaderboard.get(w.name);
-        if (lb) lb.wins++;
-        this.log.add('win', `🏆 ${w.name} wins Round ${this.round}!`, this.tick);
-      } else {
-        this.log.add('win', `Round ${this.round} — draw`, this.tick);
-      }
-      this.round++;
-      this.init();
-      return;
+        alive[0].wins++;
+        const lb = this.leaderboard.get(alive[0].name); if (lb) lb.wins++;
+        this.log.add('win', `🏆 ${alive[0].name} wins Round ${this.round}!`, this.tick);
+        logger.info('Sim', `${alive[0].name} wins round ${this.round}`);
+      } else { this.log.add('win', `Round ${this.round} — draw`, this.tick); }
+      this.round++; this.init(); return;
     }
 
-    // ── Process each tank ──
     for (const tank of this.tanks) {
-      if (!tank.alive) {
-        if (--tank.respawnTimer <= 0) this._respawn(tank);
-        continue;
-      }
+      if (!tank.alive) { if (--tank.respawnTimer <= 0) this._respawn(tank); continue; }
       if (tank.reload > 0) tank.reload--;
 
-      // Find nearest enemy
       let nearest = null, nDist = Infinity;
-      for (const o of alive) {
-        if (o.id === tank.id) continue;
-        const d = V2.dist(tank.pos, o.pos);
-        if (d < nDist) { nDist = d; nearest = o; }
-      }
+      for (const o of alive) { if (o.id === tank.id) continue; const d = V2.dist(tank.pos,o.pos); if (d < nDist){nDist=d;nearest=o;} }
 
-      // Build sensors → brain → interpret
-      const sensorVec = this.sensors.build(tank, this.tanks, this.bullets, this.walls, this.tick);
-      const frameReward = this.rewardShaper.compute(
-        tank, nearest, this.walls, this.physics, tank.prevPos
-      );
-      tank.lastReward = frameReward;
+      const sv = this.sensors.build(tank, this.tanks, this.bullets, this.walls, this.tick);
+      const fr = this.rewards.compute(tank, nearest, this.walls, tank.prevPos);
+      tank.lastReward = fr;
 
-      // Build combat events for emotional processing
-      const combatEvents = tank._pendingEvents || null;
-      tank._pendingEvents = null;
+      const events = tank.pendingEvents.length > 0 ? tank.pendingEvents.splice(0) : null;
+      const result = tank.cortex.forward(sv, fr, events);
+      const cmd    = this.interp.interpret(result, tank, nearest);
+      tank.cortex.learnFromReward(fr);
 
-      const result = tank.cortex.forward(sensorVec, frameReward, combatEvents);
-      const cmd = this.interpreter.interpret(result, tank, nearest);
+      tank.prevPos = V2.copy(tank.pos);
+      tank.angle += clamp(normAngle(cmd.moveAngle - tank.angle), -c.TANK_ROT, c.TANK_ROT);
+      tank.turretAngle += clamp(normAngle(cmd.aimAngle - tank.turretAngle), -c.TURRET_ROT, c.TURRET_ROT);
 
-      // Learn from frame reward
-      tank.cortex.learnFromReward(frameReward);
+      const vel = V2.fromAngle(tank.angle, c.TANK_SPEED * cmd.speed);
+      const np = this.physics.trySlide(tank.pos, vel, c.TANK_R, this.walls, this.tanks, tank.id);
+      if (np) tank.pos = np;
+      else tank.cortex.learnFromReward(c.R_WALL_BUMP);
 
-      // ── Apply movement ──
-      tank.prevPos = { ...tank.pos };
-
-      // Body rotation toward move direction
-      let angleDiff = normAngle(cmd.moveAngle - tank.angle);
-      tank.angle += clamp(angleDiff, -this.TANK_ROT, this.TANK_ROT);
-
-      // Turret rotation toward aim
-      let turretDiff = normAngle(cmd.aimAngle - tank.turretAngle);
-      tank.turretAngle += clamp(turretDiff, -this.TURRET_ROT, this.TURRET_ROT);
-
-      const vel = V2.fromAngle(tank.angle, this.TANK_SPEED * cmd.speed);
-      const newPos = this.physics.trySlide(tank.pos, vel, this.TANK_R, this.walls, this.tanks, tank.id);
-      if (newPos) {
-        tank.pos = newPos;
-      } else {
-        tank.cortex.learnFromReward(this.R_WALL_BUMP);
-      }
-
-      // ── Shoot ──
       if (cmd.shoot && tank.reload <= 0) {
-        tank.reload = tank.reloadTime;
-        tank.shotsFired++;
-        const bx = tank.pos.x + Math.cos(tank.turretAngle) * this.BARREL_LEN;
-        const by = tank.pos.y + Math.sin(tank.turretAngle) * this.BARREL_LEN;
-        this.bullets.push(new Bullet(
-          bx, by,
-          Math.cos(tank.turretAngle) * this.BULLET_SPEED,
-          Math.sin(tank.turretAngle) * this.BULLET_SPEED,
-          tank.id, this.BULLET_DMG
-        ));
+        tank.reload = tank.reloadTime; tank.shotsFired++;
+        const bx = tank.pos.x + Math.cos(tank.turretAngle)*c.BARREL_LEN;
+        const by = tank.pos.y + Math.sin(tank.turretAngle)*c.BARREL_LEN;
+        this.bullets.push(new BulletEntity(bx, by, Math.cos(tank.turretAngle)*c.BULLET_SPEED, Math.sin(tank.turretAngle)*c.BULLET_SPEED, tank.id, c.BULLET_DMG));
         this.particles.emit(bx, by, tank.color, 3, 2);
       }
-
-      // Trail
-      tank.trail.push({ ...tank.pos });
+      tank.trail.push(V2.copy(tank.pos));
       if (tank.trail.length > tank.trailMax) tank.trail.shift();
     }
 
-    // ── Update bullets ──
-    for (let i = this.bullets.length - 1; i >= 0; i--) {
+    for (let i = this.bullets.length-1; i >= 0; i--) {
       const b = this.bullets[i];
-      b.pos.x += b.vel.x;
-      b.pos.y += b.vel.y;
-
-      if (--b.life <= 0 || b.pos.x < 0 || b.pos.x > this.AW ||
-          b.pos.y < 0 || b.pos.y > this.AH) {
-        this.bullets.splice(i, 1);
-        continue;
-      }
-
-      if (this.physics.pointInWall(b.pos.x, b.pos.y, this.walls)) {
-        this.particles.emit(b.pos.x, b.pos.y, '#777', 4, 1.5);
-        this.bullets.splice(i, 1);
-        continue;
-      }
+      b.pos.x += b.vel.x; b.pos.y += b.vel.y;
+      if (--b.life <= 0 || b.pos.x<0 || b.pos.x>this.AW || b.pos.y<0 || b.pos.y>this.AH) { this.bullets.splice(i,1); continue; }
+      if (this.physics.pointInWall(b.pos.x, b.pos.y, this.walls)) { this.particles.emit(b.pos.x,b.pos.y,'#777',4,1.5); this.bullets.splice(i,1); continue; }
 
       for (const tank of this.tanks) {
         if (!tank.alive || tank.id === b.owner) continue;
-        if (V2.distSq(tank.pos, b.pos) < this.TANK_R ** 2) {
-          // Damage
-          tank.hp -= b.dmg;
-          tank.lastHitBy = b.owner;
-
-          // Feed combat events to victim's brain
-          if (!tank._pendingEvents) tank._pendingEvents = [];
-          tank._pendingEvents.push({ type: 'damage_received', damage: b.dmg });
-
-          // Reward shooter
-          const shooter = this.tanks[b.owner];
-          if (shooter) {
-            shooter.totalDamage += b.dmg;
-            shooter.shotsHit++;
-            shooter.cortex.learnFromReward(this.R_HIT);
-            const slb = this.leaderboard.get(shooter.name);
-            if (slb) slb.damage += b.dmg;
-
-            if (!shooter._pendingEvents) shooter._pendingEvents = [];
-            shooter._pendingEvents.push({ type: 'hit_dealt' });
-          }
-
-          // Punish victim
-          tank.cortex.learnFromReward(this.R_DAMAGED);
-
+        if (V2.distSq(tank.pos, b.pos) < c.TANK_R**2) {
+          tank.hp -= b.dmg; tank.lastHitBy = b.owner;
+          tank.pendingEvents.push({ type: 'damage_received', damage: b.dmg });
+          const sh = this.tanks[b.owner];
+          if (sh) { sh.totalDamage += b.dmg; sh.shotsHit++; sh.cortex.learnFromReward(c.R_HIT); sh.pendingEvents.push({type:'hit_dealt'}); const lb=this.leaderboard.get(sh.name); if(lb)lb.damage+=b.dmg; }
+          tank.cortex.learnFromReward(c.R_DAMAGED);
           this.particles.emit(b.pos.x, b.pos.y, tank.color, 6, 2.5);
           this.bullets.splice(i, 1);
-
-          if (tank.hp <= 0) this._killTank(tank, b.owner);
+          if (tank.hp <= 0) this._kill(tank, b.owner);
           break;
         }
       }
     }
-
     this.particles.update();
   }
 
-  _killTank(tank, killerId) {
-    tank.alive = false;
-    tank.deaths++;
-    tank.respawnTimer = this.RESPAWN_TICKS;
-    tank.hp = 0;
-
-    tank.cortex.learnFromReward(this.R_DEATH);
-
-    if (!tank._pendingEvents) tank._pendingEvents = [];
-    tank._pendingEvents.push({ type: 'killed_by', killer: killerId });
-
-    const lb = this.leaderboard.get(tank.name);
-    if (lb) lb.deaths++;
-
+  _kill(tank, killerId) {
+    const c = this.cfg;
+    tank.alive = false; tank.deaths++; tank.respawnTimer = c.RESPAWN; tank.hp = 0;
+    tank.cortex.learnFromReward(c.R_DEATH);
+    tank.pendingEvents.push({ type: 'killed_by', killer: killerId });
+    const lb = this.leaderboard.get(tank.name); if (lb) lb.deaths++;
     const killer = this.tanks[killerId];
     if (killer) {
-      killer.kills++;
-      killer.cortex.learnFromReward(this.R_KILL);
-
-      if (!killer._pendingEvents) killer._pendingEvents = [];
-      killer._pendingEvents.push({ type: 'enemy_defeated' });
-
-      const klb = this.leaderboard.get(killer.name);
-      if (klb) klb.kills++;
+      killer.kills++; killer.cortex.learnFromReward(c.R_KILL);
+      killer.pendingEvents.push({ type: 'enemy_defeated' });
+      const klb = this.leaderboard.get(killer.name); if (klb) klb.kills++;
       this.log.add('kill', `💀 ${killer.name} → ${tank.name}`, this.tick);
     }
-
     this.particles.emit(tank.pos.x, tank.pos.y, tank.color, 20, 4);
     this.particles.emit(tank.pos.x, tank.pos.y, '#f80', 15, 3);
   }
 
   _respawn(tank) {
     const pos = this._findSpawn();
-    tank.pos = { ...pos };
-    tank.prevPos = { ...pos };
-    tank.hp = tank.maxHp;
-    tank.alive = true;
-    tank.angle = Math.random() * Math.PI * 2;
-    tank.turretAngle = tank.angle;
-    tank.reload = 0;
-    tank.trail = [];
-    tank.lastReward = 0;
+    tank.pos = V2.copy(pos); tank.prevPos = V2.copy(pos);
+    tank.hp = tank.maxHp; tank.alive = true; tank.angle = Math.random()*Math.PI*2;
+    tank.turretAngle = tank.angle; tank.reload = 0; tank.trail = []; tank.lastReward = 0;
     tank.cortex.reset();
     this.log.add('spawn', `🔄 ${tank.name} respawned`, this.tick);
   }
 
   _findSpawn() {
-    for (let attempt = 0; attempt < 80; attempt++) {
-      const x = 60 + Math.random() * (this.AW - 120);
-      const y = 60 + Math.random() * (this.AH - 120);
-      if (!this.physics.hitsWall(x, y, this.TANK_R + 10, this.walls) &&
-          !this.physics.hitsTank(x, y, this.TANK_R + 20, this.tanks, -1)) {
-        return { x, y };
-      }
+    for (let a = 0; a < 80; a++) {
+      const x = 60+Math.random()*(this.AW-120), y = 60+Math.random()*(this.AH-120);
+      if (!this.physics.hitsWall(x,y,this.cfg.TANK_R+10,this.walls) && !this.physics.hitsTank(x,y,this.cfg.TANK_R+20,this.tanks,-1)) return {x,y};
     }
-    return { x: this.AW / 2, y: this.AH / 2 };
+    return {x:this.AW/2, y:this.AH/2};
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// RENDERER (S: only draws to canvas)
+// 7. RENDERER (S: only draws)
 // ═══════════════════════════════════════════════════════════════════════════
 
 class ArenaRenderer {
   constructor(canvas, sim) {
-    this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
-    this.sim = sim;
+    this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.sim = sim;
     this.dpr = window.devicePixelRatio || 1;
     this._resize();
     window.addEventListener('resize', () => this._resize());
   }
 
   _resize() {
-    const wrap = this.canvas.parentElement;
-    const w = wrap.clientWidth, h = wrap.clientHeight;
-    this.canvas.width = w * this.dpr;
-    this.canvas.height = h * this.dpr;
-    this.canvas.style.width = w + 'px';
-    this.canvas.style.height = h + 'px';
-    this.scale = Math.min(w / this.sim.AW, h / this.sim.AH) * this.dpr;
-    this.ox = (w * this.dpr - this.sim.AW * this.scale) / 2;
-    this.oy = (h * this.dpr - this.sim.AH * this.scale) / 2;
+    const w = this.canvas.parentElement.clientWidth, h = this.canvas.parentElement.clientHeight;
+    this.canvas.width = w*this.dpr; this.canvas.height = h*this.dpr;
+    this.canvas.style.width = w+'px'; this.canvas.style.height = h+'px';
+    this.scale = Math.min(w/this.sim.AW, h/this.sim.AH) * this.dpr;
+    this.ox = (w*this.dpr - this.sim.AW*this.scale)/2;
+    this.oy = (h*this.dpr - this.sim.AH*this.scale)/2;
   }
 
   render() {
-    const ctx = this.ctx, sim = this.sim;
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    ctx.save();
-    ctx.translate(this.ox, this.oy);
-    ctx.scale(this.scale, this.scale);
+    const ctx=this.ctx, sim=this.sim, c=sim.cfg;
+    ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
+    ctx.save(); ctx.translate(this.ox,this.oy); ctx.scale(this.scale,this.scale);
 
-    // Background
-    ctx.fillStyle = '#060910';
-    ctx.fillRect(0, 0, sim.AW, sim.AH);
-    ctx.strokeStyle = '#0d1117';
-    ctx.lineWidth = 0.5;
-    for (let x = 0; x <= sim.AW; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, sim.AH); ctx.stroke(); }
-    for (let y = 0; y <= sim.AH; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(sim.AW, y); ctx.stroke(); }
-    ctx.strokeStyle = '#1c2537';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(0, 0, sim.AW, sim.AH);
+    ctx.fillStyle='#060910'; ctx.fillRect(0,0,sim.AW,sim.AH);
+    ctx.strokeStyle='#0d1117'; ctx.lineWidth=.5;
+    for(let x=0;x<=sim.AW;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,sim.AH);ctx.stroke()}
+    for(let y=0;y<=sim.AH;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(sim.AW,y);ctx.stroke()}
+    ctx.strokeStyle='#1c2537'; ctx.lineWidth=2; ctx.strokeRect(0,0,sim.AW,sim.AH);
 
-    // Walls
-    for (const w of sim.walls) {
-      ctx.fillStyle = '#1c2537';
-      ctx.fillRect(w.x, w.y, w.w, w.h);
-      ctx.strokeStyle = '#2d3a50';
-      ctx.lineWidth = 0.8;
-      ctx.strokeRect(w.x, w.y, w.w, w.h);
-    }
+    for(const w of sim.walls){ctx.fillStyle='#1c2537';ctx.fillRect(w.x,w.y,w.w,w.h);ctx.strokeStyle='#2d3a50';ctx.lineWidth=.8;ctx.strokeRect(w.x,w.y,w.w,w.h)}
 
-    // Trails
-    for (const t of sim.tanks) {
-      if (!t.alive || t.trail.length < 2) continue;
-      ctx.beginPath();
-      ctx.moveTo(t.trail[0].x, t.trail[0].y);
-      for (let i = 1; i < t.trail.length; i++) ctx.lineTo(t.trail[i].x, t.trail[i].y);
-      ctx.strokeStyle = t.color + '18';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-    }
+    for(const t of sim.tanks){if(!t.alive||t.trail.length<2)continue;ctx.beginPath();ctx.moveTo(t.trail[0].x,t.trail[0].y);for(let i=1;i<t.trail.length;i++)ctx.lineTo(t.trail[i].x,t.trail[i].y);ctx.strokeStyle=t.color+'18';ctx.lineWidth=3;ctx.stroke()}
 
-    // Bullets
-    for (const b of sim.bullets) {
-      const owner = sim.tanks[b.owner];
-      const c = owner ? owner.color : '#fff';
-      ctx.beginPath();
-      ctx.arc(b.pos.x, b.pos.y, 2.5, 0, Math.PI * 2);
-      ctx.fillStyle = c;
-      ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(b.pos.x, b.pos.y);
-      ctx.lineTo(b.pos.x - b.vel.x * 3, b.pos.y - b.vel.y * 3);
-      ctx.strokeStyle = c + '60';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-    }
+    for(const b of sim.bullets){const o=sim.tanks[b.owner];const cl=o?o.color:'#fff';ctx.beginPath();ctx.arc(b.pos.x,b.pos.y,2.5,0,Math.PI*2);ctx.fillStyle=cl;ctx.fill();ctx.beginPath();ctx.moveTo(b.pos.x,b.pos.y);ctx.lineTo(b.pos.x-b.vel.x*3,b.pos.y-b.vel.y*3);ctx.strokeStyle=cl+'60';ctx.lineWidth=1.5;ctx.stroke()}
 
-    // Tanks
-    for (const t of sim.tanks) {
-      const R = sim.TANK_R;
+    for(const t of sim.tanks){
+      const R=c.TANK_R;
+      if(!t.alive){ctx.save();ctx.translate(t.pos.x,t.pos.y);ctx.globalAlpha=.25;ctx.strokeStyle=t.color;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-7,-7);ctx.lineTo(7,7);ctx.stroke();ctx.beginPath();ctx.moveTo(7,-7);ctx.lineTo(-7,7);ctx.stroke();ctx.font='8px system-ui';ctx.textAlign='center';ctx.fillStyle=t.color;ctx.fillText(Math.ceil(t.respawnTimer/60)+'s',0,15);ctx.restore();continue}
 
-      if (!t.alive) {
-        ctx.save();
-        ctx.translate(t.pos.x, t.pos.y);
-        ctx.globalAlpha = 0.25;
-        ctx.strokeStyle = t.color;
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(-7, -7); ctx.lineTo(7, 7); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(7, -7); ctx.lineTo(-7, 7); ctx.stroke();
-        ctx.font = '8px system-ui'; ctx.textAlign = 'center';
-        ctx.fillStyle = t.color;
-        ctx.fillText(Math.ceil(t.respawnTimer / 60) + 's', 0, 15);
-        ctx.restore();
-        continue;
-      }
+      ctx.save(); ctx.translate(t.pos.x,t.pos.y);
+      if(sim.selectedTankId===t.id){ctx.beginPath();ctx.arc(0,0,R+7,0,Math.PI*2);ctx.strokeStyle=t.color+'50';ctx.lineWidth=1.5;ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([])}
 
-      const sel = sim.selectedTankId === t.id;
-      ctx.save();
-      ctx.translate(t.pos.x, t.pos.y);
-
-      // Selection
-      if (sel) {
-        ctx.beginPath(); ctx.arc(0, 0, R + 7, 0, Math.PI * 2);
-        ctx.strokeStyle = t.color + '50';
-        ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
-      }
-
-      // Emotion aura
       const em = t.cortex.getEmotions();
-      const auraEm = em.aggression > 0.4 ? ['231,76,60', em.aggression]
-        : em.fear > 0.4 ? ['241,196,15', em.fear]
-        : em.confidence > 0.4 ? ['46,204,113', em.confidence]
-        : null;
-      if (auraEm) {
-        ctx.beginPath(); ctx.arc(0, 0, R + 4, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(${auraEm[0]},${auraEm[1] * 0.35})`;
-        ctx.lineWidth = 2; ctx.stroke();
-      }
+      const au = (em.aggression||0)>.4?['231,76,60',em.aggression]:(em.fear||0)>.4?['241,196,15',em.fear]:(em.confidence||0)>.4?['46,204,113',em.confidence]:null;
+      if(au){ctx.beginPath();ctx.arc(0,0,R+4,0,Math.PI*2);ctx.strokeStyle=`rgba(${au[0]},${au[1]*.35})`;ctx.lineWidth=2;ctx.stroke()}
 
-      // Body
-      ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2);
-      const grad = ctx.createRadialGradient(0, -3, 2, 0, 0, R);
-      grad.addColorStop(0, t.color + 'dd');
-      grad.addColorStop(1, t.color + '77');
-      ctx.fillStyle = grad; ctx.fill();
-      ctx.strokeStyle = t.color; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.beginPath();ctx.arc(0,0,R,0,Math.PI*2);
+      const gr=ctx.createRadialGradient(0,-3,2,0,0,R);gr.addColorStop(0,t.color+'dd');gr.addColorStop(1,t.color+'77');
+      ctx.fillStyle=gr;ctx.fill();ctx.strokeStyle=t.color;ctx.lineWidth=1.2;ctx.stroke();
 
-      // Turret (independent rotation)
-      ctx.save(); ctx.rotate(t.turretAngle);
-      ctx.fillStyle = t.color;
-      ctx.fillRect(R - 6, -2.5, sim.BARREL_LEN - R + 10, 5);
-      ctx.fillStyle = t.color + 'cc';
-      ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
+      ctx.save();ctx.rotate(t.turretAngle);ctx.fillStyle=t.color;ctx.fillRect(R-6,-2.5,c.BARREL_LEN-R+10,5);ctx.fillStyle=t.color+'cc';ctx.beginPath();ctx.arc(0,0,5,0,Math.PI*2);ctx.fill();ctx.restore();
 
-      // HP bar
-      const hpPct = t.hp / t.maxHp;
-      const barW = R * 2 + 4, barH = 3, barY = -R - 9;
-      ctx.fillStyle = '#000a';
-      ctx.fillRect(-barW / 2, barY, barW, barH);
-      ctx.fillStyle = hpPct > 0.6 ? '#2ecc71' : hpPct > 0.3 ? '#f1c40f' : '#e74c3c';
-      ctx.fillRect(-barW / 2, barY, barW * hpPct, barH);
+      const hp=t.hp/t.maxHp,bw=R*2+4,bh=3,by=-R-9;
+      ctx.fillStyle='#000a';ctx.fillRect(-bw/2,by,bw,bh);
+      ctx.fillStyle=hp>.6?'#2ecc71':hp>.3?'#f1c40f':'#e74c3c';ctx.fillRect(-bw/2,by,bw*hp,bh);
 
-      // Reload arc
-      if (t.reload > 0) {
-        ctx.beginPath();
-        ctx.arc(0, 0, R + 3, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - t.reload / t.reloadTime));
-        ctx.strokeStyle = '#ffffff20'; ctx.lineWidth = 1.5; ctx.stroke();
-      }
+      if(t.reload>0){ctx.beginPath();ctx.arc(0,0,R+3,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-t.reload/t.reloadTime));ctx.strokeStyle='#ffffff20';ctx.lineWidth=1.5;ctx.stroke()}
 
-      // Name
-      ctx.fillStyle = '#ffffffbb'; ctx.font = 'bold 8px system-ui'; ctx.textAlign = 'center';
-      ctx.fillText(t.name, 0, R + 13);
+      ctx.fillStyle='#ffffffbb';ctx.font='bold 8px system-ui';ctx.textAlign='center';ctx.fillText(t.name,0,R+13);
       ctx.restore();
     }
 
-    // Particles
-    for (const p of sim.particles.items) {
-      const a = p.life / p.maxLife;
-      ctx.beginPath(); ctx.arc(p.x, p.y, 1 + a * 2, 0, Math.PI * 2);
-      ctx.fillStyle = p.color + Math.floor(a * 200).toString(16).padStart(2, '0');
-      ctx.fill();
-    }
+    for(const p of sim.particles.items){const a=p.life/p.maxLife;ctx.beginPath();ctx.arc(p.x,p.y,1+a*2,0,Math.PI*2);ctx.fillStyle=p.color+Math.floor(a*200).toString(16).padStart(2,'0');ctx.fill()}
 
     ctx.restore();
   }
 
-  screenToArena(sx, sy) {
-    const rect = this.canvas.getBoundingClientRect();
-    return {
-      x: (sx - rect.left - this.ox / this.dpr) / (this.scale / this.dpr),
-      y: (sy - rect.top - this.oy / this.dpr) / (this.scale / this.dpr),
-    };
-  }
+  screenToArena(sx,sy){const r=this.canvas.getBoundingClientRect();return{x:(sx-r.left-this.ox/this.dpr)/(this.scale/this.dpr),y:(sy-r.top-this.oy/this.dpr)/(this.scale/this.dpr)}}
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// UI CONTROLLER (S: only manages DOM)
+// 8. UI CONTROLLER (S: only manages DOM)
 // ═══════════════════════════════════════════════════════════════════════════
 
 class UIController {
   constructor(sim, renderer) {
-    this.sim = sim;
-    this.renderer = renderer;
-    this._fps = 0;
-    this._frames = 0;
-    this._lastFps = performance.now();
+    this.sim = sim; this.renderer = renderer;
+    this._fps = 0; this._frames = 0; this._lastFps = performance.now();
     this._bind();
   }
 
   _bind() {
     const sim = this.sim;
-
     document.getElementById('btn-go').addEventListener('click', () => {
-      if (!sim.running) {
-        sim.init(); sim.running = true;
-        document.getElementById('overlay').classList.remove('show');
-        document.getElementById('btn-go').textContent = '⏸ PAUSE';
-      } else {
-        sim.running = !sim.running;
-        document.getElementById('btn-go').textContent = sim.running ? '⏸ PAUSE' : '▶ RESUME';
-      }
+      if (!sim.running) { sim.init(); sim.running = true; document.getElementById('overlay').classList.remove('show'); document.getElementById('btn-go').textContent = '⏸ PAUSE'; logger.info('UI','Started'); }
+      else { sim.running = !sim.running; document.getElementById('btn-go').textContent = sim.running ? '⏸ PAUSE' : '▶ RESUME'; }
     });
-
     document.getElementById('btn-rst').addEventListener('click', () => {
-      sim.running = false; sim.round = 1; sim.leaderboard.clear(); sim.log.clear();
-      sim.init();
+      sim.running = false; sim.round = 1; sim.leaderboard.clear(); sim.log.clear(); sim.init();
       document.getElementById('btn-go').textContent = '▶ START';
       document.getElementById('overlay').classList.add('show');
       document.getElementById('ov-title').textContent = 'CORTEX ARENA';
       document.getElementById('ov-text').textContent = 'Press START to begin';
-      this.update();
+      document.getElementById('load-error').innerHTML = '';
+      this.update(); logger.info('UI','Reset');
     });
-
     document.getElementById('sel-spd').addEventListener('change', e => { sim.speed = parseInt(e.target.value); });
-    document.getElementById('sel-cnt').addEventListener('change', e => {
-      sim.tankCount = parseInt(e.target.value);
-      if (sim.running) { sim.round++; sim.init(); }
-    });
-
+    document.getElementById('sel-cnt').addEventListener('change', e => { sim.tankCount = parseInt(e.target.value); if (sim.running) { sim.round++; sim.init(); } });
     this.renderer.canvas.addEventListener('click', e => {
-      const pos = this.renderer.screenToArena(e.clientX, e.clientY);
-      let closest = null, closestDist = 35;
-      for (const t of sim.tanks) {
-        const d = V2.dist(t.pos, pos);
-        if (d < closestDist) { closestDist = d; closest = t.id; }
-      }
-      sim.selectedTankId = closest;
+      const p = this.renderer.screenToArena(e.clientX, e.clientY);
+      let cl = null, cd = 35;
+      for (const t of sim.tanks) { const d = V2.dist(t.pos, p); if (d < cd) { cd = d; cl = t.id; } }
+      sim.selectedTankId = cl;
     });
   }
 
@@ -1179,167 +946,179 @@ class UIController {
     this._frames++;
     const now = performance.now();
     if (now - this._lastFps >= 1000) { this._fps = this._frames; this._frames = 0; this._lastFps = now; }
-
     const sim = this.sim;
     document.getElementById('h-rnd').textContent = sim.round;
     document.getElementById('h-tick').textContent = sim.tick;
     document.getElementById('h-alive').textContent = sim.tanks.filter(t => t.alive).length;
     document.getElementById('h-fps').textContent = this._fps;
-
-    this._renderTankList();
-    this._renderDetail();
-    this._renderLog();
-    this._renderGlobalStats();
-    this._renderLeaderboard();
+    this._tankList(); this._detail(); this._log(); this._globalStats(); this._lb();
   }
 
-  _renderTankList() {
+  _tankList() {
     const el = document.getElementById('tank-list');
-    let html = '';
+    let h = '';
     for (const t of this.sim.tanks) {
       const sel = this.sim.selectedTankId === t.id;
-      const hp = (t.hp / t.maxHp * 100) | 0;
-      const hpCol = t.hp / t.maxHp > 0.6 ? 'var(--green)' : t.hp / t.maxHp > 0.3 ? 'var(--yellow)' : 'var(--red)';
+      const hp = (t.hp/t.maxHp*100)|0;
+      const hc = t.hp/t.maxHp>.6?'var(--green)':t.hp/t.maxHp>.3?'var(--yellow)':'var(--red)';
       const em = t.cortex.getEmotions();
-      const topEm = Object.entries(em).filter(([, v]) => v > 0.01).sort((a, b) => b[1] - a[1])[0];
-      html += `<div class="card${sel ? ' sel' : ''}" data-id="${t.id}">
-        <div class="top"><span class="dot" style="background:${t.color}"></span><span class="nm">${t.name}</span><span class="st">${t.alive ? 'ALIVE' : 'DEAD'}</span></div>
-        <div class="bar"><div class="fill" style="width:${hp}%;background:${hpCol}"></div></div>
-        <div class="row"><span>K/D</span><span class="v">${t.kills}/${t.deaths}</span></div>
-        <div class="row"><span>Acc</span><span class="v">${t.shotsFired > 0 ? ((t.accuracy * 100) | 0) + '%' : '—'}</span></div>
-        <div class="row"><span>Emotion</span><span class="v">${topEm ? topEm[0] + ' ' + ((topEm[1] * 100) | 0) + '%' : 'calm'}</span></div>
-      </div>`;
+      const top = Object.entries(em).filter(([,v])=>v>0.01).sort((a,b)=>b[1]-a[1])[0];
+      h += `<div class="card${sel?' sel':''}" data-id="${t.id}"><div class="top"><span class="dot" style="background:${t.color}"></span><span class="nm">${t.name}</span><span class="st">${t.alive?'ALIVE':'DEAD'}</span></div><div class="bar"><div class="fill" style="width:${hp}%;background:${hc}"></div></div><div class="row"><span>K/D</span><span class="v">${t.kills}/${t.deaths}</span></div><div class="row"><span>Acc</span><span class="v">${t.shotsFired>0?((t.accuracy*100)|0)+'%':'—'}</span></div><div class="row"><span>Emotion</span><span class="v">${top?top[0]+' '+((top[1]*100)|0)+'%':'calm'}</span></div></div>`;
     }
-    el.innerHTML = html;
-    el.querySelectorAll('.card').forEach(c => {
-      c.addEventListener('click', () => { this.sim.selectedTankId = parseInt(c.dataset.id); });
-    });
+    el.innerHTML = h;
+    el.querySelectorAll('.card').forEach(c => c.addEventListener('click', () => { this.sim.selectedTankId = parseInt(c.dataset.id); }));
   }
 
-  _renderDetail() {
+  _detail() {
     const el = document.getElementById('detail');
-    if (this.sim.selectedTankId === null) {
-      el.innerHTML = '<p style="color:var(--muted);font-size:11px">Click a tank to inspect</p>';
-      return;
-    }
-    const t = this.sim.tanks[this.sim.selectedTankId];
-    if (!t) return;
-
+    if (this.sim.selectedTankId === null) { el.innerHTML = '<p style="color:var(--muted);font-size:11px">Click a tank to inspect</p>'; return; }
+    const t = this.sim.tanks[this.sim.selectedTankId]; if (!t) return;
     const em = t.cortex.getEmotions();
     const debug = t.cortex.getDebugInfo();
-    const emKeys = Object.keys(em);
-    let emHtml = '<div class="egrid">';
-    for (const k of emKeys) {
-      const v = em[k] || 0;
-      const c = v > 0.5 ? 'var(--red)' : v > 0.25 ? 'var(--yellow)' : 'var(--green)';
-      emHtml += `<div class="ei"><span>${k}</span><span class="ev" style="color:${c}">${(v * 100) | 0}</span></div>`;
-    }
-    emHtml += '</div>';
-
-    const pe = debug.predictionError ?? 0;
-    const cumR = t.cortex.getCumulativeReward();
-    const brainStep = t.cortex.getStep();
     const stats = t.cortex.getStats();
-
-    el.innerHTML = `
-      <div class="card sel" style="border-color:${t.color}">
-        <div class="top"><span class="dot" style="background:${t.color}"></span><span class="nm">${t.name}</span>
-        <span class="st">${t.alive ? 'ALIVE' : 'RESPAWN ' + Math.ceil(t.respawnTimer / 60) + 's'}</span></div>
-      </div>
-      <div class="ptitle" style="margin-top:8px">Vitals</div>
-      <div class="row"><span>HP</span><span class="v">${t.hp | 0} / ${t.maxHp}</span></div>
-      <div class="bar"><div class="fill" style="width:${t.hp / t.maxHp * 100}%;background:${t.hp / t.maxHp > .5 ? 'var(--green)' : 'var(--red)'}"></div></div>
-      <div class="row"><span>Kills</span><span class="v">${t.kills}</span></div>
-      <div class="row"><span>Deaths</span><span class="v">${t.deaths}</span></div>
-      <div class="row"><span>Damage</span><span class="v">${t.totalDamage | 0}</span></div>
-      <div class="row"><span>Accuracy</span><span class="v">${t.shotsFired > 0 ? ((t.accuracy * 100) | 0) + '%' : '—'}</span></div>
-      <div class="row"><span>Shots</span><span class="v">${t.shotsFired}</span></div>
-      <div class="row"><span>Wins</span><span class="v">${t.wins}</span></div>
-      <div class="ptitle" style="margin-top:8px">Neural State</div>
-      <div class="row"><span>Brain Step</span><span class="v">${brainStep}</span></div>
-      <div class="row"><span>Pred Error</span><span class="v">${(pe * 100).toFixed(1)}%</span></div>
-      <div class="row"><span>Cum Reward</span><span class="v">${cumR.toFixed(2)}</span></div>
-      <div class="row"><span>TD Steps</span><span class="v">${stats.totalSteps ?? 0}</span></div>
-      <div class="row"><span>Grad Clips</span><span class="v">${stats.gradientClips ?? 0}</span></div>
-      <div class="row"><span>Consolidations</span><span class="v">${stats.consolidationEvents ?? 0}</span></div>
-      <div class="ptitle" style="margin-top:8px">Emotions</div>
-      ${emHtml}`;
+    let emH = '<div class="egrid">';
+    for (const [k,v] of Object.entries(em)) { const c = v>.5?'var(--red)':v>.25?'var(--yellow)':'var(--green)'; emH += `<div class="ei"><span>${k}</span><span class="ev" style="color:${c}">${(v*100)|0}</span></div>`; }
+    emH += '</div>';
+    el.innerHTML = `<div class="card sel" style="border-color:${t.color}"><div class="top"><span class="dot" style="background:${t.color}"></span><span class="nm">${t.name}</span><span class="st">${t.alive?'ALIVE':'RESPAWN '+Math.ceil(t.respawnTimer/60)+'s'}</span></div></div>
+    <div class="ptitle" style="margin-top:8px">Vitals</div>
+    <div class="row"><span>HP</span><span class="v">${t.hp|0}/${t.maxHp}</span></div><div class="bar"><div class="fill" style="width:${t.hp/t.maxHp*100}%;background:${t.hp/t.maxHp>.5?'var(--green)':'var(--red)'}"></div></div>
+    <div class="row"><span>Kills</span><span class="v">${t.kills}</span></div>
+    <div class="row"><span>Deaths</span><span class="v">${t.deaths}</span></div>
+    <div class="row"><span>Damage</span><span class="v">${t.totalDamage|0}</span></div>
+    <div class="row"><span>Accuracy</span><span class="v">${t.shotsFired>0?((t.accuracy*100)|0)+'%':'—'}</span></div>
+    <div class="row"><span>Wins</span><span class="v">${t.wins}</span></div>
+    <div class="ptitle" style="margin-top:8px">Neural</div>
+    <div class="row"><span>Brain Step</span><span class="v">${t.cortex.getStep()}</span></div>
+    <div class="row"><span>Pred Error</span><span class="v">${((debug.predictionError||0)*100).toFixed(1)}%</span></div>
+    <div class="row"><span>Cum Reward</span><span class="v">${t.cortex.getCumulativeReward().toFixed(2)}</span></div>
+    <div class="row"><span>TD Steps</span><span class="v">${stats.totalSteps??0}</span></div>
+    <div class="row"><span>Grad Clips</span><span class="v">${stats.gradientClips??0}</span></div>
+    <div class="row"><span>Memory Cons</span><span class="v">${stats.consolidationEvents??0}</span></div>
+    <div class="ptitle" style="margin-top:8px">Emotions</div>${emH}`;
   }
 
-  _renderLog() {
+  _log() {
     const el = document.getElementById('blog');
-    let html = '';
-    for (const e of this.sim.log.entries.slice(0, 30)) {
-      html += `<div class="log ${e.type}">[${e.tick}] ${e.msg}</div>`;
-    }
-    el.innerHTML = html;
+    let h = '';
+    for (const e of this.sim.log.entries.slice(0,30)) h += `<div class="log ${e.type}">[${e.tick}] ${e.msg}</div>`;
+    // Append system logger errors
+    const sysErrors = logger.getEntries(Logger.Level.ERROR).slice(-5);
+    for (const e of sysErrors) h += `<div class="log error">[SYS] ${e.message}</div>`;
+    el.innerHTML = h;
   }
 
-  _renderGlobalStats() {
+  _globalStats() {
     const el = document.getElementById('gstats');
     const tanks = this.sim.tanks;
-    const emMap = { threat: 'Threat', frustration: 'Frustrat', confidence: 'Confid', aggression: 'Aggress', fear: 'Fear', desperation: 'Desperat', vengeance: 'Vengean', curiosity: 'Curiosi' };
-    let html = '';
-
-    for (const [key, label] of Object.entries(emMap)) {
-      let sum = 0;
-      for (const t of tanks) {
-        const em = t.cortex.getEmotions();
-        sum += em[key] || 0;
-      }
-      const avg = sum / tanks.length;
-      const pct = (avg * 100) | 0;
-      const c = key === 'confidence' ? 'var(--green)' : avg > 0.4 ? 'var(--red)' : avg > 0.2 ? 'var(--yellow)' : 'var(--cyan)';
-      html += `<div class="crow"><span class="cl">${label}</span><div class="ct"><div class="cf" style="width:${pct}%;background:${c}"></div></div><span class="cv">${pct}%</span></div>`;
+    const emMap = {threat:'Threat',frustration:'Frustrat',confidence:'Confid',aggression:'Aggress',fear:'Fear',desperation:'Desperat',vengeance:'Vengean',curiosity:'Curiosi'};
+    let h = '';
+    for (const [key,label] of Object.entries(emMap)) {
+      let sum = 0; for (const t of tanks) { const em = t.cortex.getEmotions(); sum += em[key]||0; }
+      const avg = sum/tanks.length, pct = (avg*100)|0;
+      const c = key==='confidence'?'var(--green)':avg>.4?'var(--red)':avg>.2?'var(--yellow)':'var(--cyan)';
+      h += `<div class="crow"><span class="cl">${label}</span><div class="ct"><div class="cf" style="width:${pct}%;background:${c}"></div></div><span class="cv">${pct}%</span></div>`;
     }
-
-    const totalK = tanks.reduce((s, t) => s + t.kills, 0);
-    const totalS = tanks.reduce((s, t) => s + t.shotsFired, 0);
-    const totalH = tanks.reduce((s, t) => s + t.shotsHit, 0);
-    html += `<div style="margin-top:6px">
-      <div class="row"><span>Total Kills</span><span class="v">${totalK}</span></div>
-      <div class="row"><span>Total Shots</span><span class="v">${totalS}</span></div>
-      <div class="row"><span>Global Acc</span><span class="v">${totalS > 0 ? ((totalH / totalS * 100) | 0) + '%' : '—'}</span></div>
-      <div class="row"><span>Bullets Live</span><span class="v">${this.sim.bullets.length}</span></div>
-    </div>`;
-    el.innerHTML = html;
+    const tK=tanks.reduce((s,t)=>s+t.kills,0), tS=tanks.reduce((s,t)=>s+t.shotsFired,0), tH=tanks.reduce((s,t)=>s+t.shotsHit,0);
+    h += `<div style="margin-top:6px"><div class="row"><span>Kills</span><span class="v">${tK}</span></div><div class="row"><span>Shots</span><span class="v">${tS}</span></div><div class="row"><span>Accuracy</span><span class="v">${tS>0?((tH/tS*100)|0)+'%':'—'}</span></div><div class="row"><span>Bullets</span><span class="v">${this.sim.bullets.length}</span></div></div>`;
+    el.innerHTML = h;
   }
 
-  _renderLeaderboard() {
+  _lb() {
     const body = document.getElementById('lb-body');
-    const rows = [...this.sim.leaderboard.entries()].map(([name, s]) => ({ name, ...s }));
-    rows.sort((a, b) => (b.kills - b.deaths) - (a.kills - a.deaths) || b.damage - a.damage);
-    let html = '';
-    rows.forEach((r, i) => {
-      const t = this.sim.tanks.find(t => t.name === r.name);
-      const c = t ? t.color : 'var(--text)';
-      html += `<tr><td>${i + 1}</td><td style="color:${c};font-weight:600">${r.name}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.damage | 0}</td><td>${r.wins}</td></tr>`;
-    });
-    body.innerHTML = html;
+    const rows = [...this.sim.leaderboard.entries()].map(([n,s])=>({name:n,...s}));
+    rows.sort((a,b)=>(b.kills-b.deaths)-(a.kills-a.deaths)||b.damage-a.damage);
+    let h=''; rows.forEach((r,i)=>{const t=this.sim.tanks.find(t=>t.name===r.name);const c=t?t.color:'var(--text)';h+=`<tr><td>${i+1}</td><td style="color:${c};font-weight:600">${r.name}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.damage|0}</td><td>${r.wins}</td></tr>`});
+    body.innerHTML=h;
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// BOOTSTRAP
+// 9. BOOTSTRAP — Async loader with full error handling
 // ═══════════════════════════════════════════════════════════════════════════
 
-const sim = new GameSimulation(1200, 800);
-const renderer = new ArenaRenderer(document.getElementById('c'), sim);
-const ui = new UIController(sim, renderer);
+async function main() {
+  const statusEl  = document.getElementById('h-cortex-status');
+  const ovText    = document.getElementById('ov-text');
+  const loadError = document.getElementById('load-error');
+  const btnGo     = document.getElementById('btn-go');
 
-// Update overlay
-document.getElementById('ov-text').textContent = 'Press START to begin';
+  logger.info('Boot', 'Starting Cortex Arena v4');
+  logger.info('Boot', `URL: ${window.location.href}`);
+  logger.info('Boot', `User Agent: ${navigator.userAgent}`);
 
-let uiCounter = 0;
-function gameLoop() {
-  requestAnimationFrame(gameLoop);
-  sim.step();
-  renderer.render();
-  if (++uiCounter % 6 === 0) ui.update();
+  let BrainCtor;
+  try {
+    BrainCtor = await CortexLoader.load();
+    statusEl.textContent = '✓ Cortex loaded';
+    statusEl.style.color = 'var(--green)';
+    ovText.textContent = 'Neural engine ready. Press START to begin.';
+    btnGo.disabled = false;
+    logger.info('Boot', `Cortex2Brain loaded, constructor: ${BrainCtor.name || 'anonymous'}`);
+  } catch (e) {
+    statusEl.textContent = '✗ Load failed';
+    statusEl.style.color = 'var(--red)';
+    document.getElementById('ov-title').textContent = 'LOAD ERROR';
+    ovText.innerHTML = 'Could not load <code>cortex.js</code>. Ensure the file is in the correct location.';
+    loadError.innerHTML = `<div class="err">${e.message}</div><div class="paths">Expected file structure on GitHub Pages:<br><br>  your-repo/<br>  ├── index.html  (this file)<br>  └── cortex.js   (neural engine)</div>`;
+    logger.error('Boot', 'Fatal: failed to load cortex.js', e);
+    return; // Stop — don't start game loop
+  }
+
+  // Verify brain works end-to-end
+  try {
+    const testBrain = new BrainCtor({ seed: '__integration_test__' });
+    const testResult = testBrain.forward(new Array(64).fill(0), 0);
+    if (!testResult || !Array.isArray(testResult.output) || testResult.output.length < 16) {
+      throw new Error(`forward() returned invalid result: output length ${testResult?.output?.length}`);
+    }
+    const testLearn = testBrain.tdLearn([], [], 1.0);
+    logger.info('Boot', `Integration test passed: output[0]=${testResult.output[0].toFixed(4)}, tdError=${testLearn?.tdError?.toFixed(4) ?? 'N/A'}`);
+  } catch (e) {
+    statusEl.textContent = '✗ Brain test failed';
+    statusEl.style.color = 'var(--red)';
+    loadError.innerHTML = `<div class="err">cortex.js loaded but integration test failed:\n${e.message}\n\nThis usually means the Cortex2Brain API has changed.</div>`;
+    logger.error('Boot', 'Integration test failed', e);
+    return;
+  }
+
+  // Create game
+  const sim = new GameSimulation(1200, 800, BrainCtor);
+  const renderer = new ArenaRenderer(document.getElementById('c'), sim);
+  const ui = new UIController(sim, renderer);
+
+  // Global error handler for runtime errors
+  window.addEventListener('error', (e) => {
+    logger.error('Runtime', `${e.message} at ${e.filename}:${e.lineno}:${e.colno}`);
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    logger.error('Runtime', `Unhandled promise rejection: ${e.reason}`);
+  });
+
+  let uiCounter = 0;
+  function gameLoop() {
+    requestAnimationFrame(gameLoop);
+    try {
+      sim.step();
+      renderer.render();
+    } catch (e) {
+      logger.error('GameLoop', `Tick error: ${e.message}`);
+      sim.running = false;
+      document.getElementById('btn-go').textContent = '▶ RESUME';
+    }
+    if (++uiCounter % 6 === 0) {
+      try { ui.update(); }
+      catch (e) { logger.error('UI', `Update error: ${e.message}`); }
+    }
+  }
+
+  gameLoop();
+  logger.info('Boot', 'Game loop running. Ready to play.');
 }
-gameLoop();
 
-console.log('[Arena] Game loop started. Cortex2Brain integration: FULL EXTERNAL FILE.');
+main().catch(e => {
+  console.error('Fatal bootstrap error:', e);
+  document.getElementById('ov-text').innerHTML = `<span style="color:var(--red)">Fatal error: ${e.message}</span>`;
+});
 </script>
 </body>
 </html>
