@@ -3,19 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CORTEX ARENA v3 — Neural Tank Combat</title>
+<title>CORTEX ARENA — Neural Tank Combat</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
---bg:#080b12;--panel:#0f1420;--panel2:#151c2c;--border:#1c2537;
---accent:#4f8eff;--green:#2ecc71;--red:#e74c3c;--yellow:#f1c40f;
---cyan:#00d2d3;--purple:#a55eea;--orange:#f39c12;--pink:#fd79a8;
---text:#c8d6e5;--muted:#576574;--dim:#222f3e;
---mono:'JetBrains Mono','Fira Code','Courier New',monospace;
---sans:Inter,system-ui,-apple-system,sans-serif;
+  --bg:#080b12;--panel:#0f1420;--panel2:#151c2c;--border:#1c2537;
+  --accent:#4f8eff;--green:#2ecc71;--red:#e74c3c;--yellow:#f1c40f;
+  --cyan:#00d2d3;--purple:#a55eea;--orange:#f39c12;--pink:#fd79a8;
+  --text:#c8d6e5;--muted:#576574;--dim:#222f3e;
+  --mono:'JetBrains Mono','Fira Code','Courier New',monospace;
+  --sans:Inter,system-ui,-apple-system,sans-serif;
 }
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px}
-
 #app{display:grid;grid-template-rows:44px 1fr 200px;grid-template-columns:260px 1fr 280px;height:100vh;gap:1px;background:var(--border)}
 header{grid-column:1/-1;background:var(--panel);display:flex;align-items:center;padding:0 14px;gap:12px;z-index:5}
 header h1{font-size:14px;font-weight:800;letter-spacing:1.2px;color:var(--accent);white-space:nowrap}
@@ -28,13 +27,11 @@ button.primary{background:var(--accent);border-color:var(--accent);color:#fff;fo
 button.primary:hover{opacity:.85}
 button.danger{border-color:var(--red);color:var(--red)}
 button.danger:hover{background:var(--red);color:#fff}
-
 #left{background:var(--panel);overflow-y:auto;padding:10px;scrollbar-width:thin}
 #arena-wrap{position:relative;background:#060910;overflow:hidden}
 canvas#c{display:block;width:100%;height:100%}
 #right{background:var(--panel);overflow-y:auto;padding:10px;scrollbar-width:thin}
 #bottom{grid-column:1/-1;background:var(--panel);display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px}
-
 .ptitle{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:700;margin-bottom:6px}
 .card{background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:8px 10px;margin-bottom:6px;cursor:pointer;transition:.15s}
 .card:hover,.card.sel{border-color:var(--accent)}
@@ -48,7 +45,6 @@ canvas#c{display:block;width:100%;height:100%}
 .bar .fill{height:100%;border-radius:2px;transition:width .25s}
 .egrid{display:grid;grid-template-columns:1fr 1fr;gap:1px 6px;font-size:9px;margin-top:4px}
 .egrid .ei{display:flex;justify-content:space-between;color:var(--muted)}.egrid .ev{font-family:var(--mono);font-size:9px}
-
 .bsec{padding:8px 12px;overflow-y:auto;border-right:1px solid var(--border)}.bsec:last-child{border:none}
 .log{font-size:10px;font-family:var(--mono);padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
 .log.kill{color:var(--red)}.log.spawn{color:var(--green)}.log.win{color:var(--yellow)}.log.info{color:var(--cyan)}
@@ -60,275 +56,104 @@ canvas#c{display:block;width:100%;height:100%}
 table.lb{width:100%;border-collapse:collapse;font-size:10px}
 table.lb th{text-align:left;color:var(--muted);font-weight:600;padding:2px 3px;border-bottom:1px solid var(--border)}
 table.lb td{padding:2px 3px;font-family:var(--mono)}
-
 #overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.75);z-index:10;opacity:0;pointer-events:none;transition:opacity .3s}
 #overlay.show{opacity:1;pointer-events:auto}
 #overlay h2{font-size:26px;text-align:center;margin-bottom:6px}
 #overlay p{color:var(--muted);text-align:center;font-size:13px}
-
+#overlay .err{color:var(--red)}
 @media(max-width:960px){
-#app{grid-template-columns:1fr;grid-template-rows:44px 1fr 180px}
-#left,#right{display:none}
-#bottom{grid-template-columns:1fr}
+  #app{grid-template-columns:1fr;grid-template-rows:44px 1fr 180px}
+  #left,#right{display:none}
+  #bottom{grid-template-columns:1fr}
 }
 </style>
 </head>
 <body>
 <div id="app">
-<header>
-  <h1>⬡ CORTEX ARENA</h1><div class="hsep"></div>
-  <div class="hstat">Round <b id="h-rnd">0</b></div>
-  <div class="hstat">Tick <b id="h-tick">0</b></div>
-  <div class="hstat">Alive <b id="h-alive">0</b></div>
-  <div class="hstat">FPS <b id="h-fps">0</b></div>
-  <div class="spacer"></div>
-  <select id="sel-spd"><option value="0">Paused</option><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option><option value="8">8×</option></select>
-  <select id="sel-cnt"><option value="4">4 Tanks</option><option value="6" selected>6</option><option value="8">8</option><option value="12">12</option></select>
-  <button class="primary" id="btn-go">▶ START</button>
-  <button class="danger" id="btn-rst">↻</button>
-</header>
-<div id="left"><div class="ptitle">Combatants</div><div id="tank-list"></div></div>
-<div id="arena-wrap"><canvas id="c"></canvas><div id="overlay" class="show"><div><h2>CORTEX ARENA</h2><p>Neural tanks powered by Cortex2Brain<br>Press START to begin</p></div></div></div>
-<div id="right"><div class="ptitle">Inspector</div><div id="detail"><p style="color:var(--muted);font-size:11px">Click a tank to inspect its neural state</p></div></div>
-<div id="bottom">
-  <div class="bsec"><div class="ptitle">Battle Log</div><div id="blog"></div></div>
-  <div class="bsec"><div class="ptitle">Global Emotions</div><div id="gstats"></div></div>
-  <div class="bsec"><div class="ptitle">Leaderboard</div><table class="lb"><thead><tr><th>#</th><th>Name</th><th>K</th><th>D</th><th>Dmg</th><th>W</th></tr></thead><tbody id="lb-body"></tbody></table></div>
+  <header>
+    <h1>⬡ CORTEX ARENA</h1><div class="hsep"></div>
+    <div class="hstat">Round <b id="h-rnd">0</b></div>
+    <div class="hstat">Tick <b id="h-tick">0</b></div>
+    <div class="hstat">Alive <b id="h-alive">0</b></div>
+    <div class="hstat">FPS <b id="h-fps">0</b></div>
+    <div class="spacer"></div>
+    <select id="sel-spd"><option value="0">Paused</option><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option><option value="8">8×</option></select>
+    <select id="sel-cnt"><option value="4">4 Tanks</option><option value="6" selected>6</option><option value="8">8</option><option value="12">12</option></select>
+    <button class="primary" id="btn-go">▶ START</button>
+    <button class="danger" id="btn-rst">↻</button>
+  </header>
+  <div id="left"><div class="ptitle">Combatants</div><div id="tank-list"></div></div>
+  <div id="arena-wrap">
+    <canvas id="c"></canvas>
+    <div id="overlay" class="show">
+      <div>
+        <h2 id="ov-title">CORTEX ARENA</h2>
+        <p id="ov-text">Loading cortex.js…</p>
+      </div>
+    </div>
+  </div>
+  <div id="right"><div class="ptitle">Inspector</div><div id="detail"><p style="color:var(--muted);font-size:11px">Click a tank to inspect</p></div></div>
+  <div id="bottom">
+    <div class="bsec"><div class="ptitle">Battle Log</div><div id="blog"></div></div>
+    <div class="bsec"><div class="ptitle">Global Emotions</div><div id="gstats"></div></div>
+    <div class="bsec"><div class="ptitle">Leaderboard</div><table class="lb"><thead><tr><th>#</th><th>Name</th><th>K</th><th>D</th><th>Dmg</th><th>W</th></tr></thead><tbody id="lb-body"></tbody></table></div>
+  </div>
 </div>
-</div>
 
-<script>
-"use strict";
-
+<script type="module">
 // ═══════════════════════════════════════════════════════════════════════════
-// CORTEX2BRAIN v2.3 — FULL INLINE (all fixes from code review applied)
+// IMPORT FULL CORTEX2BRAIN FROM EXTERNAL FILE
 // ═══════════════════════════════════════════════════════════════════════════
 
-function clamp(v,mn,mx){return v<mn?mn:v>mx?mx:v}
-function lerp(a,b,t){return a+(b-a)*(t<0?0:t>1?1:t)}
-function safeN(v,f){return typeof v==='number'&&isFinite(v)?v:f}
-function tanh(x){if(x>20)return 1;if(x<-20)return -1;const e=Math.exp(2*x);return(e-1)/(e+1)}
-function lrelu(x){return x>0?x:.01*x}
-function softmax(a,t=1){if(!a||!a.length)return[];let m=-1/0;for(let i=0;i<a.length;i++)if(a[i]>m)m=a[i];const e=[];let s=0;for(let i=0;i<a.length;i++){const v=Math.exp(Math.min((a[i]-m)/t,700));e.push(v);s+=v}if(s<1e-10)s=1e-10;for(let i=0;i<e.length;i++)e[i]/=s;return e}
+import { Cortex2Brain } from './cortex.js';
 
-function deriveArch(D){
-return{
-P_IN:D.SP+D.C+D.S+48,A_IN:D.P+48+64+D.D,MW_IN:D.P+D.A+64,
-MP_IN:D.C+48,MR_IN:D.A+64+48+D.D,C_IN:D.P+D.A+D.M+D.S+D.D+1,
-S_IN:D.P+48+32+D.D,D_IN:D.C+D.S+48,BS:48,CPO:192,CSO:224,CSS:32,ACS:64,MCS:64}}
-
-class RNG{
-constructor(s){let h=0x811c9dc5;const st=String(s||'x');for(let i=0;i<st.length;i++){h^=st.charCodeAt(i);h=Math.imul(h,0x01000193)}this.s=(h>>>0)||1}
-next(){let x=this.s;x^=x<<13;x^=x>>>17;x^=x<<5;this.s=(x>>>0)||1;return this.s/4294967296}
-gauss(m=0,s=1){return Math.sqrt(-2*Math.log(Math.max(this.next(),1e-10)))*Math.cos(2*Math.PI*this.next())*s+m}
+// Validate import
+if (typeof Cortex2Brain !== 'function') {
+  document.getElementById('ov-text').innerHTML =
+    '<span class="err">ERROR: cortex.js not found or invalid.<br>Place cortex.js next to this HTML file.</span>';
+  throw new Error('Cortex2Brain import failed');
 }
 
-class Cortex2Brain{
-constructor(cfg={}){
-this.cfg={seed:cfg.seed||'C'+Date.now(),lr:cfg.lr??.015,gamma:cfg.gamma??.99,lambda:cfg.lambda??.95,hebb:cfg.hebb??.002};
-this.D={SP:64,P:32,A:64,M:144,C:256,S:32,D:16,NH:4,HD:16};
-this.AR=deriveArch(this.D);
-this.rng=new RNG(this.cfg.seed);
-this._iw();this._is();this._it();
-this.pe=new Float32Array(this.D.SP);this.step=0;this.cumR=0;this._lci=null;
-this.em={threat:0,frust:0,conf:0,aggr:0,fear:0,surp:0,caut:0,desp:0,veng:0,empa:0,curi:0};
-this.emDecay=.98;this.emInf=.35;this._ready=true}
+console.log('[Arena] Cortex2Brain loaded successfully');
 
-_h(s,i,j){let h=0x811c9dc5;const st=`${s}:${i}:${j}`;for(let k=0;k<st.length;k++){h^=st.charCodeAt(k);h=Math.imul(h,0x01000193)}return((h>>>0)^((h>>>16)&0xFFFF))/4294967296}
-_im(r,c,sc){const m=[];for(let i=0;i<r;i++){const row=new Float32Array(c);for(let j=0;j<c;j++)row[j]=(this._h(this.cfg.seed,i*1e4+j,0)*2-1)*sc;m.push(row)}return m}
-_iv(l,sc){const v=new Float32Array(l);for(let i=0;i<l;i++)v[i]=(this._h(this.cfg.seed,i,1e3)*2-1)*sc;return v}
+// ═══════════════════════════════════════════════════════════════════════════
+// MATH UTILITIES
+// ═══════════════════════════════════════════════════════════════════════════
 
-_iw(){const A=this.AR,D=this.D;
-this.wP=this._im(A.P_IN,D.P,.3);this.bP=this._iv(D.P,.1);
-this.wA=[];this.bA=[];for(let h=0;h<D.NH;h++){this.wA.push(this._im(A.A_IN,D.HD,.3));this.bA.push(this._iv(D.HD,.1))}
-this.wG=this._iv(D.NH,.25);
-this.wMw=this._im(A.MW_IN,A.BS,.3);this.bMw=this._iv(A.BS,.1);
-this.wMp=this._im(A.MP_IN,A.BS,.3);this.bMp=this._iv(A.BS,.1);
-this.wMr=this._im(A.MR_IN,A.BS,.3);this.bMr=this._iv(A.BS,.1);
-this.wC=this._im(A.C_IN,D.C,.25);this.bC=this._iv(D.C,.1);
-this.wS=this._im(A.S_IN,D.S,.3);this.bS=this._iv(D.S,.1);
-this.wD=this._im(A.D_IN,D.D,.2);this.bD=this._iv(D.D,.1);
-this.wPr=this._im(A.BS,D.SP,.15);this.bPr=this._iv(D.SP,.05);
-this.wV=this._iv(D.C,.1);this.bV=0}
+const clamp = (v, mn, mx) => v < mn ? mn : v > mx ? mx : v;
+const lerp = (a, b, t) => a + (b - a) * clamp(t, 0, 1);
 
-_is(){const D=this.D;
-this.vP=new Float32Array(D.P);this.vA=new Float32Array(D.A);this.vM=new Float32Array(D.M);
-this.vC=new Float32Array(D.C);this.vS=new Float32Array(D.S);this.vD=new Float32Array(D.D);
-this.pP=new Float32Array(D.P);this.pA=new Float32Array(D.A);this.pM=new Float32Array(D.M);
-this.pC=new Float32Array(D.C);this.pS=new Float32Array(D.S);this.pD=new Float32Array(D.D)}
+const V2 = Object.freeze({
+  create: (x = 0, y = 0) => ({ x, y }),
+  add: (a, b) => ({ x: a.x + b.x, y: a.y + b.y }),
+  sub: (a, b) => ({ x: a.x - b.x, y: a.y - b.y }),
+  scale: (v, s) => ({ x: v.x * s, y: v.y * s }),
+  len: v => Math.sqrt(v.x * v.x + v.y * v.y),
+  lenSq: v => v.x * v.x + v.y * v.y,
+  norm: v => { const l = V2.len(v) || 1; return { x: v.x / l, y: v.y / l }; },
+  dist: (a, b) => V2.len(V2.sub(a, b)),
+  distSq: (a, b) => V2.lenSq(V2.sub(a, b)),
+  dot: (a, b) => a.x * b.x + a.y * b.y,
+  angle: v => Math.atan2(v.y, v.x),
+  fromAngle: (a, l = 1) => ({ x: Math.cos(a) * l, y: Math.sin(a) * l }),
+  perp: v => ({ x: -v.y, y: v.x }),
+});
 
-_it(){this.tC=new Float32Array(this.AR.C_IN*this.D.C)}
-
-_mm(v,m){const r=m.length,c=m[0].length,n=Math.min(v.length,r),o=new Float32Array(c);for(let i=0;i<c;i++){let s=0;for(let j=0;j<n;j++)s+=v[j]*m[j][i];o[i]=s}return o}
-
-_proj(raw){const o=new Float32Array(this.D.SP);if(!raw)return o;const sl=Math.min(raw.length,this.D.SP);for(let i=0;i<sl;i++){const v=safeN(raw[i],0);o[i]=v<-1?-1:v>1?1:v}return o}
-
-forward(rawIn,reward=0){
-const D=this.D,A=this.AR,x=this._proj(rawIn),r=safeN(reward,0);
-this.cumR=lerp(this.cumR,r,.1);
-
-const bs=A.BS;
-const mw=this.pM.subarray(0,48),mp=this.pM.subarray(48,96),mr=this.pM.subarray(96,144);
-
-// P layer
-let buf=new Float32Array(A.P_IN),idx=0;
-for(let i=0;i<D.SP;i++)buf[idx++]=x[i]*.5;
-for(let i=0;i<D.C;i++)buf[idx++]=this.pC[i];
-for(let i=0;i<D.S;i++)buf[idx++]=this.pS[i];
-for(let i=0;i<48;i++)buf[idx++]=mp[i];
-const nP=this._mm(buf,this.wP);for(let i=0;i<D.P;i++)nP[i]=lrelu(nP[i]+this.bP[i]);
-
-// A heads
-const ga=[];for(let i=0;i<D.NH;i++)ga.push(this.wG[i]);
-const gp=softmax(ga);
-const nA=new Float32Array(D.A);
-for(let h=0;h<D.NH;h++){
-buf=new Float32Array(A.A_IN);idx=0;
-for(let i=0;i<D.P;i++)buf[idx++]=this.pP[i]*.25;
-for(let i=0;i<48;i++)buf[idx++]=mw[i];
-const cs=h*A.ACS;for(let i=0;i<A.ACS;i++){const ci=cs+i;buf[idx++]=ci<D.C?this.pC[ci]:0}
-for(let i=0;i<D.D;i++)buf[idx++]=this.pD[i];
-const ho=this._mm(buf,this.wA[h]);
-for(let i=0;i<D.HD;i++)nA[h*D.HD+i]=lrelu(ho[i]+this.bA[h][i])*gp[h]}
-
-// M work
-buf=new Float32Array(A.MW_IN);idx=0;
-for(let i=0;i<D.P;i++)buf[idx++]=this.pP[i]*.75;
-for(let i=0;i<D.A;i++)buf[idx++]=this.pA[i]*.75;
-for(let i=0;i<A.MCS;i++)buf[idx++]=i<D.C?this.pC[i]:0;
-const nMw=this._mm(buf,this.wMw);for(let i=0;i<bs;i++)nMw[i]=lrelu(nMw[i]+this.bMw[i]);
-
-// M perm
-buf=new Float32Array(A.MP_IN);idx=0;
-for(let i=0;i<D.C;i++)buf[idx++]=this.pC[i]*.75;
-for(let i=0;i<48;i++)buf[idx++]=mp[i];
-const nMp=this._mm(buf,this.wMp);for(let i=0;i<bs;i++)nMp[i]=lrelu(nMp[i]+this.bMp[i]);
-
-// M pred
-buf=new Float32Array(A.MR_IN);idx=0;
-for(let i=0;i<D.A;i++)buf[idx++]=this.pA[i]*.75;
-for(let i=0;i<A.ACS;i++){const ci=A.CPO+i;buf[idx++]=ci<D.C?this.pC[ci]:0}
-for(let i=0;i<48;i++)buf[idx++]=mw[i];
-for(let i=0;i<D.D;i++)buf[idx++]=this.pD[i];
-const nMr=this._mm(buf,this.wMr);for(let i=0;i<bs;i++)nMr[i]=lrelu(nMr[i]+this.bMr[i]);
-
-const nM=new Float32Array(D.M);
-for(let i=0;i<48;i++){nM[i]=nMw[i];nM[48+i]=nMp[i];nM[96+i]=nMr[i]}
-
-// C layer
-const ci=new Float32Array(A.C_IN);idx=0;
-for(let i=0;i<D.P;i++)ci[idx++]=this.pP[i]*4;
-for(let i=0;i<D.A;i++)ci[idx++]=this.pA[i]*4;
-for(let i=0;i<D.M;i++)ci[idx++]=this.pM[i]*4;
-for(let i=0;i<D.S;i++)ci[idx++]=this.pS[i];
-for(let i=0;i<D.D;i++)ci[idx++]=this.pD[i];
-ci[idx++]=r;
-this._lci=ci;
-const nC=this._mm(ci,this.wC);for(let i=0;i<D.C;i++)nC[i]=lrelu(nC[i]+this.bC[i]);
-
-// S layer
-buf=new Float32Array(A.S_IN);idx=0;
-for(let i=0;i<D.P;i++)buf[idx++]=this.pP[i]*.5;
-for(let i=0;i<48;i++)buf[idx++]=mp[i];
-for(let i=0;i<A.CSS;i++){const cv=A.CSO+i;buf[idx++]=cv<D.C?this.pC[cv]:0}
-for(let i=0;i<D.D;i++)buf[idx++]=this.pD[i]*.5;
-const nS=this._mm(buf,this.wS);for(let i=0;i<D.S;i++)nS[i]=lrelu(nS[i]+this.bS[i]);
-
-// D layer
-buf=new Float32Array(A.D_IN);idx=0;
-for(let i=0;i<D.C;i++)buf[idx++]=nC[i];
-for(let i=0;i<D.S;i++)buf[idx++]=nS[i];
-for(let i=0;i<48;i++)buf[idx++]=nMr[i];
-const nD=this._mm(buf,this.wD);for(let i=0;i<D.D;i++)nD[i]=tanh(nD[i]+this.bD[i]);
-
-// Prediction
-const xp=this._mm(nMr,this.wPr);
-for(let i=0;i<D.SP;i++){xp[i]+=this.bPr[i];this.pe[i]=lerp(this.pe[i],Math.abs(xp[i]-x[i]),.1)}
-
-// Emotions
-this._ue(r,x);
-nS[0]=this.em.threat;nS[1]=this.em.frust;nS[2]=this.em.conf;
-nS[3]=this.em.aggr;nS[4]=this.em.fear;nS[5]=this.em.surp;
-nS[6]=this.em.caut;nS[7]=this.em.desp;nS[8]=this.em.veng;
-
-// Reflexes BEFORE commit
-const ei=this.emInf;
-if(nS[8]>.6){nD[6]=lerp(nD[6],Math.min(1,nD[6]+.4),ei);nD[4]=lerp(nD[4],Math.min(1,nD[4]+.3),ei)}
-if(nS[7]>.6){nD[6]=lerp(nD[6],Math.min(1,nD[6]+.35),ei);nD[4]=lerp(nD[4],Math.min(1,nD[4]+.3),ei)}
-if(nS[4]>.7){nD[10]=lerp(nD[10],Math.min(1,nD[10]+.35),ei);nD[4]=lerp(nD[4],Math.max(0,nD[4]-.2),ei)}
-
-// Commit state
-this.pP.set(this.vP);this.pA.set(this.vA);this.pM.set(this.vM);
-this.pC.set(this.vC);this.pS.set(this.vS);this.pD.set(this.vD);
-this.vP.set(nP);this.vA.set(nA);this.vM.set(nM);
-this.vC.set(nC);this.vS.set(nS);this.vD.set(nD);
-this.step++;
-
-const out=[];for(let i=0;i<D.D;i++)out.push(clamp(nD[i],-1,1));
-return out}
-
-learn(reward){
-const r=safeN(reward,0);
-const v=this._ev(),td=r+this.cfg.gamma*v-v;
-const a=this.cfg.lr*.5;
-for(let i=0;i<this.D.C;i++)this.wV[i]=clamp(this.wV[i]+a*td*this.vC[i],-2,2);
-this.bV+=a*td;
-if(this._lci){
-const dc=this.cfg.gamma*this.cfg.lambda,al=this.cfg.lr*Math.sign(td)*.1;
-const cIn=this._lci,cLen=cIn.length,dC=this.D.C;
-for(let j=0;j<this.AR.C_IN;j++){
-const p=j<cLen?cIn[j]:0,b=j*dC;
-for(let i=0;i<dC;i++){
-const idx=b+i;let v2=dc*this.tC[idx]+p*this.vC[i];
-this.tC[idx]=v2>10?10:v2<-10?-10:v2;
-let d=al*.01*this.tC[idx];d=d>.3?.3:d<-.3?-.3:d;
-if(this.wC[j])this.wC[j][i]=clamp(this.wC[j][i]+d,-2,2)}}}
-return td}
-
-_ev(){let s=this.bV;for(let i=0;i<this.D.C;i++)s+=this.vC[i]*this.wV[i];return tanh(s)}
-_ape(){let s=0;for(let i=0;i<this.D.SP;i++)s+=this.pe[i];return s/this.D.SP}
-
-_ue(r,x){
-if(r<.1)this.em.frust=Math.min(1,this.em.frust+.03);else this.em.frust*=.92;
-if(r>1)this.em.conf=Math.min(1,this.em.conf+.05);else this.em.conf*=.95;
-if(r<-.5)this.em.fear=Math.min(1,this.em.fear+.1);else this.em.fear*=.85;
-this.em.surp=this._ape();
-this.em.caut=1-(x[12]||.5);
-this.em.threat=1-(x[2]||.5);
-const nr=clamp((this.cumR+100)/200,0,1);
-if(nr<.3)this.em.desp=Math.min(1,this.em.desp+.05);else this.em.desp*=.85;
-const fb=(1-this.em.desp)*this.em.fear;
-this.em.aggr=this.em.frust*.6+this.em.desp*.8+this.em.veng*.9-fb*.4;
-for(const k of Object.keys(this.em))this.em[k]*=this.emDecay}
-
-reset(){this._is();this._it();this.pe.fill(0);this.step=0;this.cumR=0;this._lci=null;
-for(const k of Object.keys(this.em))this.em[k]=0}
+function normAngle(a) {
+  while (a > Math.PI) a -= 2 * Math.PI;
+  while (a < -Math.PI) a += 2 * Math.PI;
+  return a;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SOLID ARCHITECTURE — INTERFACES / VALUE OBJECTS / DOMAIN SERVICES
+// S — SINGLE RESPONSIBILITY: each class does exactly one thing
+// O — OPEN/CLOSED: extend via new services, don't modify existing
+// L — LISKOV: Tank/Bullet are substitutable entity shapes
+// I — INTERFACE SEGREGATION: narrow public APIs per service
+// D — DEPENDENCY INVERSION: GameSimulation receives services, not concretions
 // ═══════════════════════════════════════════════════════════════════════════
 
-// ── S: Single Responsibility ──────────────────────────────────────────────
-
-// Value objects (immutable-ish structs)
-const V2 = {
-  create(x=0,y=0){return{x,y}},
-  add(a,b){return{x:a.x+b.x,y:a.y+b.y}},
-  sub(a,b){return{x:a.x-b.x,y:a.y-b.y}},
-  scale(v,s){return{x:v.x*s,y:v.y*s}},
-  len(v){return Math.sqrt(v.x*v.x+v.y*v.y)},
-  norm(v){const l=V2.len(v)||1;return{x:v.x/l,y:v.y/l}},
-  dist(a,b){const dx=a.x-b.x,dy=a.y-b.y;return Math.sqrt(dx*dx+dy*dy)},
-  distSq(a,b){const dx=a.x-b.x,dy=a.y-b.y;return dx*dx+dy*dy},
-  dot(a,b){return a.x*b.x+a.y*b.y},
-  angle(v){return Math.atan2(v.y,v.x)},
-  fromAngle(a,l=1){return{x:Math.cos(a)*l,y:Math.sin(a)*l}},
-  rotate(v,a){const c=Math.cos(a),s=Math.sin(a);return{x:v.x*c-v.y*s,y:v.x*s+v.y*c}},
-  perp(v){return{x:-v.y,y:v.x}},
-};
-
-// ── Physics Service (S: only does collision & movement) ───────────────────
+// ── Physics Service ───────────────────────────────────────────────────────
 
 class PhysicsService {
   constructor(arenaW, arenaH) {
@@ -336,44 +161,54 @@ class PhysicsService {
     this.h = arenaH;
   }
 
-  /** @returns {{x,y}} clamped position or null if blocked */
   tryMove(pos, vel, radius, walls, tanks, skipId) {
     const nx = pos.x + vel.x;
     const ny = pos.y + vel.y;
-    if (this.collidesWall(nx, ny, radius, walls)) return null;
-    if (this.collidesTank(nx, ny, radius, tanks, skipId)) return null;
-    return {
-      x: clamp(nx, radius, this.w - radius),
-      y: clamp(ny, radius, this.h - radius),
-    };
+    if (this.hitsWall(nx, ny, radius, walls) || this.hitsTank(nx, ny, radius, tanks, skipId)) {
+      return null;
+    }
+    return { x: clamp(nx, radius, this.w - radius), y: clamp(ny, radius, this.h - radius) };
   }
 
-  collidesWall(x, y, r, walls) {
-    for (const w of walls) {
+  trySlide(pos, vel, radius, walls, tanks, skipId) {
+    const full = this.tryMove(pos, vel, radius, walls, tanks, skipId);
+    if (full) return full;
+    const sx = this.tryMove(pos, { x: vel.x, y: 0 }, radius, walls, tanks, skipId);
+    if (sx) return sx;
+    const sy = this.tryMove(pos, { x: 0, y: vel.y }, radius, walls, tanks, skipId);
+    if (sy) return sy;
+    return null;
+  }
+
+  hitsWall(x, y, r, walls) {
+    for (let i = 0; i < walls.length; i++) {
+      const w = walls[i];
       const cx = clamp(x, w.x, w.x + w.w);
       const cy = clamp(y, w.y, w.y + w.h);
-      if ((cx - x) ** 2 + (cy - y) ** 2 < r * r) return true;
+      const dx = cx - x, dy = cy - y;
+      if (dx * dx + dy * dy < r * r) return true;
     }
     return false;
   }
 
-  collidesTank(x, y, r, tanks, skipId) {
-    const rr = (r * 1.8) ** 2;
-    for (const t of tanks) {
+  hitsTank(x, y, r, tanks, skipId) {
+    const threshold = (r * 1.8) ** 2;
+    for (let i = 0; i < tanks.length; i++) {
+      const t = tanks[i];
       if (!t.alive || t.id === skipId) continue;
-      if (V2.distSq({ x, y }, t.pos) < rr) return true;
+      if (V2.distSq({ x, y }, t.pos) < threshold) return true;
     }
     return false;
   }
 
   pointInWall(x, y, walls) {
-    for (const w of walls) {
+    for (let i = 0; i < walls.length; i++) {
+      const w = walls[i];
       if (x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h) return true;
     }
     return false;
   }
 
-  /** Raycast: returns distance to first wall hit, or maxDist */
   raycast(ox, oy, dx, dy, maxDist, walls) {
     const steps = Math.ceil(maxDist / 4);
     for (let i = 1; i <= steps; i++) {
@@ -382,11 +217,74 @@ class PhysicsService {
     }
     return maxDist;
   }
+
+  nearestWall(pos, walls) {
+    let bestDist = Infinity, bestDx = 0, bestDy = 0;
+    for (const w of walls) {
+      const cx = clamp(pos.x, w.x, w.x + w.w);
+      const cy = clamp(pos.y, w.y, w.y + w.h);
+      const dx = cx - pos.x, dy = cy - pos.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < bestDist) { bestDist = d; bestDx = dx; bestDy = dy; }
+    }
+    return { dist: bestDist, dx: bestDx, dy: bestDy };
+  }
 }
 
-// ── Sensor Builder (S: only builds sensor arrays) ─────────────────────────
-// This is the CRITICAL class that was wrong before — proper, rich sensors
-// that give the brain real information to act on.
+// ── Cortex Adapter (D: wraps Cortex2Brain, isolates arena from brain API) ─
+
+class CortexAdapter {
+  constructor(seed, config = {}) {
+    this._brain = new Cortex2Brain({
+      seed,
+      lr: config.lr ?? 0.015,
+      gamma: config.gamma ?? 0.99,
+      lambda: config.lambda ?? 0.95,
+      hebbianRate: config.hebbianRate ?? 0.002,
+      taskSpec: {
+        inputComplexity: 0.7,
+        temporalDepth: 0.5,
+        socialComplexity: 0.3,
+      },
+    });
+
+    this._brain.configurePersonality({
+      traits: {
+        bravery: 0.3 + Math.random() * 0.5,
+        aggression: 0.3 + Math.random() * 0.5,
+        curiosity: 0.3 + Math.random() * 0.4,
+        patience: 0.3 + Math.random() * 0.4,
+      },
+    });
+  }
+
+  /** @param {Float32Array|number[]} sensors @param {number} reward @returns {ForwardResult} */
+  forward(sensors, reward, combatEvents = null) {
+    return this._brain.forward(sensors, reward, combatEvents);
+  }
+
+  /** @param {Experience} exp */
+  learn(exp) {
+    return this._brain.learn(exp);
+  }
+
+  /** Lightweight TD learn from reward only (no next observation needed) */
+  learnFromReward(reward) {
+    return this._brain.tdLearn([], [], reward);
+  }
+
+  getEmotions() { return this._brain.getEmotions(); }
+  getDebugInfo() { return this._brain.getDebugInfo(); }
+  getStats() { return this._brain.getStats(); }
+  getStep() { return this._brain.step ?? 0; }
+  getCumulativeReward() { return this._brain.cumulativeReward ?? 0; }
+
+  reset() { this._brain.resetEpisode(); }
+}
+
+// ── Sensor Builder (S: builds the 64-dim sensor vector) ───────────────────
+// This is the CONTRACT between the arena world and the brain.
+// Every sensor slot maps to Cortex2Brain's inputSchema.
 
 class SensorBuilder {
   constructor(arenaW, arenaH, physics) {
@@ -396,225 +294,193 @@ class SensorBuilder {
     this.physics = physics;
   }
 
-  /**
-   * Build 64-dim sensor vector for tank t.
-   * Every value normalised to [-1,1] or [0,1].
-   * Cortex2Brain DIM_SENSOR = 64.
-   */
-  build(t, allTanks, bullets, walls, tick) {
+  build(tank, allTanks, bullets, walls, tick) {
     const s = new Float32Array(64);
-    const alive = allTanks.filter(o => o.alive && o.id !== t.id);
+    const alive = [];
+    for (let i = 0; i < allTanks.length; i++) {
+      if (allTanks[i].alive && allTanks[i].id !== tank.id) alive.push(allTanks[i]);
+    }
 
-    // [0-3] Nearest enemy: relative position + distance + health
+    // ── Nearest enemy [0-3] ──
     let nearest = null, nDist = Infinity;
     for (const o of alive) {
-      const d = V2.dist(t.pos, o.pos);
+      const d = V2.dist(tank.pos, o.pos);
       if (d < nDist) { nDist = d; nearest = o; }
     }
+
     if (nearest) {
-      const rel = V2.sub(nearest.pos, t.pos);
-      s[0] = rel.x / this.maxDist;                           // enemy_rel_x
-      s[1] = rel.y / this.maxDist;                           // enemy_rel_y
-      s[2] = 1 - clamp(nDist / this.maxDist, 0, 1);         // proximity [0=far,1=close]
-      s[3] = nearest.hp / nearest.maxHp;                     // enemy_health
+      const rel = V2.sub(nearest.pos, tank.pos);
+      s[0] = rel.x / this.maxDist;                               // enemy_x
+      s[1] = rel.y / this.maxDist;                               // enemy_y
+      s[2] = 1 - clamp(nDist / this.maxDist, 0, 1);             // distance (proximity)
+      s[3] = nearest.hp / nearest.maxHp;                         // enemy_health
 
-      // [25-33] Combat geometry
-      const angleToEnemy = V2.angle(rel);
-      const relAngle = this._normAngle(angleToEnemy - t.angle);
-      s[25] = relAngle / Math.PI;                            // angle_to_enemy [-1,1]
+      const angleToE = V2.angle(rel);
+      const relAngle = normAngle(angleToE - tank.turretAngle);
+      s[25] = relAngle / Math.PI;                                // angle_to_enemy
 
-      // Does enemy see me?
-      const enemyToMe = V2.sub(t.pos, nearest.pos);
-      const enemyRelAngle = this._normAngle(V2.angle(enemyToMe) - nearest.angle);
-      s[26] = Math.abs(enemyRelAngle) < Math.PI / 4 ? 1 : -1;  // enemy_sees_me
-      s[27] = Math.abs(enemyRelAngle) < Math.PI / 3 ? 1 : 0;   // in_enemy_arc
+      const eToMe = V2.sub(tank.pos, nearest.pos);
+      const eRelAngle = normAngle(V2.angle(eToMe) - nearest.turretAngle);
+      s[26] = Math.abs(eRelAngle) < Math.PI / 4 ? 1 : -1;      // enemy_sees_me
+      s[27] = Math.abs(eRelAngle) < Math.PI / 3 ? 1 : 0;       // in_enemy_arc
       s[28] = Math.abs(relAngle) < Math.PI / 3 ? 1 : 0;        // enemy_in_my_arc
 
-      // Threat level (close + facing me = dangerous)
       const threatDist = 1 - clamp(nDist / 300, 0, 1);
-      const threatAim = Math.abs(enemyRelAngle) < Math.PI / 4 ? 1 : 0;
+      const threatAim = Math.abs(eRelAngle) < Math.PI / 4 ? 1 : 0;
       s[29] = clamp(threatDist * 0.6 + threatAim * 0.4, 0, 1);  // threat_level
 
-      // Flanking vector (perpendicular to enemy direction)
       const toE = V2.norm(rel);
       const perp = V2.perp(toE);
-      s[30] = perp.x;  // flank_x
-      s[31] = perp.y;  // flank_y
-      s[32] = this._normAngle(nearest.angle - angleToEnemy) / Math.PI; // angle_from_enemy
-      s[33] = clamp(1 - Math.abs(relAngle) / (Math.PI / 3), -1, 1);   // dist_to_arc_edge
+      s[30] = perp.x;                                            // flank_vector_x
+      s[31] = perp.y;                                            // flank_vector_y
+      s[32] = normAngle(nearest.turretAngle - angleToE) / Math.PI; // angle_from_enemy
+      s[33] = clamp(1 - Math.abs(relAngle) / (Math.PI / 3), -1, 1); // dist_to_arc_edge
 
-      // [35-36] Predicted enemy position (simple linear extrapolation)
       const predPos = V2.add(nearest.pos, V2.fromAngle(nearest.angle, 20));
-      const predRel = V2.sub(predPos, t.pos);
-      s[35] = predRel.x / this.maxDist;
-      s[36] = predRel.y / this.maxDist;
+      const predRel = V2.sub(predPos, tank.pos);
+      s[35] = predRel.x / this.maxDist;                         // predicted_enemy_x
+      s[36] = predRel.y / this.maxDist;                         // predicted_enemy_y
     }
 
-    // [4-6] Nearest wall
-    let nwDist = Infinity, nwX = 0, nwY = 0;
-    for (const w of walls) {
-      const cx = clamp(t.pos.x, w.x, w.x + w.w);
-      const cy = clamp(t.pos.y, w.y, w.y + w.h);
-      const d = V2.dist(t.pos, { x: cx, y: cy });
-      if (d < nwDist) { nwDist = d; nwX = cx - t.pos.x; nwY = cy - t.pos.y; }
-    }
-    s[4] = nwX / 200;                                        // wall_rel_x
-    s[5] = nwY / 200;                                        // wall_rel_y
-    s[6] = 1 - clamp(nwDist / 200, 0, 1);                   // wall_proximity
+    // ── Nearest wall [4-6] ──
+    const nw = this.physics.nearestWall(tank.pos, walls);
+    s[4] = nw.dx / 200;                                          // wall_x
+    s[5] = nw.dy / 200;                                          // wall_y
+    s[6] = 1 - clamp(nw.dist / 200, 0, 1);                      // wall_distance
 
-    // [7-14] Self state
-    s[7] = t.pos.x / this.aw * 2 - 1;                       // self_x [-1,1]
-    s[8] = t.pos.y / this.ah * 2 - 1;                       // self_y [-1,1]
-    s[9] = t.hp / t.maxHp;                                   // self_health
-    s[10] = clamp(t.lastReward / 5, -1, 1);                 // last_reward
-    s[11] = clamp(t.totalDamage / 500, 0, 1);               // damage_dealt
-    s[12] = t.hp / t.maxHp;                                  // dodge_proxy (health)
-    s[13] = t.reload / t.reloadTime;                         // reload_progress
-    s[14] = clamp(tick / 5000, 0, 1);                        // time_progress
+    // ── Self state [7-14] ──
+    s[7] = tank.pos.x / this.aw * 2 - 1;                        // self_x
+    s[8] = tank.pos.y / this.ah * 2 - 1;                        // self_y
+    s[9] = tank.hp / tank.maxHp;                                 // self_health
+    s[10] = clamp(tank.lastReward / 5, -1, 1);                  // self_reward
+    s[11] = clamp(tank.totalDamage / 500, 0, 1);                // self_damage
+    s[12] = tank.hp / tank.maxHp;                                // self_dodge
+    s[13] = tank.reload / tank.reloadTime;                       // self_fireRate
+    s[14] = clamp(tick / 5000, 0, 1);                            // step_normalized
 
-    // [15-22] Weapon flags (unused in basic mode, zero)
-    // [23-24]
-    s[23] = clamp(t.deaths / 10, 0, 1);                     // death_count
-    s[24] = alive.length <= 1 ? 1 : 0;                      // forced_combat (last two)
+    // ── Weapon flags [15-22] unused, zero ──
 
-    // [34] Self damage ratio
-    s[34] = 1 - t.hp / t.maxHp;                             // self_damage_ratio
+    s[23] = clamp(tank.deaths / 10, 0, 1);                      // death_count
+    s[24] = alive.length <= 1 ? 1 : 0;                          // forced_combat
 
-    // [37] Path blocked (raycast forward)
-    const fwd = V2.fromAngle(t.angle);
-    const rayDist = this.physics.raycast(t.pos.x, t.pos.y, fwd.x, fwd.y, 100, walls);
-    s[37] = rayDist < 50 ? 1 : 0;                           // path_blocked
+    s[34] = 1 - tank.hp / tank.maxHp;                           // self_damage_ratio
 
-    // [38-42] Incoming bullet threat
-    let maxThreat = 0, threatDir = {x: 0, y: 0};
+    // ── Path blocked [37] ──
+    const fwd = V2.fromAngle(tank.angle);
+    const rayDist = this.physics.raycast(
+      tank.pos.x, tank.pos.y, fwd.x, fwd.y, 100, walls
+    );
+    s[37] = rayDist < 50 ? 1 : 0;                               // path_blocked
+
+    // ── Incoming bullet threat [38-40] ──
+    let maxThreat = 0, dodgeDir = { x: 0, y: 0 };
     for (const b of bullets) {
-      if (b.owner === t.id) continue;
-      const toBullet = V2.sub(t.pos, b.pos);
+      if (b.owner === tank.id) continue;
+      const toBullet = V2.sub(tank.pos, b.pos);
       const d = V2.len(toBullet);
       if (d > 200) continue;
-      const bulletDir = V2.norm({ x: b.vx, y: b.vy });
+      const bDir = V2.norm(b.vel);
       const toMeDir = V2.norm(toBullet);
-      const dot = V2.dot(bulletDir, toMeDir);
+      const dot = V2.dot(bDir, toMeDir);
       if (dot > 0.3) {
         const threat = (1 - d / 200) * dot;
-        if (threat > maxThreat) {
-          maxThreat = threat;
-          threatDir = V2.perp(bulletDir); // dodge direction
-        }
+        if (threat > maxThreat) { maxThreat = threat; dodgeDir = V2.perp(bDir); }
       }
     }
-    s[38] = maxThreat;                                       // incoming_threat
-    s[39] = threatDir.x;                                     // dodge_dir_x
-    s[40] = threatDir.y;                                     // dodge_dir_y
+    s[38] = maxThreat;                                           // recent_exposure
+    s[39] = dodgeDir.x;                                          // exposure_level (reused)
+    s[40] = dodgeDir.y;                                          // in_combat_range (reused)
 
-    // [41-42] Wall avoidance
-    s[41] = nwDist < 40 ? 1 : 0;                            // wall_danger
-    s[42] = nwDist < 30 ? (nwX > 0 ? -1 : 1) : 0;          // wall_steer
+    // ── Wall proximity [41-42] ──
+    s[41] = nw.dist < 40 ? 1 : clamp(nw.dist / 200, 0, 1);     // wall_dist_normalized
+    s[42] = nw.dist < 30 ? (nw.dx > 0 ? -1 : 1) : 0;           // wall_avoidance_steer
 
-    // [43-47] Directional wall raycasts (8 directions)
+    // ── Directional wall rays [43-47] ──
     for (let i = 0; i < 5; i++) {
-      const a = t.angle + (i - 2) * Math.PI / 4;
+      const a = tank.angle + (i - 2) * Math.PI / 4;
       const dir = V2.fromAngle(a);
-      const rd = this.physics.raycast(t.pos.x, t.pos.y, dir.x, dir.y, 120, walls);
-      s[43 + i] = 1 - clamp(rd / 120, 0, 1);               // wall_ray_i
+      const rd = this.physics.raycast(tank.pos.x, tank.pos.y, dir.x, dir.y, 120, walls);
+      s[43 + i] = 1 - clamp(rd / 120, 0, 1);
     }
 
-    // [48-51] Nearest 2 enemies angular positions
-    const sorted = alive.map(o => ({
-      o,
-      dist: V2.dist(t.pos, o.pos),
-      angle: this._normAngle(V2.angle(V2.sub(o.pos, t.pos)) - t.angle),
-    })).sort((a, b) => a.dist - b.dist);
+    // ── Sorted enemy angular data [48-51] ──
+    const sorted = alive
+      .map(o => ({
+        dist: V2.dist(tank.pos, o.pos),
+        angle: normAngle(V2.angle(V2.sub(o.pos, tank.pos)) - tank.turretAngle),
+      }))
+      .sort((a, b) => a.dist - b.dist);
     for (let i = 0; i < Math.min(2, sorted.length); i++) {
       s[48 + i * 2] = sorted[i].angle / Math.PI;
       s[49 + i * 2] = 1 - clamp(sorted[i].dist / this.maxDist, 0, 1);
     }
 
-    // [52-55] Movement history signal (encoded in heading vs velocity)
-    s[52] = Math.cos(t.angle);
-    s[53] = Math.sin(t.angle);
-    s[54] = clamp(alive.length / 12, 0, 1);                 // alive_ratio
-    s[55] = t.reload <= 0 ? 1 : 0;                          // can_shoot
+    // ── Heading & meta [52-55] ──
+    s[52] = Math.cos(tank.turretAngle);
+    s[53] = Math.sin(tank.turretAngle);
+    s[54] = clamp(alive.length / 12, 0, 1);
+    s[55] = tank.reload <= 0 ? 1 : 0;
 
-    // [56-59] Second-nearest enemy details
+    // ── Second-nearest [56-59] ──
     if (sorted.length > 1) {
-      const sn = sorted[1];
-      s[56] = V2.sub(sn.o.pos, t.pos).x / this.maxDist;
-      s[57] = V2.sub(sn.o.pos, t.pos).y / this.maxDist;
-      s[58] = sn.o.hp / sn.o.maxHp;
-      s[59] = sn.angle / Math.PI;
+      const sn = alive.sort((a, b) => V2.dist(tank.pos, a.pos) - V2.dist(tank.pos, b.pos))[1];
+      if (sn) {
+        const rel2 = V2.sub(sn.pos, tank.pos);
+        s[56] = rel2.x / this.maxDist;
+        s[57] = rel2.y / this.maxDist;
+        s[58] = sn.hp / sn.maxHp;
+        s[59] = normAngle(V2.angle(rel2) - tank.turretAngle) / Math.PI;
+      }
     }
 
-    // [60-63] Edge distances
-    s[60] = t.pos.x / this.aw;                              // dist_to_left
-    s[61] = 1 - t.pos.x / this.aw;                          // dist_to_right
-    s[62] = t.pos.y / this.ah;                               // dist_to_top
-    s[63] = 1 - t.pos.y / this.ah;                           // dist_to_bottom
+    // ── Edge distances [60-63] ──
+    s[60] = tank.pos.x / this.aw;
+    s[61] = 1 - tank.pos.x / this.aw;
+    s[62] = tank.pos.y / this.ah;
+    s[63] = 1 - tank.pos.y / this.ah;
 
     return s;
   }
-
-  _normAngle(a) {
-    while (a > Math.PI) a -= 2 * Math.PI;
-    while (a < -Math.PI) a += 2 * Math.PI;
-    return a;
-  }
 }
 
-// ── Output Interpreter (S: only interprets brain output) ──────────────────
-// Maps the 16 cortex outputs to actual tank commands.
+// ── Output Interpreter (S: maps 16 brain outputs → tank commands) ─────────
 
 class OutputInterpreter {
-  /**
-   * @param {number[]} out - 16-dim brain output [-1,1]
-   * @param {Object} tank
-   * @param {Object|null} nearestEnemy
-   * @returns {{moveAngle:number, speed:number, aimAngle:number, shoot:boolean}}
-   */
-  interpret(out, tank, nearestEnemy) {
-    // out[0,1]: movement direction
+  interpret(result, tank, nearestEnemy) {
+    const out = result.output;
+
     const moveX = out[0] || 0;
     const moveY = out[1] || 0;
     let moveAngle = Math.atan2(moveY, moveX);
 
-    // out[2,3]: aim direction
     const aimX = out[2] || 0;
     const aimY = out[3] || 0;
-    let aimAngle = tank.angle;
-
-    // If aim signal is strong enough, use it
+    let aimAngle = tank.turretAngle;
     if (Math.abs(aimX) > 0.1 || Math.abs(aimY) > 0.1) {
       aimAngle = Math.atan2(aimY, aimX);
     } else if (nearestEnemy) {
-      // Default: aim at nearest enemy
-      const rel = V2.sub(nearestEnemy.pos, tank.pos);
-      aimAngle = V2.angle(rel);
+      aimAngle = V2.angle(V2.sub(nearestEnemy.pos, tank.pos));
     }
 
-    // out[4]: throttle (-1=reverse, 1=full)
     const throttle = clamp(out[4] || 0, -1, 1);
     const speed = 0.4 + Math.abs(throttle) * 0.6;
 
-    // out[6]: aggression → shoot threshold
-    const aggressionBias = clamp(out[6] || 0, 0, 1);
-    const shoot = aggressionBias > 0.25;
+    const aggrBias = clamp(out[6] || 0, 0, 1);
+    const shoot = aggrBias > 0.2;
 
-    // out[8]: steering modifier
     const steer = (out[8] || 0) * 0.3;
     moveAngle += steer;
 
-    // out[10]: retreat urgency
     const retreat = clamp(out[10] || 0, 0, 1);
     if (retreat > 0.5 && nearestEnemy) {
       const awayAngle = V2.angle(V2.sub(tank.pos, nearestEnemy.pos));
       moveAngle = lerp(moveAngle, awayAngle, retreat);
     }
 
-    // out[11]: flank commit
     const flank = clamp(out[11] || 0, 0, 1);
     if (flank > 0.3 && nearestEnemy) {
-      const toEnemy = V2.sub(nearestEnemy.pos, tank.pos);
-      const perpAngle = V2.angle(V2.perp(V2.norm(toEnemy)));
+      const toE = V2.sub(nearestEnemy.pos, tank.pos);
+      const perpAngle = V2.angle(V2.perp(V2.norm(toE)));
       moveAngle = lerp(moveAngle, perpAngle, flank * 0.5);
     }
 
@@ -622,78 +488,59 @@ class OutputInterpreter {
   }
 }
 
-// ── Reward Calculator (S: only computes rewards) ──────────────────────────
+// ── Reward Shaper (S: only computes per-frame reward) ─────────────────────
 
-class RewardCalculator {
-  /**
-   * Frame-by-frame reward shaping.
-   * Returns a reward float that trains the brain every tick.
-   */
-  compute(tank, nearestEnemy, walls, physics, prevState) {
-    let r = 0;
+class RewardShaper {
+  compute(tank, nearest, walls, physics, prevPos) {
+    let r = 0.005; // alive bonus
 
-    // Small positive for being alive
-    r += 0.005;
+    if (nearest) {
+      const dist = V2.dist(tank.pos, nearest.pos);
 
-    if (nearestEnemy) {
-      const dist = V2.dist(tank.pos, nearestEnemy.pos);
+      // Optimal distance reward
+      if (dist > 80 && dist < 250) r += 0.02;
+      else if (dist < 40) r -= 0.015;
+      else if (dist > 400) r -= 0.005;
 
-      // Reward for being at good combat distance (80-200 units)
-      if (dist > 80 && dist < 200) r += 0.02;
-      else if (dist < 40) r -= 0.01;  // too close
-      else if (dist > 400) r -= 0.005; // too far
+      // Aim reward
+      const toE = V2.angle(V2.sub(nearest.pos, tank.pos));
+      const aimDiff = Math.abs(normAngle(tank.turretAngle - toE));
+      if (aimDiff < Math.PI / 6) r += 0.02;
+      else if (aimDiff < Math.PI / 3) r += 0.008;
 
-      // Reward for aiming at enemy
-      const toEnemy = V2.angle(V2.sub(nearestEnemy.pos, tank.pos));
-      const aimDiff = Math.abs(this._normAngle(tank.angle - toEnemy));
-      if (aimDiff < Math.PI / 6) r += 0.015;   // good aim
-      else if (aimDiff < Math.PI / 3) r += 0.005;
-
-      // Reward for NOT being aimed at by enemy
-      const enemyToMe = V2.angle(V2.sub(tank.pos, nearestEnemy.pos));
-      const enemyAimDiff = Math.abs(this._normAngle(nearestEnemy.angle - enemyToMe));
-      if (enemyAimDiff > Math.PI / 3) r += 0.01;  // enemy not aiming at me — good position
-
-      // Reward for flanking (being at enemy's side/back)
-      if (enemyAimDiff > Math.PI / 2) r += 0.015;  // flanking bonus
+      // Positional advantage (enemy not aiming at me)
+      const eToMe = V2.angle(V2.sub(tank.pos, nearest.pos));
+      const eAimDiff = Math.abs(normAngle(nearest.turretAngle - eToMe));
+      if (eAimDiff > Math.PI / 3) r += 0.01;
+      if (eAimDiff > Math.PI / 2) r += 0.015; // flanking
     }
 
-    // Penalty for wall hugging
-    for (const w of walls) {
-      const cx = clamp(tank.pos.x, w.x, w.x + w.w);
-      const cy = clamp(tank.pos.y, w.y, w.y + w.h);
-      const wd = V2.dist(tank.pos, { x: cx, y: cy });
-      if (wd < 25) r -= 0.02;
+    // Wall penalty
+    const nw = physics.nearestWall(tank.pos, walls);
+    if (nw.dist < 25) r -= 0.025;
+
+    // Edge penalty
+    const margin = 30;
+    if (tank.pos.x < margin || tank.pos.x > physics.w - margin ||
+        tank.pos.y < margin || tank.pos.y > physics.h - margin) {
+      r -= 0.02;
     }
 
-    // Penalty for edge hugging
-    const edgeMargin = 30;
-    if (tank.pos.x < edgeMargin || tank.pos.x > physics.w - edgeMargin ||
-        tank.pos.y < edgeMargin || tank.pos.y > physics.h - edgeMargin) {
-      r -= 0.015;
-    }
-
-    // Reward for movement (anti-camping)
-    if (prevState) {
-      const moved = V2.dist(tank.pos, prevState.pos);
-      if (moved < 0.5) r -= 0.01;  // standing still penalty
-      else r += 0.003;
+    // Movement reward (anti-camping)
+    if (prevPos) {
+      const moved = V2.dist(tank.pos, prevPos);
+      if (moved < 0.3) r -= 0.015;
+      else if (moved > 1) r += 0.005;
     }
 
     return clamp(r, -0.2, 0.2);
   }
-
-  _normAngle(a) {
-    while (a > Math.PI) a -= 2 * Math.PI;
-    while (a < -Math.PI) a += 2 * Math.PI;
-    return a;
-  }
 }
 
-// ── Tank Entity (S: only holds tank state) ────────────────────────────────
+// ── Tank Entity (S: state container only) ─────────────────────────────────
 
 class Tank {
-  constructor(id, name, color, pos, brain) {
+  constructor(id, name, color, pos, cortex) {
     this.id = id;
     this.name = name;
     this.color = color;
@@ -707,9 +554,8 @@ class Tank {
     this.reload = 0;
     this.reloadTime = 22;
     this.respawnTimer = 0;
-    this.brain = brain;
+    this.cortex = cortex; // CortexAdapter
 
-    // Stats
     this.kills = 0;
     this.deaths = 0;
     this.totalDamage = 0;
@@ -719,7 +565,6 @@ class Tank {
     this.lastReward = 0;
     this.lastHitBy = null;
 
-    // Visual
     this.trail = [];
     this.trailMax = 25;
   }
@@ -734,63 +579,72 @@ class Tank {
 class Bullet {
   constructor(x, y, vx, vy, owner, dmg = 12) {
     this.pos = { x, y };
-    this.vx = vx;
-    this.vy = vy;
+    this.vel = { x: vx, y: vy };
     this.owner = owner;
     this.life = 100;
     this.dmg = dmg;
   }
 }
 
-// ── Wall Generator (S: only generates walls) ──────────────────────────────
+// ── Wall Generator (S: deterministic wall placement) ──────────────────────
 
 class WallGenerator {
-  generate(arenaW, arenaH, count, seed) {
-    const rng = new RNG('walls_' + seed);
+  generate(w, h, count, seed) {
     const walls = [];
+    let s = this._hash(seed);
     for (let i = 0; i < count; i++) {
-      let w = 50 + rng.next() * 140;
-      let h = 10 + rng.next() * 14;
-      if (rng.next() > 0.5) [w, h] = [h, w]; // vertical
-      const x = 60 + rng.next() * (arenaW - 120 - w);
-      const y = 60 + rng.next() * (arenaH - 120 - h);
-      walls.push({ x, y, w, h });
+      s = this._next(s);
+      let ww = 50 + (s / 4294967296) * 140;
+      s = this._next(s);
+      let wh = 10 + (s / 4294967296) * 14;
+      s = this._next(s);
+      if ((s / 4294967296) > 0.5) [ww, wh] = [wh, ww];
+      s = this._next(s);
+      const wx = 60 + (s / 4294967296) * (w - 120 - ww);
+      s = this._next(s);
+      const wy = 60 + (s / 4294967296) * (h - 120 - wh);
+      walls.push({ x: wx, y: wy, w: ww, h: wh });
     }
     return walls;
   }
+
+  _hash(seed) {
+    let h = 0x811c9dc5;
+    const s = 'walls_' + seed;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+    return (h >>> 0) || 1;
+  }
+
+  _next(s) { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) || 1; }
 }
 
-// ── Particle System (S: only manages particles) ──────────────────────────
+// ── Particle System (S: visual effects only) ──────────────────────────────
 
 class ParticleSystem {
-  constructor() { this.particles = []; }
+  constructor() { this.items = []; }
 
   emit(x, y, color, count, speed) {
     for (let i = 0; i < count; i++) {
       const a = Math.random() * Math.PI * 2;
-      const s = Math.random() * speed;
-      this.particles.push({
-        x, y,
-        vx: Math.cos(a) * s,
-        vy: Math.sin(a) * s,
-        color,
-        life: 12 + (Math.random() * 20) | 0,
-        maxLife: 32,
+      const sp = Math.random() * speed;
+      this.items.push({
+        x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        color, life: 12 + (Math.random() * 20) | 0, maxLife: 32,
       });
     }
   }
 
   update() {
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const p = this.particles[i];
+    for (let i = this.items.length - 1; i >= 0; i--) {
+      const p = this.items[i];
       p.x += p.vx; p.y += p.vy;
       p.vx *= 0.94; p.vy *= 0.94;
-      if (--p.life <= 0) this.particles.splice(i, 1);
+      if (--p.life <= 0) this.items.splice(i, 1);
     }
   }
 }
 
-// ── Event Log (S: only stores log entries) ────────────────────────────────
+// ── Event Log (S: stores log entries only) ────────────────────────────────
 
 class EventLog {
   constructor(max = 80) { this.entries = []; this.max = max; }
@@ -802,32 +656,44 @@ class EventLog {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// O: OPEN/CLOSED — GameSimulation orchestrates, but subsystems are pluggable
-// L: Liskov — Tank, Bullet are interchangeable entity shapes
-// I: Interface Segregation — each service has a narrow public API
-// D: Dependency Inversion — GameSimulation depends on abstractions (services)
+// GAME SIMULATION (orchestrator — depends on service abstractions)
 // ═══════════════════════════════════════════════════════════════════════════
+
+const NAMES = ['Apex','Bravo','Cipher','Delta','Echo','Forge','Ghost','Havoc','Iron','Jinx','Krait','Lynx'];
+const COLORS = ['#4f8eff','#e74c3c','#2ecc71','#f1c40f','#a55eea','#00d2d3','#f39c12','#fd79a8','#1abc9c','#8854d0','#eb3b5a','#78e08f'];
 
 class GameSimulation {
   constructor(arenaW, arenaH) {
     this.AW = arenaW;
     this.AH = arenaH;
+
+    // Constants
     this.TANK_R = 14;
     this.BARREL_LEN = 22;
     this.BULLET_SPEED = 6;
     this.TANK_SPEED = 2.4;
     this.TANK_ROT = 0.06;
+    this.TURRET_ROT = 0.09;
     this.RESPAWN_TICKS = 120;
+    this.BULLET_DMG = 12;
 
-    // Injected services (D: Dependency Inversion)
+    // Reward magnitudes
+    this.R_HIT = 2.0;
+    this.R_KILL = 8.0;
+    this.R_DAMAGED = -1.5;
+    this.R_DEATH = -8.0;
+    this.R_WALL_BUMP = -0.03;
+
+    // Services (D: Dependency Inversion)
     this.physics = new PhysicsService(arenaW, arenaH);
-    this.sensorBuilder = new SensorBuilder(arenaW, arenaH, this.physics);
-    this.outputInterp = new OutputInterpreter();
-    this.rewardCalc = new RewardCalculator();
+    this.sensors = new SensorBuilder(arenaW, arenaH, this.physics);
+    this.interpreter = new OutputInterpreter();
+    this.rewardShaper = new RewardShaper();
     this.wallGen = new WallGenerator();
     this.particles = new ParticleSystem();
     this.log = new EventLog();
 
+    // State
     this.tanks = [];
     this.bullets = [];
     this.walls = [];
@@ -838,9 +704,6 @@ class GameSimulation {
     this.tankCount = 6;
     this.selectedTankId = null;
     this.leaderboard = new Map();
-
-    this.NAMES = ['Apex','Bravo','Cipher','Delta','Echo','Forge','Ghost','Havoc','Iron','Jinx','Krait','Lynx'];
-    this.COLORS = ['#4f8eff','#e74c3c','#2ecc71','#f1c40f','#a55eea','#00d2d3','#f39c12','#fd79a8','#1abc9c','#8854d0','#eb3b5a','#78e08f'];
   }
 
   init() {
@@ -850,13 +713,14 @@ class GameSimulation {
     this.walls = this.wallGen.generate(this.AW, this.AH, 7, this.round);
 
     for (let i = 0; i < this.tankCount; i++) {
-      const brain = new Cortex2Brain({
-        seed: `t${i}_r${this.round}_${Date.now()}`,
-        lr: 0.015 + Math.random() * 0.005,
-      });
+      const cortex = new CortexAdapter(
+        `tank_${i}_r${this.round}_${Date.now()}`,
+        { lr: 0.012 + Math.random() * 0.006 }
+      );
       const pos = this._findSpawn();
-      const tank = new Tank(i, this.NAMES[i % 12], this.COLORS[i % 12], pos, brain);
+      const tank = new Tank(i, NAMES[i % 12], COLORS[i % 12], pos, cortex);
       this.tanks.push(tank);
+
       if (!this.leaderboard.has(tank.name)) {
         this.leaderboard.set(tank.name, { kills: 0, deaths: 0, damage: 0, wins: 0 });
       }
@@ -866,14 +730,14 @@ class GameSimulation {
 
   step() {
     if (!this.running) return;
-    for (let s = 0; s < this.speed; s++) this._simTick();
+    for (let s = 0; s < this.speed; s++) this._tick();
   }
 
-  _simTick() {
+  _tick() {
     this.tick++;
     const alive = this.tanks.filter(t => t.alive);
 
-    // Round end check
+    // Round end
     if (alive.length <= 1) {
       if (alive.length === 1) {
         const w = alive[0];
@@ -889,130 +753,127 @@ class GameSimulation {
       return;
     }
 
-    // Process each tank
-    for (const t of this.tanks) {
-      if (!t.alive) {
-        t.respawnTimer--;
-        if (t.respawnTimer <= 0) this._respawn(t);
+    // ── Process each tank ──
+    for (const tank of this.tanks) {
+      if (!tank.alive) {
+        if (--tank.respawnTimer <= 0) this._respawn(tank);
         continue;
       }
-      if (t.reload > 0) t.reload--;
+      if (tank.reload > 0) tank.reload--;
 
-      // Find nearest enemy for this tank
+      // Find nearest enemy
       let nearest = null, nDist = Infinity;
       for (const o of alive) {
-        if (o.id === t.id) continue;
-        const d = V2.dist(t.pos, o.pos);
+        if (o.id === tank.id) continue;
+        const d = V2.dist(tank.pos, o.pos);
         if (d < nDist) { nDist = d; nearest = o; }
       }
 
-      // Build sensors
-      const sensors = this.sensorBuilder.build(t, this.tanks, this.bullets, this.walls, this.tick);
-
-      // Compute frame reward
-      const frameReward = this.rewardCalc.compute(
-        t, nearest, this.walls, this.physics,
-        { pos: t.prevPos }
+      // Build sensors → brain → interpret
+      const sensorVec = this.sensors.build(tank, this.tanks, this.bullets, this.walls, this.tick);
+      const frameReward = this.rewardShaper.compute(
+        tank, nearest, this.walls, this.physics, tank.prevPos
       );
-      t.lastReward = frameReward;
+      tank.lastReward = frameReward;
 
-      // Forward pass through brain
-      const out = t.brain.forward(sensors, frameReward);
+      // Build combat events for emotional processing
+      const combatEvents = tank._pendingEvents || null;
+      tank._pendingEvents = null;
+
+      const result = tank.cortex.forward(sensorVec, frameReward, combatEvents);
+      const cmd = this.interpreter.interpret(result, tank, nearest);
 
       // Learn from frame reward
-      t.brain.learn(frameReward);
+      tank.cortex.learnFromReward(frameReward);
 
-      // Interpret outputs
-      const cmd = this.outputInterp.interpret(out, t, nearest);
+      // ── Apply movement ──
+      tank.prevPos = { ...tank.pos };
 
-      // Apply movement
-      t.prevPos = { ...t.pos };
+      // Body rotation toward move direction
+      let angleDiff = normAngle(cmd.moveAngle - tank.angle);
+      tank.angle += clamp(angleDiff, -this.TANK_ROT, this.TANK_ROT);
 
-      // Smooth rotation toward move angle
-      let angleDiff = cmd.moveAngle - t.angle;
-      while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-      while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-      t.angle += clamp(angleDiff, -this.TANK_ROT, this.TANK_ROT);
+      // Turret rotation toward aim
+      let turretDiff = normAngle(cmd.aimAngle - tank.turretAngle);
+      tank.turretAngle += clamp(turretDiff, -this.TURRET_ROT, this.TURRET_ROT);
 
-      // Smooth turret rotation toward aim angle
-      let turretDiff = cmd.aimAngle - t.turretAngle;
-      while (turretDiff > Math.PI) turretDiff -= 2 * Math.PI;
-      while (turretDiff < -Math.PI) turretDiff += 2 * Math.PI;
-      t.turretAngle += clamp(turretDiff, -this.TANK_ROT * 1.5, this.TANK_ROT * 1.5);
-
-      const vel = V2.fromAngle(t.angle, this.TANK_SPEED * cmd.speed);
-      const newPos = this.physics.tryMove(t.pos, vel, this.TANK_R, this.walls, this.tanks, t.id);
+      const vel = V2.fromAngle(tank.angle, this.TANK_SPEED * cmd.speed);
+      const newPos = this.physics.trySlide(tank.pos, vel, this.TANK_R, this.walls, this.tanks, tank.id);
       if (newPos) {
-        t.pos = newPos;
+        tank.pos = newPos;
       } else {
-        // Try sliding along walls
-        const slideX = this.physics.tryMove(t.pos, { x: vel.x, y: 0 }, this.TANK_R, this.walls, this.tanks, t.id);
-        const slideY = this.physics.tryMove(t.pos, { x: 0, y: vel.y }, this.TANK_R, this.walls, this.tanks, t.id);
-        if (slideX) t.pos = slideX;
-        else if (slideY) t.pos = slideY;
-        // Wall collision penalty
-        t.brain.learn(-0.03);
+        tank.cortex.learnFromReward(this.R_WALL_BUMP);
       }
 
-      // Shoot
-      if (cmd.shoot && t.reload <= 0) {
-        t.reload = t.reloadTime;
-        t.shotsFired++;
-        const bx = t.pos.x + Math.cos(t.turretAngle) * this.BARREL_LEN;
-        const by = t.pos.y + Math.sin(t.turretAngle) * this.BARREL_LEN;
+      // ── Shoot ──
+      if (cmd.shoot && tank.reload <= 0) {
+        tank.reload = tank.reloadTime;
+        tank.shotsFired++;
+        const bx = tank.pos.x + Math.cos(tank.turretAngle) * this.BARREL_LEN;
+        const by = tank.pos.y + Math.sin(tank.turretAngle) * this.BARREL_LEN;
         this.bullets.push(new Bullet(
           bx, by,
-          Math.cos(t.turretAngle) * this.BULLET_SPEED,
-          Math.sin(t.turretAngle) * this.BULLET_SPEED,
-          t.id
+          Math.cos(tank.turretAngle) * this.BULLET_SPEED,
+          Math.sin(tank.turretAngle) * this.BULLET_SPEED,
+          tank.id, this.BULLET_DMG
         ));
-        this.particles.emit(bx, by, t.color, 3, 2);
+        this.particles.emit(bx, by, tank.color, 3, 2);
       }
 
       // Trail
-      t.trail.push({ ...t.pos });
-      if (t.trail.length > t.trailMax) t.trail.shift();
+      tank.trail.push({ ...tank.pos });
+      if (tank.trail.length > tank.trailMax) tank.trail.shift();
     }
 
-    // Update bullets
+    // ── Update bullets ──
     for (let i = this.bullets.length - 1; i >= 0; i--) {
       const b = this.bullets[i];
-      b.pos.x += b.vx;
-      b.pos.y += b.vy;
-      if (--b.life <= 0 || b.pos.x < 0 || b.pos.x > this.AW || b.pos.y < 0 || b.pos.y > this.AH) {
+      b.pos.x += b.vel.x;
+      b.pos.y += b.vel.y;
+
+      if (--b.life <= 0 || b.pos.x < 0 || b.pos.x > this.AW ||
+          b.pos.y < 0 || b.pos.y > this.AH) {
         this.bullets.splice(i, 1);
         continue;
       }
 
-      // Wall hit
       if (this.physics.pointInWall(b.pos.x, b.pos.y, this.walls)) {
         this.particles.emit(b.pos.x, b.pos.y, '#777', 4, 1.5);
         this.bullets.splice(i, 1);
         continue;
       }
 
-      // Tank hit
-      for (const t of this.tanks) {
-        if (!t.alive || t.id === b.owner) continue;
-        if (V2.distSq(t.pos, b.pos) < this.TANK_R ** 2) {
-          t.hp -= b.dmg;
-          t.lastHitBy = b.owner;
+      for (const tank of this.tanks) {
+        if (!tank.alive || tank.id === b.owner) continue;
+        if (V2.distSq(tank.pos, b.pos) < this.TANK_R ** 2) {
+          // Damage
+          tank.hp -= b.dmg;
+          tank.lastHitBy = b.owner;
+
+          // Feed combat events to victim's brain
+          if (!tank._pendingEvents) tank._pendingEvents = [];
+          tank._pendingEvents.push({ type: 'damage_received', damage: b.dmg });
+
+          // Reward shooter
           const shooter = this.tanks[b.owner];
           if (shooter) {
             shooter.totalDamage += b.dmg;
             shooter.shotsHit++;
-            shooter.brain.learn(2.0);   // hit reward
-            shooter.brain.em.conf = Math.min(1, shooter.brain.em.conf + 0.1);
+            shooter.cortex.learnFromReward(this.R_HIT);
             const slb = this.leaderboard.get(shooter.name);
             if (slb) slb.damage += b.dmg;
-          }
-          t.brain.learn(-1.5);  // damage penalty
-          t.brain.em.fear = Math.min(1, t.brain.em.fear + 0.15);
 
-          this.particles.emit(b.pos.x, b.pos.y, t.color, 6, 2.5);
+            if (!shooter._pendingEvents) shooter._pendingEvents = [];
+            shooter._pendingEvents.push({ type: 'hit_dealt' });
+          }
+
+          // Punish victim
+          tank.cortex.learnFromReward(this.R_DAMAGED);
+
+          this.particles.emit(b.pos.x, b.pos.y, tank.color, 6, 2.5);
           this.bullets.splice(i, 1);
 
-          if (t.hp <= 0) this._killTank(t, b.owner);
+          if (tank.hp <= 0) this._killTank(tank, b.owner);
           break;
         }
       }
@@ -1021,51 +882,58 @@ class GameSimulation {
     this.particles.update();
   }
 
-  _killTank(t, killerId) {
-    t.alive = false;
-    t.deaths++;
-    t.respawnTimer = this.RESPAWN_TICKS;
-    t.hp = 0;
-    t.brain.learn(-8);  // death penalty
-    t.brain.em.veng = Math.min(1, (t.brain.em.veng || 0) + 0.6);
-    t.brain.em.fear = Math.min(1, (t.brain.em.fear || 0) + 0.4);
-    const lb = this.leaderboard.get(t.name);
+  _killTank(tank, killerId) {
+    tank.alive = false;
+    tank.deaths++;
+    tank.respawnTimer = this.RESPAWN_TICKS;
+    tank.hp = 0;
+
+    tank.cortex.learnFromReward(this.R_DEATH);
+
+    if (!tank._pendingEvents) tank._pendingEvents = [];
+    tank._pendingEvents.push({ type: 'killed_by', killer: killerId });
+
+    const lb = this.leaderboard.get(tank.name);
     if (lb) lb.deaths++;
 
     const killer = this.tanks[killerId];
     if (killer) {
       killer.kills++;
-      killer.brain.learn(8);  // kill reward
-      killer.brain.em.conf = Math.min(1, (killer.brain.em.conf || 0) + 0.3);
+      killer.cortex.learnFromReward(this.R_KILL);
+
+      if (!killer._pendingEvents) killer._pendingEvents = [];
+      killer._pendingEvents.push({ type: 'enemy_defeated' });
+
       const klb = this.leaderboard.get(killer.name);
       if (klb) klb.kills++;
-      this.log.add('kill', `💀 ${killer.name} → ${t.name}`, this.tick);
+      this.log.add('kill', `💀 ${killer.name} → ${tank.name}`, this.tick);
     }
-    this.particles.emit(t.pos.x, t.pos.y, t.color, 20, 4);
-    this.particles.emit(t.pos.x, t.pos.y, '#f80', 15, 3);
+
+    this.particles.emit(tank.pos.x, tank.pos.y, tank.color, 20, 4);
+    this.particles.emit(tank.pos.x, tank.pos.y, '#f80', 15, 3);
   }
 
-  _respawn(t) {
+  _respawn(tank) {
     const pos = this._findSpawn();
-    t.pos = { ...pos };
-    t.prevPos = { ...pos };
-    t.hp = t.maxHp;
-    t.alive = true;
-    t.angle = Math.random() * Math.PI * 2;
-    t.turretAngle = t.angle;
-    t.reload = 0;
-    t.trail = [];
-    t.lastReward = 0;
-    t.brain.reset();
-    this.log.add('spawn', `🔄 ${t.name} respawned`, this.tick);
+    tank.pos = { ...pos };
+    tank.prevPos = { ...pos };
+    tank.hp = tank.maxHp;
+    tank.alive = true;
+    tank.angle = Math.random() * Math.PI * 2;
+    tank.turretAngle = tank.angle;
+    tank.reload = 0;
+    tank.trail = [];
+    tank.lastReward = 0;
+    tank.cortex.reset();
+    this.log.add('spawn', `🔄 ${tank.name} respawned`, this.tick);
   }
 
   _findSpawn() {
     for (let attempt = 0; attempt < 80; attempt++) {
       const x = 60 + Math.random() * (this.AW - 120);
       const y = 60 + Math.random() * (this.AH - 120);
-      if (!this.physics.collidesWall(x, y, this.TANK_R + 10, this.walls) &&
-          !this.physics.collidesTank(x, y, this.TANK_R + 20, this.tanks, -1)) {
+      if (!this.physics.hitsWall(x, y, this.TANK_R + 10, this.walls) &&
+          !this.physics.hitsTank(x, y, this.TANK_R + 20, this.tanks, -1)) {
         return { x, y };
       }
     }
@@ -1074,7 +942,7 @@ class GameSimulation {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// RENDERER (S: only draws)
+// RENDERER (S: only draws to canvas)
 // ═══════════════════════════════════════════════════════════════════════════
 
 class ArenaRenderer {
@@ -1100,23 +968,19 @@ class ArenaRenderer {
   }
 
   render() {
-    const ctx = this.ctx, sim = this.sim, sc = this.scale;
+    const ctx = this.ctx, sim = this.sim;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.save();
     ctx.translate(this.ox, this.oy);
-    ctx.scale(sc, sc);
+    ctx.scale(this.scale, this.scale);
 
-    // BG
+    // Background
     ctx.fillStyle = '#060910';
     ctx.fillRect(0, 0, sim.AW, sim.AH);
-
-    // Grid
     ctx.strokeStyle = '#0d1117';
     ctx.lineWidth = 0.5;
     for (let x = 0; x <= sim.AW; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, sim.AH); ctx.stroke(); }
     for (let y = 0; y <= sim.AH; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(sim.AW, y); ctx.stroke(); }
-
-    // Border
     ctx.strokeStyle = '#1c2537';
     ctx.lineWidth = 2;
     ctx.strokeRect(0, 0, sim.AW, sim.AH);
@@ -1128,8 +992,6 @@ class ArenaRenderer {
       ctx.strokeStyle = '#2d3a50';
       ctx.lineWidth = 0.8;
       ctx.strokeRect(w.x, w.y, w.w, w.h);
-      ctx.fillStyle = 'rgba(255,255,255,.02)';
-      ctx.fillRect(w.x, w.y, w.w, 2);
     }
 
     // Trails
@@ -1153,7 +1015,7 @@ class ArenaRenderer {
       ctx.fill();
       ctx.beginPath();
       ctx.moveTo(b.pos.x, b.pos.y);
-      ctx.lineTo(b.pos.x - b.vx * 3, b.pos.y - b.vy * 3);
+      ctx.lineTo(b.pos.x - b.vel.x * 3, b.pos.y - b.vel.y * 3);
       ctx.strokeStyle = c + '60';
       ctx.lineWidth = 1.5;
       ctx.stroke();
@@ -1161,8 +1023,9 @@ class ArenaRenderer {
 
     // Tanks
     for (const t of sim.tanks) {
+      const R = sim.TANK_R;
+
       if (!t.alive) {
-        // Death marker
         ctx.save();
         ctx.translate(t.pos.x, t.pos.y);
         ctx.globalAlpha = 0.25;
@@ -1170,8 +1033,7 @@ class ArenaRenderer {
         ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(-7, -7); ctx.lineTo(7, 7); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(7, -7); ctx.lineTo(-7, 7); ctx.stroke();
-        ctx.font = '8px system-ui';
-        ctx.textAlign = 'center';
+        ctx.font = '8px system-ui'; ctx.textAlign = 'center';
         ctx.fillStyle = t.color;
         ctx.fillText(Math.ceil(t.respawnTimer / 60) + 's', 0, 15);
         ctx.restore();
@@ -1179,59 +1041,42 @@ class ArenaRenderer {
       }
 
       const sel = sim.selectedTankId === t.id;
-      const R = sim.TANK_R;
-
       ctx.save();
       ctx.translate(t.pos.x, t.pos.y);
 
-      // Selection ring
+      // Selection
       if (sel) {
-        ctx.beginPath();
-        ctx.arc(0, 0, R + 7, 0, Math.PI * 2);
+        ctx.beginPath(); ctx.arc(0, 0, R + 7, 0, Math.PI * 2);
         ctx.strokeStyle = t.color + '50';
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([3, 3]);
-        ctx.stroke();
-        ctx.setLineDash([]);
+        ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
       }
 
       // Emotion aura
-      const em = t.brain.em;
-      if (em.aggr > 0.4) {
+      const em = t.cortex.getEmotions();
+      const auraEm = em.aggression > 0.4 ? ['231,76,60', em.aggression]
+        : em.fear > 0.4 ? ['241,196,15', em.fear]
+        : em.confidence > 0.4 ? ['46,204,113', em.confidence]
+        : null;
+      if (auraEm) {
         ctx.beginPath(); ctx.arc(0, 0, R + 4, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(231,76,60,${em.aggr * 0.3})`;
-        ctx.lineWidth = 2; ctx.stroke();
-      } else if (em.fear > 0.4) {
-        ctx.beginPath(); ctx.arc(0, 0, R + 4, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(241,196,15,${em.fear * 0.3})`;
-        ctx.lineWidth = 2; ctx.stroke();
-      } else if (em.conf > 0.4) {
-        ctx.beginPath(); ctx.arc(0, 0, R + 4, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(46,204,113,${em.conf * 0.3})`;
+        ctx.strokeStyle = `rgba(${auraEm[0]},${auraEm[1] * 0.35})`;
         ctx.lineWidth = 2; ctx.stroke();
       }
 
       // Body
-      ctx.beginPath();
-      ctx.arc(0, 0, R, 0, Math.PI * 2);
+      ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2);
       const grad = ctx.createRadialGradient(0, -3, 2, 0, 0, R);
       grad.addColorStop(0, t.color + 'dd');
       grad.addColorStop(1, t.color + '77');
-      ctx.fillStyle = grad;
-      ctx.fill();
-      ctx.strokeStyle = t.color;
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
+      ctx.fillStyle = grad; ctx.fill();
+      ctx.strokeStyle = t.color; ctx.lineWidth = 1.2; ctx.stroke();
 
-      // Turret (separate angle from body)
-      ctx.save();
-      ctx.rotate(t.turretAngle);
+      // Turret (independent rotation)
+      ctx.save(); ctx.rotate(t.turretAngle);
       ctx.fillStyle = t.color;
       ctx.fillRect(R - 6, -2.5, sim.BARREL_LEN - R + 10, 5);
       ctx.fillStyle = t.color + 'cc';
-      ctx.beginPath();
-      ctx.arc(0, 0, 5, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
 
       // HP bar
@@ -1244,29 +1089,22 @@ class ArenaRenderer {
 
       // Reload arc
       if (t.reload > 0) {
-        const rPct = t.reload / t.reloadTime;
         ctx.beginPath();
-        ctx.arc(0, 0, R + 3, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - rPct));
-        ctx.strokeStyle = '#ffffff20';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
+        ctx.arc(0, 0, R + 3, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - t.reload / t.reloadTime));
+        ctx.strokeStyle = '#ffffff20'; ctx.lineWidth = 1.5; ctx.stroke();
       }
 
       // Name
-      ctx.fillStyle = '#ffffffbb';
-      ctx.font = 'bold 8px system-ui';
-      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffffffbb'; ctx.font = 'bold 8px system-ui'; ctx.textAlign = 'center';
       ctx.fillText(t.name, 0, R + 13);
-
       ctx.restore();
     }
 
     // Particles
-    for (const p of sim.particles.particles) {
-      const alpha = p.life / p.maxLife;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 1 + alpha * 2, 0, Math.PI * 2);
-      ctx.fillStyle = p.color + Math.floor(alpha * 200).toString(16).padStart(2, '0');
+    for (const p of sim.particles.items) {
+      const a = p.life / p.maxLife;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 1 + a * 2, 0, Math.PI * 2);
+      ctx.fillStyle = p.color + Math.floor(a * 200).toString(16).padStart(2, '0');
       ctx.fill();
     }
 
@@ -1283,7 +1121,7 @@ class ArenaRenderer {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// UI CONTROLLER (S: only manages DOM updates)
+// UI CONTROLLER (S: only manages DOM)
 // ═══════════════════════════════════════════════════════════════════════════
 
 class UIController {
@@ -1301,8 +1139,7 @@ class UIController {
 
     document.getElementById('btn-go').addEventListener('click', () => {
       if (!sim.running) {
-        sim.init();
-        sim.running = true;
+        sim.init(); sim.running = true;
         document.getElementById('overlay').classList.remove('show');
         document.getElementById('btn-go').textContent = '⏸ PAUSE';
       } else {
@@ -1312,26 +1149,19 @@ class UIController {
     });
 
     document.getElementById('btn-rst').addEventListener('click', () => {
-      sim.running = false;
-      sim.round = 1;
-      sim.leaderboard.clear();
-      sim.log.clear();
+      sim.running = false; sim.round = 1; sim.leaderboard.clear(); sim.log.clear();
       sim.init();
       document.getElementById('btn-go').textContent = '▶ START';
       document.getElementById('overlay').classList.add('show');
+      document.getElementById('ov-title').textContent = 'CORTEX ARENA';
+      document.getElementById('ov-text').textContent = 'Press START to begin';
       this.update();
     });
 
-    document.getElementById('sel-spd').addEventListener('change', e => {
-      sim.speed = parseInt(e.target.value);
-    });
-
+    document.getElementById('sel-spd').addEventListener('change', e => { sim.speed = parseInt(e.target.value); });
     document.getElementById('sel-cnt').addEventListener('change', e => {
       sim.tankCount = parseInt(e.target.value);
-      if (sim.running) {
-        sim.round++;
-        sim.init();
-      }
+      if (sim.running) { sim.round++; sim.init(); }
     });
 
     this.renderer.canvas.addEventListener('click', e => {
@@ -1348,11 +1178,7 @@ class UIController {
   update() {
     this._frames++;
     const now = performance.now();
-    if (now - this._lastFps >= 1000) {
-      this._fps = this._frames;
-      this._frames = 0;
-      this._lastFps = now;
-    }
+    if (now - this._lastFps >= 1000) { this._fps = this._frames; this._frames = 0; this._lastFps = now; }
 
     const sim = this.sim;
     document.getElementById('h-rnd').textContent = sim.round;
@@ -1360,28 +1186,28 @@ class UIController {
     document.getElementById('h-alive').textContent = sim.tanks.filter(t => t.alive).length;
     document.getElementById('h-fps').textContent = this._fps;
 
-    this._updateTankList();
-    this._updateDetail();
-    this._updateLog();
-    this._updateGlobalStats();
-    this._updateLeaderboard();
+    this._renderTankList();
+    this._renderDetail();
+    this._renderLog();
+    this._renderGlobalStats();
+    this._renderLeaderboard();
   }
 
-  _updateTankList() {
+  _renderTankList() {
     const el = document.getElementById('tank-list');
     let html = '';
     for (const t of this.sim.tanks) {
       const sel = this.sim.selectedTankId === t.id;
       const hp = (t.hp / t.maxHp * 100) | 0;
       const hpCol = t.hp / t.maxHp > 0.6 ? 'var(--green)' : t.hp / t.maxHp > 0.3 ? 'var(--yellow)' : 'var(--red)';
-      const em = t.brain.em;
-      const topEm = Object.entries(em).sort((a, b) => b[1] - a[1])[0];
+      const em = t.cortex.getEmotions();
+      const topEm = Object.entries(em).filter(([, v]) => v > 0.01).sort((a, b) => b[1] - a[1])[0];
       html += `<div class="card${sel ? ' sel' : ''}" data-id="${t.id}">
         <div class="top"><span class="dot" style="background:${t.color}"></span><span class="nm">${t.name}</span><span class="st">${t.alive ? 'ALIVE' : 'DEAD'}</span></div>
         <div class="bar"><div class="fill" style="width:${hp}%;background:${hpCol}"></div></div>
         <div class="row"><span>K/D</span><span class="v">${t.kills}/${t.deaths}</span></div>
         <div class="row"><span>Acc</span><span class="v">${t.shotsFired > 0 ? ((t.accuracy * 100) | 0) + '%' : '—'}</span></div>
-        <div class="row"><span>Top Em</span><span class="v">${topEm ? topEm[0] + ' ' + ((topEm[1] * 100) | 0) + '%' : '—'}</span></div>
+        <div class="row"><span>Emotion</span><span class="v">${topEm ? topEm[0] + ' ' + ((topEm[1] * 100) | 0) + '%' : 'calm'}</span></div>
       </div>`;
     }
     el.innerHTML = html;
@@ -1390,7 +1216,7 @@ class UIController {
     });
   }
 
-  _updateDetail() {
+  _renderDetail() {
     const el = document.getElementById('detail');
     if (this.sim.selectedTankId === null) {
       el.innerHTML = '<p style="color:var(--muted);font-size:11px">Click a tank to inspect</p>';
@@ -1399,7 +1225,8 @@ class UIController {
     const t = this.sim.tanks[this.sim.selectedTankId];
     if (!t) return;
 
-    const em = t.brain.em;
+    const em = t.cortex.getEmotions();
+    const debug = t.cortex.getDebugInfo();
     const emKeys = Object.keys(em);
     let emHtml = '<div class="egrid">';
     for (const k of emKeys) {
@@ -1409,9 +1236,15 @@ class UIController {
     }
     emHtml += '</div>';
 
+    const pe = debug.predictionError ?? 0;
+    const cumR = t.cortex.getCumulativeReward();
+    const brainStep = t.cortex.getStep();
+    const stats = t.cortex.getStats();
+
     el.innerHTML = `
       <div class="card sel" style="border-color:${t.color}">
-        <div class="top"><span class="dot" style="background:${t.color}"></span><span class="nm">${t.name}</span><span class="st">${t.alive ? 'ALIVE' : 'RESPAWN ' + Math.ceil(t.respawnTimer / 60) + 's'}</span></div>
+        <div class="top"><span class="dot" style="background:${t.color}"></span><span class="nm">${t.name}</span>
+        <span class="st">${t.alive ? 'ALIVE' : 'RESPAWN ' + Math.ceil(t.respawnTimer / 60) + 's'}</span></div>
       </div>
       <div class="ptitle" style="margin-top:8px">Vitals</div>
       <div class="row"><span>HP</span><span class="v">${t.hp | 0} / ${t.maxHp}</span></div>
@@ -1422,17 +1255,18 @@ class UIController {
       <div class="row"><span>Accuracy</span><span class="v">${t.shotsFired > 0 ? ((t.accuracy * 100) | 0) + '%' : '—'}</span></div>
       <div class="row"><span>Shots</span><span class="v">${t.shotsFired}</span></div>
       <div class="row"><span>Wins</span><span class="v">${t.wins}</span></div>
-      <div class="ptitle" style="margin-top:8px">Neural</div>
-      <div class="row"><span>Brain Step</span><span class="v">${t.brain.step}</span></div>
-      <div class="row"><span>Pred Error</span><span class="v">${(t.brain._ape() * 100).toFixed(1)}%</span></div>
-      <div class="row"><span>Cum Reward</span><span class="v">${t.brain.cumR.toFixed(2)}</span></div>
-      <div class="row"><span>Value Est</span><span class="v">${t.brain._ev().toFixed(3)}</span></div>
+      <div class="ptitle" style="margin-top:8px">Neural State</div>
+      <div class="row"><span>Brain Step</span><span class="v">${brainStep}</span></div>
+      <div class="row"><span>Pred Error</span><span class="v">${(pe * 100).toFixed(1)}%</span></div>
+      <div class="row"><span>Cum Reward</span><span class="v">${cumR.toFixed(2)}</span></div>
+      <div class="row"><span>TD Steps</span><span class="v">${stats.totalSteps ?? 0}</span></div>
+      <div class="row"><span>Grad Clips</span><span class="v">${stats.gradientClips ?? 0}</span></div>
+      <div class="row"><span>Consolidations</span><span class="v">${stats.consolidationEvents ?? 0}</span></div>
       <div class="ptitle" style="margin-top:8px">Emotions</div>
-      ${emHtml}
-    `;
+      ${emHtml}`;
   }
 
-  _updateLog() {
+  _renderLog() {
     const el = document.getElementById('blog');
     let html = '';
     for (const e of this.sim.log.entries.slice(0, 30)) {
@@ -1441,17 +1275,22 @@ class UIController {
     el.innerHTML = html;
   }
 
-  _updateGlobalStats() {
+  _renderGlobalStats() {
     const el = document.getElementById('gstats');
     const tanks = this.sim.tanks;
-    const emKeys = ['threat', 'frust', 'conf', 'aggr', 'fear', 'desp', 'veng', 'curi'];
-    const emLabels = { threat: 'Threat', frust: 'Frustrat', conf: 'Confid', aggr: 'Aggress', fear: 'Fear', desp: 'Desperat', veng: 'Vengean', curi: 'Curiosi' };
+    const emMap = { threat: 'Threat', frustration: 'Frustrat', confidence: 'Confid', aggression: 'Aggress', fear: 'Fear', desperation: 'Desperat', vengeance: 'Vengean', curiosity: 'Curiosi' };
     let html = '';
-    for (const k of emKeys) {
-      const avg = tanks.reduce((s, t) => s + (t.brain.em[k] || 0), 0) / tanks.length;
+
+    for (const [key, label] of Object.entries(emMap)) {
+      let sum = 0;
+      for (const t of tanks) {
+        const em = t.cortex.getEmotions();
+        sum += em[key] || 0;
+      }
+      const avg = sum / tanks.length;
       const pct = (avg * 100) | 0;
-      const c = k === 'conf' ? 'var(--green)' : avg > 0.4 ? 'var(--red)' : avg > 0.2 ? 'var(--yellow)' : 'var(--cyan)';
-      html += `<div class="crow"><span class="cl">${emLabels[k] || k}</span><div class="ct"><div class="cf" style="width:${pct}%;background:${c}"></div></div><span class="cv">${pct}%</span></div>`;
+      const c = key === 'confidence' ? 'var(--green)' : avg > 0.4 ? 'var(--red)' : avg > 0.2 ? 'var(--yellow)' : 'var(--cyan)';
+      html += `<div class="crow"><span class="cl">${label}</span><div class="ct"><div class="cf" style="width:${pct}%;background:${c}"></div></div><span class="cv">${pct}%</span></div>`;
     }
 
     const totalK = tanks.reduce((s, t) => s + t.kills, 0);
@@ -1461,12 +1300,12 @@ class UIController {
       <div class="row"><span>Total Kills</span><span class="v">${totalK}</span></div>
       <div class="row"><span>Total Shots</span><span class="v">${totalS}</span></div>
       <div class="row"><span>Global Acc</span><span class="v">${totalS > 0 ? ((totalH / totalS * 100) | 0) + '%' : '—'}</span></div>
-      <div class="row"><span>Bullets</span><span class="v">${this.sim.bullets.length}</span></div>
+      <div class="row"><span>Bullets Live</span><span class="v">${this.sim.bullets.length}</span></div>
     </div>`;
     el.innerHTML = html;
   }
 
-  _updateLeaderboard() {
+  _renderLeaderboard() {
     const body = document.getElementById('lb-body');
     const rows = [...this.sim.leaderboard.entries()].map(([name, s]) => ({ name, ...s }));
     rows.sort((a, b) => (b.kills - b.deaths) - (a.kills - a.deaths) || b.damage - a.damage);
@@ -1488,14 +1327,19 @@ const sim = new GameSimulation(1200, 800);
 const renderer = new ArenaRenderer(document.getElementById('c'), sim);
 const ui = new UIController(sim, renderer);
 
-let uiThrottle = 0;
-function loop() {
-  requestAnimationFrame(loop);
+// Update overlay
+document.getElementById('ov-text').textContent = 'Press START to begin';
+
+let uiCounter = 0;
+function gameLoop() {
+  requestAnimationFrame(gameLoop);
   sim.step();
   renderer.render();
-  if (++uiThrottle % 6 === 0) ui.update();
+  if (++uiCounter % 6 === 0) ui.update();
 }
-loop();
+gameLoop();
+
+console.log('[Arena] Game loop started. Cortex2Brain integration: FULL EXTERNAL FILE.');
 </script>
 </body>
-  </html>
+</html>
