@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Cortex2Brain - Битва ИИ</title>
+    <title>Cortex2Brain - Битва</title>
     <style>
         body {
             background: #0a0a1a;
@@ -11,18 +11,43 @@
             align-items: center;
             min-height: 100vh;
             font-family: monospace;
+            margin: 0;
+        }
+        .arena {
+            background: #1a1a2e;
+            padding: 20px;
+            border-radius: 20px;
+            border: 2px solid #ff4444;
         }
         canvas {
-            border: 2px solid #ff4444;
+            display: block;
             border-radius: 10px;
-            cursor: crosshair;
         }
-        .panel {
-            background: #1a1a2e;
-            padding: 15px;
+        .info {
+            margin-top: 15px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .fighter {
+            background: #000000aa;
+            padding: 10px;
             border-radius: 10px;
-            color: cyan;
-            margin-top: 10px;
+        }
+        .hp-bar {
+            height: 20px;
+            background: #330000;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .hp-fill {
+            height: 100%;
+            transition: width 0.2s;
+        }
+        .emotions {
+            font-size: 10px;
+            color: #0f0;
+            margin-top: 5px;
         }
         button {
             background: #ff4444;
@@ -32,325 +57,241 @@
             margin: 5px;
             cursor: pointer;
             font-weight: bold;
-        }
-        .health-bar {
-            height: 20px;
-            background: #330000;
             border-radius: 10px;
-            overflow: hidden;
         }
-        .health-fill {
-            height: 100%;
-            transition: width 0.2s;
+        .log {
+            background: #000;
+            height: 80px;
+            overflow: auto;
+            font-size: 10px;
+            padding: 5px;
+            margin-top: 10px;
+        }
+        .controls {
+            text-align: center;
+            margin-top: 10px;
+        }
+        .log-entry {
+            color: #0f0;
+            margin: 2px 0;
         }
     </style>
 </head>
 <body>
-<div>
-    <canvas id="gameCanvas" width="900" height="500"></canvas>
-    <div class="panel">
-        <div>🔥 АГРЕССОР | ❤️ <span id="hp1">100</span>%</div>
-        <div class="health-bar"><div class="health-fill" id="health1" style="width:100%;background:#ff4444"></div></div>
-        <div>💀 ЗАЩИТНИК | ❤️ <span id="hp2">100</span>%</div>
-        <div class="health-bar"><div class="health-fill" id="health2" style="width:100%;background:#4444ff"></div></div>
-        <div id="emotions1" style="font-size:11px"></div>
-        <div id="emotions2" style="font-size:11px"></div>
-        <button id="startBtn">⚔️ НАЧАТЬ БИТВУ</button>
-        <button id="resetBtn">🔄 СБРОС</button>
-        <div id="log" style="height:80px;overflow:auto;background:#000;padding:5px;margin-top:10px"></div>
+<div class="arena">
+    <canvas id="canvas" width="800" height="400"></canvas>
+    
+    <div class="info">
+        <div class="fighter">
+            <b style="color:#ff4444">🔥 АГРЕССОР</b>
+            <div class="hp-bar"><div class="hp-fill" id="hp1" style="background:#ff4444; width:100%"></div></div>
+            <div class="emotions" id="em1"></div>
+        </div>
+        <div class="fighter">
+            <b style="color:#4444ff">💀 ЗАЩИТНИК</b>
+            <div class="hp-bar"><div class="hp-fill" id="hp2" style="background:#4444ff; width:100%"></div></div>
+            <div class="emotions" id="em2"></div>
+        </div>
     </div>
+    
+    <div class="controls">
+        <button id="startBtn">⚔️ НАЧАТЬ</button>
+        <button id="resetBtn">🔄 СБРОС</button>
+    </div>
+    
+    <div class="log" id="log"></div>
 </div>
 
-<script type="importmap">
-    {
-        "imports": {
-            "cortex": "./cortex.js"
-        }
+<script src="./cortex.js" type="text/javascript"></script>
+<script type="text/javascript">
+    // Проверка что cortex.js загрузился
+    if (typeof Cortex2Brain === 'undefined') {
+        document.getElementById('log').innerHTML = '<div class="log-entry" style="color:red">❌ Ошибка: cortex.js не загружен! Проверь путь к файлу.</div>';
+        throw new Error('Cortex2Brain not loaded');
     }
-</script>
-
-<script type="module">
-    import { Cortex2Brain } from 'cortex';
     
-    // === ИНИЦИАЛИЗАЦИЯ АГЕНТОВ ===
-    const agent1 = new Cortex2Brain({ seed: 'aggressor', lr: 0.02 });
-    const agent2 = new Cortex2Brain({ seed: 'defender', lr: 0.02 });
+    // Инициализация
+    const red = new Cortex2Brain({ seed: 'aggressor' });
+    const blue = new Cortex2Brain({ seed: 'defender' });
     
-    agent1.configurePersonality({ traits: { aggression: 0.9, bravery: 0.8, empathy: 0.1 } });
-    agent2.configurePersonality({ traits: { aggression: 0.3, bravery: 0.6, empathy: 0.5 } });
+    red.configurePersonality({ traits: { aggression: 0.9 } });
+    blue.configurePersonality({ traits: { aggression: 0.3 } });
     
-    // === ИГРОВОЕ СОСТОЯНИЕ ===
+    // Состояние
     let hp1 = 100, hp2 = 100;
+    let pos1 = 200, pos2 = 600;
     let running = false;
+    let interval = null;
     let frame = 0;
+    let lastDmg1 = 0, lastDmg2 = 0;
     
-    const canvas = document.getElementById('gameCanvas');
+    const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     
-    // Позиции бойцов
-    let pos1 = { x: 200, y: 250 };
-    let pos2 = { x: 700, y: 250 };
-    
-    function log(msg, isCritical = false) {
+    function log(msg) {
         const logDiv = document.getElementById('log');
         const entry = document.createElement('div');
-        entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-        entry.style.color = isCritical ? '#ff4444' : '#0f0';
-        entry.style.fontSize = '11px';
+        entry.className = 'log-entry';
+        entry.textContent = new Date().toLocaleTimeString() + ' ' + msg;
         logDiv.appendChild(entry);
         logDiv.scrollTop = logDiv.scrollHeight;
-        if (logDiv.children.length > 20) logDiv.removeChild(logDiv.children[0]);
+        if (logDiv.children.length > 15) logDiv.removeChild(logDiv.children[0]);
     }
     
-    function getSensors(agentId, hp, enemyHp, distance, angle, lastDamage) {
-        // 64 сенсора для агента
-        const sensors = new Array(64).fill(0);
-        sensors[0] = hp / 100;           // своё здоровье
-        sensors[1] = enemyHp / 100;      // здоровье врага
-        sensors[2] = Math.min(1, distance / 300); // дистанция
-        sensors[3] = Math.sin(angle);     // угол к врагу
-        sensors[4] = Math.cos(angle);
-        sensors[5] = lastDamage / 20;     // последний урон
-        sensors[6] = agentId === 1 ? (hp < 30 ? 1 : 0) : 0;  // критическое здоровье
-        sensors[7] = agentId === 2 ? (hp < 30 ? 1 : 0) : 0;
-        sensors[8] = frame % 100 / 100;    // время боя
-        return sensors;
+    function getSensors(hp, enemyHp, dist) {
+        const s = new Array(64).fill(0);
+        s[0] = hp / 100;
+        s[1] = enemyHp / 100;
+        s[2] = Math.min(1, dist / 300);
+        s[8] = frame / 500;
+        return s;
     }
     
-    function getCombatEvents(agentId, dealtDamage, tookDamage, hit) {
-        const events = [];
-        if (dealtDamage > 0) events.push({ type: 'hit_dealt', damage: dealtDamage });
-        if (tookDamage > 0) events.push({ type: 'damage_received', damage: tookDamage });
-        if (hit === 'miss') events.push({ type: 'hit_missed' });
-        return events;
-    }
-    
-    let lastAction1 = null, lastAction2 = null;
-    let lastDamage1 = 0, lastDamage2 = 0;
-    let lastHit1 = null, lastHit2 = null;
-    
-    function updateGame() {
+    function update() {
         if (!running) return;
         
-        // Расчёт дистанции и угла
-        const dx = pos2.x - pos1.x;
-        const dy = pos2.y - pos1.y;
-        const distance = Math.hypot(dx, dy);
-        const angle1 = Math.atan2(dy, dx);
-        const angle2 = Math.atan2(-dy, -dx);
+        const dist = Math.abs(pos2 - pos1);
         
-        // Получаем сенсоры
-        const sensors1 = getSensors(1, hp1, hp2, distance, angle1, lastDamage1);
-        const sensors2 = getSensors(2, hp2, hp1, distance, angle2, lastDamage2);
+        const s1 = getSensors(hp1, hp2, dist);
+        const s2 = getSensors(hp2, hp1, dist);
         
-        // Forward pass агентов
-        const events1 = getCombatEvents(1, lastDamage2, lastDamage1, lastHit1);
-        const events2 = getCombatEvents(2, lastDamage1, lastDamage2, lastHit2);
+        const r1 = red.forward(s1, 0);
+        const r2 = blue.forward(s2, 0);
         
-        const result1 = agent1.forward(sensors1, 0, events1);
-        const result2 = agent2.forward(sensors2, 0, events2);
+        const a1 = r1.output;
+        const a2 = r2.output;
         
-        const action1 = result1.output;
-        const action2 = result2.output;
+        const attack1 = a1[0] > 0.6 ? a1[0] : 0;
+        const attack2 = a2[0] > 0.6 ? a2[0] : 0;
+        const move1 = (a1[1] || 0) - (a1[2] || 0);
+        const move2 = (a2[1] || 0) - (a2[2] || 0);
         
-        // Интерпретация действий агентов
-        // action[0] = атака (0-1), action[1] = движение вперёд, action[2] = отступление
-        const attack1 = action1[0] > 0.6 ? action1[0] : 0;
-        const attack2 = action2[0] > 0.6 ? action2[0] : 0;
-        const move1 = (action1[1] || 0) - (action1[2] || 0);
-        const move2 = (action2[1] || 0) - (action2[2] || 0);
+        pos1 += move1 * 5;
+        pos2 += move2 * 5;
+        pos1 = Math.max(50, Math.min(350, pos1));
+        pos2 = Math.max(450, Math.min(750, pos2));
         
-        // Движение
-        let speed = 3;
-        pos1.x += move1 * speed;
-        pos2.x += move2 * speed;
-        pos1.x = Math.max(50, Math.min(850, pos1.x));
-        pos2.x = Math.max(50, Math.min(850, pos2.x));
+        lastDmg1 = 0;
+        lastDmg2 = 0;
         
-        // Атака (если в радиусе 50px)
-        lastDamage1 = 0;
-        lastDamage2 = 0;
-        lastHit1 = null;
-        lastHit2 = null;
-        
-        if (attack1 > 0 && distance < 60) {
+        if (attack1 > 0 && dist < 80) {
             const dmg = 5 + attack1 * 10;
             hp2 = Math.max(0, hp2 - dmg);
-            lastDamage2 = dmg;
-            lastHit1 = 'hit';
-            log(`🔥 АГРЕССОР нанёс ${dmg.toFixed(1)} урона! Эмоция: ${result1.emotionalStateName || 'нейтрал'}`, true);
+            lastDmg2 = dmg;
+            log('🔥 Агрессор нанёс ' + dmg.toFixed(0) + ' урона | ' + (r1.emotionalStateName || 'норма'));
         }
         
-        if (attack2 > 0 && distance < 60) {
+        if (attack2 > 0 && dist < 80) {
             const dmg = 4 + attack2 * 8;
             hp1 = Math.max(0, hp1 - dmg);
-            lastDamage1 = dmg;
-            lastHit2 = 'hit';
-            log(`💀 ЗАЩИТНИК нанёс ${dmg.toFixed(1)} урона! Эмоция: ${result2.emotionalStateName || 'нейтрал'}`, true);
+            lastDmg1 = dmg;
+            log('💀 Защитник нанёс ' + dmg.toFixed(0) + ' урона | ' + (r2.emotionalStateName || 'норма'));
         }
         
-        // Отображение эмоций
-        const emotions1 = agent1.getEmotions();
-        const emotions2 = agent2.getEmotions();
-        document.getElementById('emotions1').innerHTML = `
-            😠${emotions1.aggression?.toFixed(2) || 0} 
-            😨${emotions1.fear?.toFixed(2) || 0} 
-            💢${emotions1.frustration?.toFixed(2) || 0}
-        `;
-        document.getElementById('emotions2').innerHTML = `
-            😠${emotions2.aggression?.toFixed(2) || 0} 
-            😨${emotions2.fear?.toFixed(2) || 0} 
-            💢${emotions2.frustration?.toFixed(2) || 0}
-        `;
+        // UI
+        const e1 = red.getEmotions();
+        const e2 = blue.getEmotions();
+        document.getElementById('em1').innerHTML = '😠' + (e1.aggression || 0).toFixed(2) + ' 😨' + (e1.fear || 0).toFixed(2);
+        document.getElementById('em2').innerHTML = '😠' + (e2.aggression || 0).toFixed(2) + ' 😨' + (e2.fear || 0).toFixed(2);
         
-        // Обновление UI
-        document.getElementById('hp1').textContent = Math.floor(hp1);
-        document.getElementById('hp2').textContent = Math.floor(hp2);
-        document.getElementById('health1').style.width = hp1 + '%';
-        document.getElementById('health2').style.width = hp2 + '%';
+        document.getElementById('hp1').style.width = hp1 + '%';
+        document.getElementById('hp2').style.width = hp2 + '%';
         
-        // Проверка смерти
+        // Обучение
+        const rew1 = (lastDmg2 > 0 ? 10 : 0) - (lastDmg1 > 0 ? 5 : 0);
+        const rew2 = (lastDmg1 > 0 ? 10 : 0) - (lastDmg2 > 0 ? 5 : 0);
+        
+        red.learn({ observation: s1, action: a1, reward: rew1, done: hp1 <= 0 });
+        blue.learn({ observation: s2, action: a2, reward: rew2, done: hp2 <= 0 });
+        
         if (hp1 <= 0) {
             running = false;
-            log('💀 АГРЕССОР ПОВЕРЖЕН! ПОБЕДИЛ ЗАЩИТНИК 💀', true);
-            alert('Защитник победил!');
+            clearInterval(interval);
+            interval = null;
+            log('💀 АГРЕССОР УБИТ! ПОБЕДИЛ ЗАЩИТНИК');
         }
         if (hp2 <= 0) {
             running = false;
-            log('🔥 ЗАЩИТНИК ПОВЕРЖЕН! ПОБЕДИЛ АГРЕССОР 🔥', true);
-            alert('Агрессор победил!');
+            clearInterval(interval);
+            interval = null;
+            log('🔥 ЗАЩИТНИК УБИТ! ПОБЕДИЛ АГРЕССОР');
         }
-        
-        // Обучение агентов
-        const reward1 = (lastDamage2 > 0 ? 10 : 0) - (lastDamage1 > 0 ? 5 : 0) + (attack1 > 0.7 ? 2 : 0);
-        const reward2 = (lastDamage1 > 0 ? 10 : 0) - (lastDamage2 > 0 ? 5 : 0) + (attack2 > 0.7 ? 2 : 0);
-        
-        agent1.learn({ observation: sensors1, action: action1, reward: reward1, done: hp1 <= 0 });
-        agent2.learn({ observation: sensors2, action: action2, reward: reward2, done: hp2 <= 0 });
-        
-        lastAction1 = action1;
-        lastAction2 = action2;
         
         draw();
         frame++;
     }
     
     function draw() {
-        ctx.clearRect(0, 0, 900, 500);
-        
-        // Арена
+        ctx.clearRect(0, 0, 800, 400);
         ctx.fillStyle = '#2a1a0a';
-        ctx.fillRect(0, 0, 900, 500);
-        ctx.strokeStyle = '#ff4444';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(10, 10, 880, 480);
+        ctx.fillRect(0, 0, 800, 400);
         
-        // Кровь на полу
-        for (let i = 0; i < 20; i++) {
-            ctx.fillStyle = `rgba(100, 0, 0, ${Math.random() * 0.3})`;
-            ctx.fillRect(Math.random() * 900, Math.random() * 500, 5, 5);
-        }
-        
-        // Боец 1 (Агрессор)
+        // Красный
         ctx.fillStyle = '#ff4444';
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = '#ff0000';
         ctx.beginPath();
-        ctx.arc(pos1.x, pos1.y, 25 + (hp1 < 30 ? 5 : 0), 0, Math.PI * 2);
+        ctx.arc(pos1, 200, 25, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = 'white';
-        ctx.font = 'bold 20px monospace';
-        ctx.fillText('🔥', pos1.x - 12, pos1.y + 8);
+        ctx.font = '25px monospace';
+        ctx.fillText('🔥', pos1 - 15, 215);
         
-        // Полоска здоровья над головой
         ctx.fillStyle = '#330000';
-        ctx.fillRect(pos1.x - 30, pos1.y - 35, 60, 8);
+        ctx.fillRect(pos1 - 30, 160, 60, 8);
         ctx.fillStyle = '#ff4444';
-        ctx.fillRect(pos1.x - 30, pos1.y - 35, 60 * (hp1 / 100), 8);
+        ctx.fillRect(pos1 - 30, 160, 60 * (hp1 / 100), 8);
         
-        // Боец 2 (Защитник)
+        // Синий
         ctx.fillStyle = '#4444ff';
-        ctx.shadowColor = '#0066ff';
         ctx.beginPath();
-        ctx.arc(pos2.x, pos2.y, 25 + (hp2 < 30 ? 5 : 0), 0, Math.PI * 2);
+        ctx.arc(pos2, 200, 25, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = 'white';
-        ctx.fillText('💀', pos2.x - 12, pos2.y + 8);
+        ctx.fillText('💀', pos2 - 15, 215);
         
         ctx.fillStyle = '#330033';
-        ctx.fillRect(pos2.x - 30, pos2.y - 35, 60, 8);
+        ctx.fillRect(pos2 - 30, 160, 60, 8);
         ctx.fillStyle = '#4444ff';
-        ctx.fillRect(pos2.x - 30, pos2.y - 35, 60 * (hp2 / 100), 8);
+        ctx.fillRect(pos2 - 30, 160, 60 * (hp2 / 100), 8);
         
-        // Эффекты ударов
-        if (lastDamage1 > 0) {
-            ctx.strokeStyle = '#ff0000';
-            ctx.lineWidth = 3;
+        // Удар
+        if (lastDmg1 > 0 || lastDmg2 > 0) {
+            ctx.strokeStyle = '#ffaa00';
+            ctx.lineWidth = 4;
             ctx.beginPath();
-            ctx.moveTo(pos2.x, pos2.y);
-            ctx.lineTo(pos1.x, pos1.y);
+            ctx.moveTo(pos1, 200);
+            ctx.lineTo(pos2, 200);
             ctx.stroke();
-            document.querySelector('canvas').classList.add('shake');
-            setTimeout(() => document.querySelector('canvas').classList.remove('shake'), 200);
         }
-        if (lastDamage2 > 0) {
-            ctx.strokeStyle = '#ff6600';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(pos1.x, pos1.y);
-            ctx.lineTo(pos2.x, pos2.y);
-            ctx.stroke();
-            document.querySelector('canvas').classList.add('shake');
-            setTimeout(() => document.querySelector('canvas').classList.remove('shake'), 200);
-        }
-        
-        ctx.shadowBlur = 0;
     }
     
-    let interval = null;
-    
-    function startBattle() {
+    function start() {
         if (interval) clearInterval(interval);
         running = true;
-        interval = setInterval(() => {
-            updateGame();
-        }, 100);
-        log('⚔️ БИТВА НАЧАЛАСЬ! Оба ИИ сражаются ⚔️');
+        interval = setInterval(update, 100);
+        log('⚔️ БИТВА НАЧАЛАСЬ');
     }
     
-    function resetBattle() {
+    function reset() {
         if (interval) clearInterval(interval);
         hp1 = 100;
         hp2 = 100;
-        pos1 = { x: 200, y: 250 };
-        pos2 = { x: 700, y: 250 };
+        pos1 = 200;
+        pos2 = 600;
         running = false;
         frame = 0;
-        lastDamage1 = 0;
-        lastDamage2 = 0;
-        agent1.resetEpisode();
-        agent2.resetEpisode();
+        lastDmg1 = 0;
+        lastDmg2 = 0;
+        red.resetEpisode();
+        blue.resetEpisode();
         draw();
-        log('🔄 Битва сброшена, агенты перезапущены');
+        log('🔄 СБРОС');
     }
     
-    function toggleAuto() {
-        if (interval) {
-            clearInterval(interval);
-            interval = null;
-            running = false;
-            document.getElementById('autoBtn').textContent = '▶️ СТАРТ';
-        } else {
-            startBattle();
-            document.getElementById('autoBtn').textContent = '⏸️ ПАУЗА';
-        }
-    }
-    
-    document.getElementById('startBtn').onclick = startBattle;
-    document.getElementById('resetBtn').onclick = resetBattle;
+    document.getElementById('startBtn').onclick = start;
+    document.getElementById('resetBtn').onclick = reset;
     
     draw();
-    log('✅ Игра загружена, Cortex2Brain подключён');
+    log('✅ Готов, Cortex2Brain ' + (typeof Cortex2Brain !== 'undefined' ? 'загружен' : 'НЕ ЗАГРУЖЕН!'));
 </script>
 </body>
 </html>
