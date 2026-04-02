@@ -136,7 +136,7 @@ function deriveArchSizes(DIM) {
         REFLEX_THRESHOLD:    0.9,
         MAX_WEIGHT:          2.0,
         MAX_GRADIENT:        0.3,
-        MAX_TRACE_VAL:       10.0,
+        MAX_TRACE_VAL:       1.0,
     });
 }
 
