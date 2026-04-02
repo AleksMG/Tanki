@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Cortex2Brain - Битва</title>
+    <title>Cortex2Brain - Танки</title>
     <style>
         body {
             background: #0a0a1a;
@@ -12,6 +12,7 @@
             min-height: 100vh;
             font-family: monospace;
             margin: 0;
+            padding: 20px;
         }
         .arena {
             background: #1a1a2e;
@@ -75,6 +76,13 @@
             color: #0f0;
             margin: 2px 0;
         }
+        .error {
+            color: #ff4444;
+            background: #330000;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -100,198 +108,227 @@
     </div>
     
     <div class="log" id="log"></div>
+    <div id="errorMsg" class="error" style="display:none"></div>
 </div>
 
-<script src="./cortex.js" type="text/javascript"></script>
-<script type="text/javascript">
-    // Проверка что cortex.js загрузился
-    if (typeof Cortex2Brain === 'undefined') {
-        document.getElementById('log').innerHTML = '<div class="log-entry" style="color:red">❌ Ошибка: cortex.js не загружен! Проверь путь к файлу.</div>';
-        throw new Error('Cortex2Brain not loaded');
+<script>
+    // Загружаем cortex.js динамически
+    function loadCortex() {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'cortex.js';
+            script.onload = () => {
+                console.log('cortex.js загружен');
+                resolve();
+            };
+            script.onerror = () => {
+                reject(new Error('Не удалось загрузить cortex.js. Убедитесь что файл лежит в той же папке что и index.html'));
+            };
+            document.head.appendChild(script);
+        });
     }
     
-    // Инициализация
-    const red = new Cortex2Brain({ seed: 'aggressor' });
-    const blue = new Cortex2Brain({ seed: 'defender' });
+    // Запуск после загрузки
+    loadCortex().then(() => {
+        document.getElementById('errorMsg').style.display = 'none';
+        initGame();
+    }).catch(err => {
+        document.getElementById('errorMsg').style.display = 'block';
+        document.getElementById('errorMsg').innerHTML = '❌ ' + err.message + '<br><br>Решение: файл <b>cortex.js</b> должен быть в той же папке что и <b>index.html</b><br>Текущий путь: ' + window.location.href;
+        document.getElementById('log').innerHTML = '<div class="log-entry" style="color:#ff4444">❌ Ошибка загрузки cortex.js</div>';
+    });
     
-    red.configurePersonality({ traits: { aggression: 0.9 } });
-    blue.configurePersonality({ traits: { aggression: 0.3 } });
-    
-    // Состояние
-    let hp1 = 100, hp2 = 100;
-    let pos1 = 200, pos2 = 600;
-    let running = false;
-    let interval = null;
-    let frame = 0;
-    let lastDmg1 = 0, lastDmg2 = 0;
-    
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    
-    function log(msg) {
-        const logDiv = document.getElementById('log');
-        const entry = document.createElement('div');
-        entry.className = 'log-entry';
-        entry.textContent = new Date().toLocaleTimeString() + ' ' + msg;
-        logDiv.appendChild(entry);
-        logDiv.scrollTop = logDiv.scrollHeight;
-        if (logDiv.children.length > 15) logDiv.removeChild(logDiv.children[0]);
-    }
-    
-    function getSensors(hp, enemyHp, dist) {
-        const s = new Array(64).fill(0);
-        s[0] = hp / 100;
-        s[1] = enemyHp / 100;
-        s[2] = Math.min(1, dist / 300);
-        s[8] = frame / 500;
-        return s;
-    }
-    
-    function update() {
-        if (!running) return;
-        
-        const dist = Math.abs(pos2 - pos1);
-        
-        const s1 = getSensors(hp1, hp2, dist);
-        const s2 = getSensors(hp2, hp1, dist);
-        
-        const r1 = red.forward(s1, 0);
-        const r2 = blue.forward(s2, 0);
-        
-        const a1 = r1.output;
-        const a2 = r2.output;
-        
-        const attack1 = a1[0] > 0.6 ? a1[0] : 0;
-        const attack2 = a2[0] > 0.6 ? a2[0] : 0;
-        const move1 = (a1[1] || 0) - (a1[2] || 0);
-        const move2 = (a2[1] || 0) - (a2[2] || 0);
-        
-        pos1 += move1 * 5;
-        pos2 += move2 * 5;
-        pos1 = Math.max(50, Math.min(350, pos1));
-        pos2 = Math.max(450, Math.min(750, pos2));
-        
-        lastDmg1 = 0;
-        lastDmg2 = 0;
-        
-        if (attack1 > 0 && dist < 80) {
-            const dmg = 5 + attack1 * 10;
-            hp2 = Math.max(0, hp2 - dmg);
-            lastDmg2 = dmg;
-            log('🔥 Агрессор нанёс ' + dmg.toFixed(0) + ' урона | ' + (r1.emotionalStateName || 'норма'));
+    function initGame() {
+        // Проверка
+        if (typeof Cortex2Brain === 'undefined') {
+            document.getElementById('errorMsg').style.display = 'block';
+            document.getElementById('errorMsg').innerHTML = '❌ Cortex2Brain не определён даже после загрузки';
+            return;
         }
         
-        if (attack2 > 0 && dist < 80) {
-            const dmg = 4 + attack2 * 8;
-            hp1 = Math.max(0, hp1 - dmg);
-            lastDmg1 = dmg;
-            log('💀 Защитник нанёс ' + dmg.toFixed(0) + ' урона | ' + (r2.emotionalStateName || 'норма'));
+        // Инициализация
+        const red = new Cortex2Brain({ seed: 'aggressor' });
+        const blue = new Cortex2Brain({ seed: 'defender' });
+        
+        red.configurePersonality({ traits: { aggression: 0.9 } });
+        blue.configurePersonality({ traits: { aggression: 0.3 } });
+        
+        // Состояние
+        let hp1 = 100, hp2 = 100;
+        let pos1 = 200, pos2 = 600;
+        let running = false;
+        let interval = null;
+        let frame = 0;
+        let lastDmg1 = 0, lastDmg2 = 0;
+        
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        function log(msg) {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = new Date().toLocaleTimeString() + ' ' + msg;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            if (logDiv.children.length > 15) logDiv.removeChild(logDiv.children[0]);
         }
         
-        // UI
-        const e1 = red.getEmotions();
-        const e2 = blue.getEmotions();
-        document.getElementById('em1').innerHTML = '😠' + (e1.aggression || 0).toFixed(2) + ' 😨' + (e1.fear || 0).toFixed(2);
-        document.getElementById('em2').innerHTML = '😠' + (e2.aggression || 0).toFixed(2) + ' 😨' + (e2.fear || 0).toFixed(2);
-        
-        document.getElementById('hp1').style.width = hp1 + '%';
-        document.getElementById('hp2').style.width = hp2 + '%';
-        
-        // Обучение
-        const rew1 = (lastDmg2 > 0 ? 10 : 0) - (lastDmg1 > 0 ? 5 : 0);
-        const rew2 = (lastDmg1 > 0 ? 10 : 0) - (lastDmg2 > 0 ? 5 : 0);
-        
-        red.learn({ observation: s1, action: a1, reward: rew1, done: hp1 <= 0 });
-        blue.learn({ observation: s2, action: a2, reward: rew2, done: hp2 <= 0 });
-        
-        if (hp1 <= 0) {
-            running = false;
-            clearInterval(interval);
-            interval = null;
-            log('💀 АГРЕССОР УБИТ! ПОБЕДИЛ ЗАЩИТНИК');
-        }
-        if (hp2 <= 0) {
-            running = false;
-            clearInterval(interval);
-            interval = null;
-            log('🔥 ЗАЩИТНИК УБИТ! ПОБЕДИЛ АГРЕССОР');
+        function getSensors(hp, enemyHp, dist) {
+            const s = new Array(64).fill(0);
+            s[0] = hp / 100;
+            s[1] = enemyHp / 100;
+            s[2] = Math.min(1, dist / 300);
+            s[8] = frame / 500;
+            return s;
         }
         
-        draw();
-        frame++;
-    }
-    
-    function draw() {
-        ctx.clearRect(0, 0, 800, 400);
-        ctx.fillStyle = '#2a1a0a';
-        ctx.fillRect(0, 0, 800, 400);
+        function update() {
+            if (!running) return;
+            
+            const dist = Math.abs(pos2 - pos1);
+            
+            const s1 = getSensors(hp1, hp2, dist);
+            const s2 = getSensors(hp2, hp1, dist);
+            
+            const r1 = red.forward(s1, 0);
+            const r2 = blue.forward(s2, 0);
+            
+            const a1 = r1.output;
+            const a2 = r2.output;
+            
+            const attack1 = a1[0] > 0.6 ? a1[0] : 0;
+            const attack2 = a2[0] > 0.6 ? a2[0] : 0;
+            const move1 = (a1[1] || 0) - (a1[2] || 0);
+            const move2 = (a2[1] || 0) - (a2[2] || 0);
+            
+            pos1 += move1 * 5;
+            pos2 += move2 * 5;
+            pos1 = Math.max(50, Math.min(350, pos1));
+            pos2 = Math.max(450, Math.min(750, pos2));
+            
+            lastDmg1 = 0;
+            lastDmg2 = 0;
+            
+            if (attack1 > 0 && dist < 80) {
+                const dmg = 5 + attack1 * 10;
+                hp2 = Math.max(0, hp2 - dmg);
+                lastDmg2 = dmg;
+                log('🔥 Агрессор нанёс ' + dmg.toFixed(0) + ' урона | ' + (r1.emotionalStateName || 'норма'));
+            }
+            
+            if (attack2 > 0 && dist < 80) {
+                const dmg = 4 + attack2 * 8;
+                hp1 = Math.max(0, hp1 - dmg);
+                lastDmg1 = dmg;
+                log('💀 Защитник нанёс ' + dmg.toFixed(0) + ' урона | ' + (r2.emotionalStateName || 'норма'));
+            }
+            
+            // UI
+            const e1 = red.getEmotions();
+            const e2 = blue.getEmotions();
+            document.getElementById('em1').innerHTML = '😠' + (e1.aggression || 0).toFixed(2) + ' 😨' + (e1.fear || 0).toFixed(2);
+            document.getElementById('em2').innerHTML = '😠' + (e2.aggression || 0).toFixed(2) + ' 😨' + (e2.fear || 0).toFixed(2);
+            
+            document.getElementById('hp1').style.width = hp1 + '%';
+            document.getElementById('hp2').style.width = hp2 + '%';
+            
+            // Обучение
+            const rew1 = (lastDmg2 > 0 ? 10 : 0) - (lastDmg1 > 0 ? 5 : 0);
+            const rew2 = (lastDmg1 > 0 ? 10 : 0) - (lastDmg2 > 0 ? 5 : 0);
+            
+            red.learn({ observation: s1, action: a1, reward: rew1, done: hp1 <= 0 });
+            blue.learn({ observation: s2, action: a2, reward: rew2, done: hp2 <= 0 });
+            
+            if (hp1 <= 0) {
+                running = false;
+                clearInterval(interval);
+                interval = null;
+                log('💀 АГРЕССОР УБИТ! ПОБЕДИЛ ЗАЩИТНИК');
+            }
+            if (hp2 <= 0) {
+                running = false;
+                clearInterval(interval);
+                interval = null;
+                log('🔥 ЗАЩИТНИК УБИТ! ПОБЕДИЛ АГРЕССОР');
+            }
+            
+            draw();
+            frame++;
+        }
         
-        // Красный
-        ctx.fillStyle = '#ff4444';
-        ctx.beginPath();
-        ctx.arc(pos1, 200, 25, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = 'white';
-        ctx.font = '25px monospace';
-        ctx.fillText('🔥', pos1 - 15, 215);
-        
-        ctx.fillStyle = '#330000';
-        ctx.fillRect(pos1 - 30, 160, 60, 8);
-        ctx.fillStyle = '#ff4444';
-        ctx.fillRect(pos1 - 30, 160, 60 * (hp1 / 100), 8);
-        
-        // Синий
-        ctx.fillStyle = '#4444ff';
-        ctx.beginPath();
-        ctx.arc(pos2, 200, 25, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = 'white';
-        ctx.fillText('💀', pos2 - 15, 215);
-        
-        ctx.fillStyle = '#330033';
-        ctx.fillRect(pos2 - 30, 160, 60, 8);
-        ctx.fillStyle = '#4444ff';
-        ctx.fillRect(pos2 - 30, 160, 60 * (hp2 / 100), 8);
-        
-        // Удар
-        if (lastDmg1 > 0 || lastDmg2 > 0) {
-            ctx.strokeStyle = '#ffaa00';
-            ctx.lineWidth = 4;
+        function draw() {
+            ctx.clearRect(0, 0, 800, 400);
+            ctx.fillStyle = '#2a1a0a';
+            ctx.fillRect(0, 0, 800, 400);
+            
+            // Красный
+            ctx.fillStyle = '#ff4444';
             ctx.beginPath();
-            ctx.moveTo(pos1, 200);
-            ctx.lineTo(pos2, 200);
-            ctx.stroke();
+            ctx.arc(pos1, 200, 25, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.font = '25px monospace';
+            ctx.fillText('🔥', pos1 - 15, 215);
+            
+            ctx.fillStyle = '#330000';
+            ctx.fillRect(pos1 - 30, 160, 60, 8);
+            ctx.fillStyle = '#ff4444';
+            ctx.fillRect(pos1 - 30, 160, 60 * (hp1 / 100), 8);
+            
+            // Синий
+            ctx.fillStyle = '#4444ff';
+            ctx.beginPath();
+            ctx.arc(pos2, 200, 25, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.fillText('💀', pos2 - 15, 215);
+            
+            ctx.fillStyle = '#330033';
+            ctx.fillRect(pos2 - 30, 160, 60, 8);
+            ctx.fillStyle = '#4444ff';
+            ctx.fillRect(pos2 - 30, 160, 60 * (hp2 / 100), 8);
+            
+            // Удар
+            if (lastDmg1 > 0 || lastDmg2 > 0) {
+                ctx.strokeStyle = '#ffaa00';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(pos1, 200);
+                ctx.lineTo(pos2, 200);
+                ctx.stroke();
+            }
         }
-    }
-    
-    function start() {
-        if (interval) clearInterval(interval);
-        running = true;
-        interval = setInterval(update, 100);
-        log('⚔️ БИТВА НАЧАЛАСЬ');
-    }
-    
-    function reset() {
-        if (interval) clearInterval(interval);
-        hp1 = 100;
-        hp2 = 100;
-        pos1 = 200;
-        pos2 = 600;
-        running = false;
-        frame = 0;
-        lastDmg1 = 0;
-        lastDmg2 = 0;
-        red.resetEpisode();
-        blue.resetEpisode();
+        
+        function start() {
+            if (interval) clearInterval(interval);
+            running = true;
+            interval = setInterval(update, 100);
+            log('⚔️ БИТВА НАЧАЛАСЬ');
+        }
+        
+        function reset() {
+            if (interval) clearInterval(interval);
+            hp1 = 100;
+            hp2 = 100;
+            pos1 = 200;
+            pos2 = 600;
+            running = false;
+            frame = 0;
+            lastDmg1 = 0;
+            lastDmg2 = 0;
+            red.resetEpisode();
+            blue.resetEpisode();
+            draw();
+            log('🔄 СБРОС');
+        }
+        
+        document.getElementById('startBtn').onclick = start;
+        document.getElementById('resetBtn').onclick = reset;
+        
         draw();
-        log('🔄 СБРОС');
+        log('✅ Готов, Cortex2Brain ' + (typeof Cortex2Brain !== 'undefined' ? 'загружен' : 'НЕ ЗАГРУЖЕН!'));
     }
-    
-    document.getElementById('startBtn').onclick = start;
-    document.getElementById('resetBtn').onclick = reset;
-    
-    draw();
-    log('✅ Готов, Cortex2Brain ' + (typeof Cortex2Brain !== 'undefined' ? 'загружен' : 'НЕ ЗАГРУЖЕН!'));
 </script>
 </body>
 </html>
