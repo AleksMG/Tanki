@@ -1,298 +1,840 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Cortex2Brain - Битва ИИ</title>
-    <style>
-        * {
-            user-select: none;
-        }
-        body {
-            background: #0a0a1a;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            font-family: monospace;
-            margin: 0;
-            padding: 20px;
-        }
-        .arena {
-            background: #1a1a2e;
-            padding: 20px;
-            border-radius: 20px;
-            border: 2px solid #ff4444;
-        }
-        canvas {
-            display: block;
-            border-radius: 10px;
-        }
-        .info {
-            margin-top: 15px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-        .fighter {
-            background: #000000aa;
-            padding: 10px;
-            border-radius: 10px;
-        }
-        .hp-bar {
-            height: 20px;
-            background: #330000;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        .hp-fill {
-            height: 100%;
-            transition: width 0.2s;
-        }
-        .emotions {
-            font-size: 10px;
-            color: #0f0;
-            margin-top: 5px;
-        }
-        button {
-            background: #ff4444;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            margin: 5px;
-            cursor: pointer;
-            font-weight: bold;
-            border-radius: 10px;
-        }
-        .log {
-            background: #000;
-            height: 80px;
-            overflow: auto;
-            font-size: 10px;
-            padding: 5px;
-            margin-top: 10px;
-        }
-        .controls {
-            text-align: center;
-            margin-top: 10px;
-        }
-        .log-entry {
-            color: #0f0;
-            margin: 2px 0;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CORTEX2BRAIN — Tank Arena</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e17;--panel:#111827;--border:#1e293b;--accent:#3b82f6;
+  --green:#22c55e;--red:#ef4444;--yellow:#eab308;--cyan:#06b6d4;
+  --text:#e2e8f0;--muted:#64748b;--dim:#334155;
+  --font-mono:'Courier New',monospace;--font-ui:system-ui,-apple-system,sans-serif;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-ui);font-size:14px}
+
+/* ── Layout ── */
+#app{display:grid;grid-template-rows:48px 1fr 220px;grid-template-columns:280px 1fr 280px;height:100vh;gap:1px;background:var(--border)}
+#header{grid-column:1/-1;background:var(--panel);display:flex;align-items:center;padding:0 16px;gap:16px}
+#left-panel{background:var(--panel);overflow-y:auto;padding:12px}
+#arena-wrap{position:relative;background:#080c14;overflow:hidden}
+#right-panel{background:var(--panel);overflow-y:auto;padding:12px}
+#bottom-panel{grid-column:1/-1;background:var(--panel);display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;padding:0}
+
+canvas#arena{display:block;width:100%;height:100%}
+
+/* ── Header ── */
+#header h1{font-size:15px;font-weight:700;letter-spacing:1px;color:var(--accent)}
+#header .sep{width:1px;height:24px;background:var(--border)}
+.hdr-stat{font-size:12px;color:var(--muted)}
+.hdr-stat span{color:var(--text);font-weight:600}
+.btn{padding:5px 14px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--text);cursor:pointer;font-size:12px;font-family:var(--font-ui);transition:all .15s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{opacity:.85}
+.btn.danger{border-color:var(--red);color:var(--red)}
+.btn.danger:hover{background:var(--red);color:#fff}
+select.ctrl{padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--panel);color:var(--text);font-size:12px}
+
+/* ── Panels ── */
+.panel-title{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:8px;font-weight:600}
+.tank-card{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:8px}
+.tank-card.selected{border-color:var(--accent)}
+.tank-card .name{font-weight:700;font-size:13px;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.tank-card .name .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.tank-card .name .status{font-size:10px;color:var(--muted);margin-left:auto;font-weight:400}
+
+.stat-row{display:flex;justify-content:space-between;font-size:11px;padding:2px 0;color:var(--muted)}
+.stat-row .val{color:var(--text);font-weight:600;font-family:var(--font-mono)}
+.bar-wrap{height:4px;background:var(--dim);border-radius:2px;margin-top:2px;overflow:hidden}
+.bar-fill{height:100%;border-radius:2px;transition:width .2s}
+
+.emotion-grid{display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;font-size:10px;margin-top:6px}
+.emotion-item{display:flex;justify-content:space-between;color:var(--muted)}
+.emotion-item .ev{font-family:var(--font-mono);color:var(--text)}
+
+/* ── Bottom Panels ── */
+.bottom-section{padding:10px 14px;overflow-y:auto;border-right:1px solid var(--border)}
+.bottom-section:last-child{border-right:none}
+.log-line{font-size:11px;font-family:var(--font-mono);padding:1px 0;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.log-line.kill{color:var(--red)}
+.log-line.spawn{color:var(--green)}
+.log-line.event{color:var(--yellow)}
+.log-line.info{color:var(--cyan)}
+
+.chart-row{display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:3px}
+.chart-row .label{width:60px;color:var(--muted);flex-shrink:0}
+.chart-row .track{flex:1;height:8px;background:var(--dim);border-radius:4px;overflow:hidden}
+.chart-row .fill{height:100%;border-radius:4px;transition:width .3s}
+
+.mini-table{width:100%;border-collapse:collapse;font-size:11px}
+.mini-table th{text-align:left;color:var(--muted);font-weight:600;padding:3px 4px;border-bottom:1px solid var(--border)}
+.mini-table td{padding:3px 4px;font-family:var(--font-mono)}
+
+/* ── Overlay ── */
+#overlay{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.7);z-index:10;pointer-events:none;opacity:0;transition:opacity .3s}
+#overlay.show{opacity:1;pointer-events:auto}
+#overlay .msg{text-align:center}
+#overlay .msg h2{font-size:28px;margin-bottom:8px}
+#overlay .msg p{color:var(--muted);font-size:14px}
+
+/* ── Tooltip ── */
+#tooltip{position:absolute;background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:8px 10px;
+  font-size:11px;pointer-events:none;z-index:20;display:none;max-width:200px}
+
+/* ── Responsive ── */
+@media(max-width:900px){
+  #app{grid-template-columns:1fr;grid-template-rows:48px 1fr 160px}
+  #left-panel,#right-panel{display:none}
+  #bottom-panel{grid-template-columns:1fr}
+}
+</style>
 </head>
 <body>
-<div class="arena">
-    <canvas id="canvas" width="800" height="400"></canvas>
-    
-    <div class="info">
-        <div class="fighter">
-            <b style="color:#ff4444">🔥 АГРЕССОР</b>
-            <div class="hp-bar"><div class="hp-fill" id="hp1" style="background:#ff4444; width:100%"></div></div>
-            <div class="emotions" id="em1"></div>
-        </div>
-        <div class="fighter">
-            <b style="color:#4444ff">💀 ЗАЩИТНИК</b>
-            <div class="hp-bar"><div class="hp-fill" id="hp2" style="background:#4444ff; width:100%"></div></div>
-            <div class="emotions" id="em2"></div>
-        </div>
+<div id="app">
+  <!-- Header -->
+  <div id="header">
+    <h1>⬡ CORTEX ARENA</h1>
+    <div class="sep"></div>
+    <div class="hdr-stat">Round <span id="hdr-round">0</span></div>
+    <div class="hdr-stat">Tick <span id="hdr-tick">0</span></div>
+    <div class="hdr-stat">Alive <span id="hdr-alive">0</span></div>
+    <div class="hdr-stat">FPS <span id="hdr-fps">0</span></div>
+    <div style="flex:1"></div>
+    <select class="ctrl" id="speed-select" title="Simulation speed">
+      <option value="1">1× Speed</option>
+      <option value="2" selected>2× Speed</option>
+      <option value="4">4× Speed</option>
+      <option value="8">8× Speed</option>
+      <option value="0">Paused</option>
+    </select>
+    <select class="ctrl" id="tank-count" title="Tank count">
+      <option value="4">4 Tanks</option>
+      <option value="6" selected>6 Tanks</option>
+      <option value="8">8 Tanks</option>
+      <option value="12">12 Tanks</option>
+    </select>
+    <button class="btn primary" id="btn-start">▶ Start</button>
+    <button class="btn danger" id="btn-reset">↻ Reset</button>
+  </div>
+
+  <!-- Left Panel -->
+  <div id="left-panel">
+    <div class="panel-title">Combatants</div>
+    <div id="tank-list"></div>
+  </div>
+
+  <!-- Arena -->
+  <div id="arena-wrap">
+    <canvas id="arena"></canvas>
+    <div id="overlay"><div class="msg"><h2 id="overlay-title">CORTEX ARENA</h2><p id="overlay-text">Press Start to begin</p></div></div>
+    <div id="tooltip"></div>
+  </div>
+
+  <!-- Right Panel -->
+  <div id="right-panel">
+    <div class="panel-title">Selected Tank</div>
+    <div id="selected-detail"><p style="color:var(--muted);font-size:12px">Click a tank to inspect</p></div>
+  </div>
+
+  <!-- Bottom Panel -->
+  <div id="bottom-panel">
+    <div class="bottom-section" id="log-section">
+      <div class="panel-title">Battle Log</div>
+      <div id="battle-log"></div>
     </div>
-    
-    <div class="controls">
-        <button id="startBtn">⚔️ НАЧАТЬ</button>
-        <button id="resetBtn">🔄 СБРОС</button>
+    <div class="bottom-section" id="stats-section">
+      <div class="panel-title">Global Stats</div>
+      <div id="global-stats"></div>
     </div>
-    
-    <div class="log" id="log"></div>
+    <div class="bottom-section" id="leaderboard-section">
+      <div class="panel-title">Leaderboard</div>
+      <table class="mini-table" id="leaderboard">
+        <thead><tr><th>#</th><th>Name</th><th>K</th><th>D</th><th>Dmg</th><th>W</th></tr></thead>
+        <tbody id="lb-body"></tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
-<script type="module">
-    import { Cortex2Brain } from './cortex.js';
-    
-    console.log('Cortex2Brain загружен:', typeof Cortex2Brain);
-    
-    // Инициализация
-    const red = new Cortex2Brain({ seed: 'aggressor' });
-    const blue = new Cortex2Brain({ seed: 'defender' });
-    
-    red.configurePersonality({ traits: { aggression: 0.9 } });
-    blue.configurePersonality({ traits: { aggression: 0.3 } });
-    
-    // Состояние
-    let hp1 = 100, hp2 = 100;
-    let pos1 = 200, pos2 = 600;
-    let running = false;
-    let interval = null;
-    let frame = 0;
-    let lastDmg1 = 0, lastDmg2 = 0;
-    
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    
-    function log(msg) {
-        const logDiv = document.getElementById('log');
-        const entry = document.createElement('div');
-        entry.className = 'log-entry';
-        entry.textContent = new Date().toLocaleTimeString() + ' ' + msg;
-        logDiv.appendChild(entry);
-        logDiv.scrollTop = logDiv.scrollHeight;
-        if (logDiv.children.length > 15) logDiv.removeChild(logDiv.children[0]);
-    }
-    
-    function getSensors(hp, enemyHp, dist) {
-        const s = new Array(64).fill(0);
-        s[0] = hp / 100;
-        s[1] = enemyHp / 100;
-        s[2] = Math.min(1, dist / 300);
-        s[8] = frame / 500;
-        return s;
-    }
-    
-    function update() {
-        if (!running) return;
-        
-        const dist = Math.abs(pos2 - pos1);
-        
-        const s1 = getSensors(hp1, hp2, dist);
-        const s2 = getSensors(hp2, hp1, dist);
-        
-        const r1 = red.forward(s1, 0);
-        const r2 = blue.forward(s2, 0);
-        
-        const a1 = r1.output;
-        const a2 = r2.output;
-        
-        const attack1 = a1[0] > 0.6 ? a1[0] : 0;
-        const attack2 = a2[0] > 0.6 ? a2[0] : 0;
-        const move1 = (a1[1] || 0) - (a1[2] || 0);
-        const move2 = (a2[1] || 0) - (a2[2] || 0);
-        
-        pos1 += move1 * 5;
-        pos2 += move2 * 5;
-        pos1 = Math.max(50, Math.min(350, pos1));
-        pos2 = Math.max(450, Math.min(750, pos2));
-        
-        lastDmg1 = 0;
-        lastDmg2 = 0;
-        
-        if (attack1 > 0 && dist < 80) {
-            const dmg = 5 + attack1 * 10;
-            hp2 = Math.max(0, hp2 - dmg);
-            lastDmg2 = dmg;
-            log('🔥 Агрессор нанёс ' + dmg.toFixed(0) + ' урона | ' + (r1.emotionalStateName || 'норма'));
-        }
-        
-        if (attack2 > 0 && dist < 80) {
-            const dmg = 4 + attack2 * 8;
-            hp1 = Math.max(0, hp1 - dmg);
-            lastDmg1 = dmg;
-            log('💀 Защитник нанёс ' + dmg.toFixed(0) + ' урона | ' + (r2.emotionalStateName || 'норма'));
-        }
-        
-        // UI
-        const e1 = red.getEmotions();
-        const e2 = blue.getEmotions();
-        document.getElementById('em1').innerHTML = '😠' + (e1.aggression || 0).toFixed(2) + ' 😨' + (e1.fear || 0).toFixed(2);
-        document.getElementById('em2').innerHTML = '😠' + (e2.aggression || 0).toFixed(2) + ' 😨' + (e2.fear || 0).toFixed(2);
-        
-        document.getElementById('hp1').style.width = hp1 + '%';
-        document.getElementById('hp2').style.width = hp2 + '%';
-        
-        // Обучение
-        const rew1 = (lastDmg2 > 0 ? 10 : 0) - (lastDmg1 > 0 ? 5 : 0);
-        const rew2 = (lastDmg1 > 0 ? 10 : 0) - (lastDmg2 > 0 ? 5 : 0);
-        
-        red.learn({ observation: s1, action: a1, reward: rew1, done: hp1 <= 0 });
-        blue.learn({ observation: s2, action: a2, reward: rew2, done: hp2 <= 0 });
-        
-        if (hp1 <= 0) {
-            running = false;
-            clearInterval(interval);
-            interval = null;
-            log('💀 АГРЕССОР УБИТ! ПОБЕДИЛ ЗАЩИТНИК');
-        }
-        if (hp2 <= 0) {
-            running = false;
-            clearInterval(interval);
-            interval = null;
-            log('🔥 ЗАЩИТНИК УБИТ! ПОБЕДИЛ АГРЕССОР');
-        }
-        
-        draw();
-        frame++;
-    }
-    
-    function draw() {
-        ctx.clearRect(0, 0, 800, 400);
-        ctx.fillStyle = '#2a1a0a';
-        ctx.fillRect(0, 0, 800, 400);
-        
-        // Красный
-        ctx.fillStyle = '#ff4444';
-        ctx.beginPath();
-        ctx.arc(pos1, 200, 25, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = 'white';
-        ctx.font = '25px monospace';
-        ctx.fillText('🔥', pos1 - 15, 215);
-        
-        ctx.fillStyle = '#330000';
-        ctx.fillRect(pos1 - 30, 160, 60, 8);
-        ctx.fillStyle = '#ff4444';
-        ctx.fillRect(pos1 - 30, 160, 60 * (hp1 / 100), 8);
-        
-        // Синий
-        ctx.fillStyle = '#4444ff';
-        ctx.beginPath();
-        ctx.arc(pos2, 200, 25, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = 'white';
-        ctx.fillText('💀', pos2 - 15, 215);
-        
-        ctx.fillStyle = '#330033';
-        ctx.fillRect(pos2 - 30, 160, 60, 8);
-        ctx.fillStyle = '#4444ff';
-        ctx.fillRect(pos2 - 30, 160, 60 * (hp2 / 100), 8);
-        
-        // Удар
-        if (lastDmg1 > 0 || lastDmg2 > 0) {
-            ctx.strokeStyle = '#ffaa00';
-            ctx.lineWidth = 4;
-            ctx.beginPath();
-            ctx.moveTo(pos1, 200);
-            ctx.lineTo(pos2, 200);
-            ctx.stroke();
-        }
-    }
-    
-    function start() {
-        if (interval) clearInterval(interval);
-        running = true;
-        interval = setInterval(update, 100);
-        log('⚔️ БИТВА НАЧАЛАСЬ');
-    }
-    
-    function reset() {
-        if (interval) clearInterval(interval);
-        hp1 = 100;
-        hp2 = 100;
-        pos1 = 200;
-        pos2 = 600;
-        running = false;
-        frame = 0;
-        lastDmg1 = 0;
-        lastDmg2 = 0;
-        red.resetEpisode();
-        blue.resetEpisode();
-        draw();
-        log('🔄 СБРОС');
-    }
-    
-    document.getElementById('startBtn').onclick = start;
-    document.getElementById('resetBtn').onclick = reset;
-    
-    draw();
-    log('✅ Готов, Cortex2Brain загружен');
+<script>
+// ============================================================================
+// CORTEX2BRAIN v2.3 — INLINE (production-patched, see cortex.js for full docs)
+// ============================================================================
+function clamp(v,a,b){return v<a?a:v>b?b:v}
+function lerp(a,b,t){const c=t<0?0:t>1?1:t;return a+(b-a)*c}
+function safeNum(v,f){return typeof v==='number'&&isFinite(v)?v:f}
+function tanh(x){if(x>20)return 1;if(x<-20)return -1;const e=Math.exp(2*x);return(e-1)/(e+1)}
+function leakyRelu(x,a=.01){return x>0?x:a*x}
+function softmax(a,t=1){if(!a||!a.length)return[];let m=-Infinity;for(let i=0;i<a.length;i++)if(a[i]>m)m=a[i];const e=new Array(a.length);let s=0;for(let i=0;i<a.length;i++){const v=Math.exp(Math.min((a[i]-m)/t,700));e[i]=v;s+=v}if(s<1e-10)s=1e-10;for(let i=0;i<e.length;i++)e[i]/=s;return e}
+function deriveArch(D){return Object.freeze({P_INPUT:D.DIM_SENSOR+D.DIM_C+D.DIM_S+48,A_INPUT:D.DIM_P+48+64+D.DIM_D,M_WORK_INPUT:D.DIM_P+D.DIM_A+64,M_PERM_INPUT:D.DIM_C+48,M_PRED_INPUT:D.DIM_A+64+48+D.DIM_D,C_INPUT:D.DIM_P+D.DIM_A+D.DIM_M+D.DIM_S+D.DIM_D+1,S_INPUT:D.DIM_P+48+32+D.DIM_D,D_INPUT:D.DIM_C+D.DIM_S+48,C_PRED_OFFSET:192,C_STATE_OFFSET:224,C_STATE_SLICE:32,A_HEAD_C_SLICE:64,M_WORK_C_SLICE:64,M_BLOCK_SIZE:48,MAX_WEIGHT:2,MAX_GRADIENT:.3,MAX_TRACE_VAL:10,REFLEX_THRESHOLD:.9})}
+
+class SeededRNG{constructor(s){let h=0x811c9dc5;const st=String(s||'d');for(let i=0;i<st.length;i++){h^=st.charCodeAt(i);h=Math.imul(h,0x01000193)}this._s=(h>>>0)||1}next(){let x=this._s;x^=x<<13;x^=x>>>17;x^=x<<5;this._s=x>>>0;if(!this._s)this._s=1;return this._s/4294967296}gaussian(m=0,s=1){const u1=Math.max(this.next(),1e-10),u2=this.next();return Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2)*s+m}}
+
+class Cortex2Brain{
+constructor(cfg={}){
+this.config={seed:cfg.seed||`C_${Date.now()}`,lr:cfg.lr??.015,gamma:cfg.gamma??.99,lambda:cfg.lambda??.95,hebbianRate:cfg.hebbianRate??.002,...cfg};
+this.DIM=Object.freeze({DIM_P:32,DIM_A:64,DIM_M:144,DIM_C:256,DIM_S:32,DIM_D:16,DIM_SENSOR:64,NUM_HEADS:4,HEAD_DIM:16,M_WORK_START:0,M_WORK_END:48,M_PERM_START:48,M_PERM_END:96,M_PRED_START:96,M_PRED_END:144});
+this.ARCH=deriveArch(this.DIM);this._rng=new SeededRNG(this.config.seed);this._initW();this._initS();this._initT();
+this.predictionErrors=new Float32Array(this.DIM.DIM_SENSOR);this.step=0;this.cumulativeReward=0;this._lastCInput=null;
+this.emotions={threat:0,frustration:0,confidence:0,aggression:0,fear:0,surprise:0,caution:0,desperation:0,vengeance:0,empathy:0,curiosity:0};
+this.emotionDecay=.98;this.emotionInfluence=.35;this._isReady=true}
+_hashSeed(s,i,j){let h=0x811c9dc5;const st=`${s}:${i}:${j}`;for(let k=0;k<st.length;k++){h^=st.charCodeAt(k);h=Math.imul(h,0x01000193)}return((h>>>0)^((h>>>16)&0xFFFF))/4294967296}
+_initMat(r,c,sc){const m=[];for(let i=0;i<r;i++){const row=new Float32Array(c);for(let j=0;j<c;j++)row[j]=(this._hashSeed(this.config.seed,i*10000+j,0)*2-1)*sc;m.push(row)}return m}
+_initVec(l,sc){const v=new Float32Array(l);for(let i=0;i<l;i++)v[i]=(this._hashSeed(this.config.seed,i,1000)*2-1)*sc;return v}
+_initW(){const A=this.ARCH,D=this.DIM,bs=A.M_BLOCK_SIZE;
+this.W_P=this._initMat(A.P_INPUT,D.DIM_P,.3);this.b_P=this._initVec(D.DIM_P,.1);
+this.W_A=[];this.b_A=[];for(let h=0;h<D.NUM_HEADS;h++){this.W_A.push(this._initMat(A.A_INPUT,D.HEAD_DIM,.3));this.b_A.push(this._initVec(D.HEAD_DIM,.1))}
+this.W_gate=this._initVec(D.NUM_HEADS,.25);
+this.W_M_work=this._initMat(A.M_WORK_INPUT,bs,.3);this.b_M_work=this._initVec(bs,.1);
+this.W_M_perm=this._initMat(A.M_PERM_INPUT,bs,.3);this.b_M_perm=this._initVec(bs,.1);
+this.W_M_pred=this._initMat(A.M_PRED_INPUT,bs,.3);this.b_M_pred=this._initVec(bs,.1);
+this.W_C=this._initMat(A.C_INPUT,D.DIM_C,.25);this.b_C=this._initVec(D.DIM_C,.1);
+this.W_S=this._initMat(A.S_INPUT,D.DIM_S,.3);this.b_S=this._initVec(D.DIM_S,.1);
+this.W_D=this._initMat(A.D_INPUT,D.DIM_D,.2);this.b_D=this._initVec(D.DIM_D,.1);
+this.W_pred=this._initMat(bs,D.DIM_SENSOR,.15);this.b_pred=this._initVec(D.DIM_SENSOR,.05);
+this.W_V=this._initVec(D.DIM_C,.1);this.b_V=0}
+_initS(){const D=this.DIM;this.P=new Float32Array(D.DIM_P);this.A=new Float32Array(D.DIM_A);this.M=new Float32Array(D.DIM_M);this.C=new Float32Array(D.DIM_C);this.S=new Float32Array(D.DIM_S);this.D=new Float32Array(D.DIM_D);
+this.P_prev=new Float32Array(D.DIM_P);this.A_prev=new Float32Array(D.DIM_A);this.M_prev=new Float32Array(D.DIM_M);this.C_prev=new Float32Array(D.DIM_C);this.S_prev=new Float32Array(D.DIM_S);this.D_prev=new Float32Array(D.DIM_D)}
+_initT(){const A=this.ARCH,D=this.DIM;this.traceP=new Float32Array(A.P_INPUT*D.DIM_P);this.traceC=new Float32Array(A.C_INPUT*D.DIM_C);this.traceD=new Float32Array(A.D_INPUT*D.DIM_D)}
+_mm(v,m){const r=m.length,c=m[0].length,n=Math.min(v.length,r),o=new Float32Array(c);for(let i=0;i<c;i++){let s=0;for(let j=0;j<n;j++)s+=v[j]*m[j][i];o[i]=s}return o}
+_proj(raw){const o=new Float32Array(this.DIM.DIM_SENSOR),src=raw||[],sl=Math.min(src.length,this.DIM.DIM_SENSOR);for(let i=0;i<sl;i++){const v=safeNum(src[i],0);o[i]=v<-1?-1:v>1?1:v}return o}
+_gW(M){return M.subarray(this.DIM.M_WORK_START,this.DIM.M_WORK_END)}
+_gPe(M){return M.subarray(this.DIM.M_PERM_START,this.DIM.M_PERM_END)}
+_gPr(M){return M.subarray(this.DIM.M_PRED_START,this.DIM.M_PRED_END)}
+forward(rawIn,reward=0){
+const D=this.DIM,A=this.ARCH,x=this._proj(Array.isArray(rawIn)?rawIn:(rawIn||[])),r=safeNum(reward,0);
+this.cumulativeReward=lerp(this.cumulativeReward,r,.1);
+const mpv=this._gPe(this.M_prev),mwv=this._gW(this.M_prev),mrv=this._gPr(this.M_prev);
+// Build inputs
+const pi=new Float32Array(A.P_INPUT);let idx=0;for(let i=0;i<D.DIM_SENSOR;i++)pi[idx++]=x[i]*.5;for(let i=0;i<D.DIM_C;i++)pi[idx++]=this.C_prev[i];for(let i=0;i<D.DIM_S;i++)pi[idx++]=this.S_prev[i];for(let i=0;i<48;i++)pi[idx++]=mpv[i];
+const pN=this._mm(pi,this.W_P);for(let i=0;i<D.DIM_P;i++)pN[i]=leakyRelu(pN[i]+this.b_P[i]);
+const ga=new Array(D.NUM_HEADS);for(let i=0;i<D.NUM_HEADS;i++)ga[i]=this.W_gate[i];const gp=softmax(ga);
+const aN=new Float32Array(D.DIM_A);
+for(let h=0;h<D.NUM_HEADS;h++){const ai=new Float32Array(A.A_INPUT);let ax=0;for(let i=0;i<D.DIM_P;i++)ai[ax++]=this.P_prev[i]*.25;for(let i=0;i<48;i++)ai[ax++]=mwv[i];const cs=h*64;for(let i=0;i<64;i++){const ci=cs+i;ai[ax++]=ci<D.DIM_C?this.C_prev[ci]:0}for(let i=0;i<D.DIM_D;i++)ai[ax++]=this.D_prev[i];
+const ho=this._mm(ai,this.W_A[h]);for(let i=0;i<D.HEAD_DIM;i++)aN[h*D.HEAD_DIM+i]=leakyRelu(ho[i]+this.b_A[h][i])*gp[h]}
+const mwi=new Float32Array(A.M_WORK_INPUT);idx=0;for(let i=0;i<D.DIM_P;i++)mwi[idx++]=this.P_prev[i]*.75;for(let i=0;i<D.DIM_A;i++)mwi[idx++]=this.A_prev[i]*.75;for(let i=0;i<64;i++)mwi[idx++]=i<D.DIM_C?this.C_prev[i]:0;
+const mwN=this._mm(mwi,this.W_M_work);for(let i=0;i<48;i++)mwN[i]=leakyRelu(mwN[i]+this.b_M_work[i]);
+const mpi=new Float32Array(A.M_PERM_INPUT);idx=0;for(let i=0;i<D.DIM_C;i++)mpi[idx++]=this.C_prev[i]*.75;for(let i=0;i<48;i++)mpi[idx++]=mpv[i];
+const mpN=this._mm(mpi,this.W_M_perm);for(let i=0;i<48;i++)mpN[i]=leakyRelu(mpN[i]+this.b_M_perm[i]);
+const mri=new Float32Array(A.M_PRED_INPUT);idx=0;for(let i=0;i<D.DIM_A;i++)mri[idx++]=this.A_prev[i]*.75;for(let i=0;i<64;i++){const ci=A.C_PRED_OFFSET+i;mri[idx++]=ci<D.DIM_C?this.C_prev[ci]:0}for(let i=0;i<48;i++)mri[idx++]=mwv[i];for(let i=0;i<D.DIM_D;i++)mri[idx++]=this.D_prev[i];
+const mrN=this._mm(mri,this.W_M_pred);for(let i=0;i<48;i++)mrN[i]=leakyRelu(mrN[i]+this.b_M_pred[i]);
+const mN=new Float32Array(D.DIM_M);for(let i=0;i<48;i++)mN[i]=mwN[i];for(let i=0;i<48;i++)mN[48+i]=mpN[i];for(let i=0;i<48;i++)mN[96+i]=mrN[i];
+const ci2=new Float32Array(A.C_INPUT);idx=0;for(let i=0;i<D.DIM_P;i++)ci2[idx++]=this.P_prev[i]*4;for(let i=0;i<D.DIM_A;i++)ci2[idx++]=this.A_prev[i]*4;for(let i=0;i<D.DIM_M;i++)ci2[idx++]=this.M_prev[i]*4;for(let i=0;i<D.DIM_S;i++)ci2[idx++]=this.S_prev[i];for(let i=0;i<D.DIM_D;i++)ci2[idx++]=this.D_prev[i];ci2[idx++]=r;
+this._lastCInput=ci2;
+const cN=this._mm(ci2,this.W_C);for(let i=0;i<D.DIM_C;i++)cN[i]=leakyRelu(cN[i]+this.b_C[i]);
+const si2=new Float32Array(A.S_INPUT);idx=0;for(let i=0;i<D.DIM_P;i++)si2[idx++]=this.P_prev[i]*.5;for(let i=0;i<48;i++)si2[idx++]=mpv[i];for(let i=0;i<32;i++){const cv=A.C_STATE_OFFSET+i;si2[idx++]=cv<D.DIM_C?this.C_prev[cv]:0}for(let i=0;i<D.DIM_D;i++)si2[idx++]=this.D_prev[i]*.5;
+const sN=this._mm(si2,this.W_S);for(let i=0;i<D.DIM_S;i++)sN[i]=leakyRelu(sN[i]+this.b_S[i]);
+const di2=new Float32Array(A.D_INPUT);idx=0;for(let i=0;i<D.DIM_C;i++)di2[idx++]=cN[i];for(let i=0;i<D.DIM_S;i++)di2[idx++]=sN[i];for(let i=0;i<48;i++)di2[idx++]=mrN[i];
+const dN=this._mm(di2,this.W_D);for(let i=0;i<D.DIM_D;i++)dN[i]=tanh(dN[i]+this.b_D[i]);
+// Update prediction
+const xp=this._mm(mrN,this.W_pred);for(let i=0;i<D.DIM_SENSOR;i++){xp[i]+=this.b_pred[i];this.predictionErrors[i]=lerp(this.predictionErrors[i],Math.abs(xp[i]-x[i]),.1)}
+// Emotions
+this._updateEmotions(r,x);
+sN[0]=this.emotions.threat;sN[1]=this.emotions.frustration;sN[2]=this.emotions.confidence;sN[3]=this.emotions.aggression;sN[4]=this.emotions.fear;sN[5]=this.emotions.surprise;sN[6]=this.emotions.caution;sN[7]=this.emotions.desperation;sN[8]=this.emotions.vengeance;
+// State commit
+this.P_prev.set(this.P);this.A_prev.set(this.A);this.M_prev.set(this.M);this.C_prev.set(this.C);this.S_prev.set(this.S);this.D_prev.set(this.D);
+this.P.set(pN);this.A.set(aN);this.M.set(mN);this.C.set(cN);this.S.set(sN);this.D.set(dN);
+this.step++;
+const out=[];for(let i=0;i<D.DIM_D;i++)out.push(clamp(dN[i],-1,1));
+return{output:out,predictionError:this._avgPE()}}
+_avgPE(){let s=0;for(let i=0;i<this.DIM.DIM_SENSOR;i++)s+=this.predictionErrors[i];return s/this.DIM.DIM_SENSOR}
+_estimateValue(){let s=this.b_V;for(let i=0;i<this.DIM.DIM_C;i++)s+=this.C[i]*this.W_V[i];return tanh(s)}
+learn(reward){
+const v=this._estimateValue(),td=safeNum(reward,0)+this.config.gamma*v-v,a=this.config.lr*.5,mw=this.ARCH.MAX_WEIGHT;
+for(let i=0;i<this.DIM.DIM_C;i++)this.W_V[i]=clamp(this.W_V[i]+a*td*this.C[i],-mw,mw);
+this.b_V+=a*td;
+if(this._lastCInput){const dc=this.config.gamma*this.config.lambda,mt=this.ARCH.MAX_TRACE_VAL,mg=this.ARCH.MAX_GRADIENT,al=this.config.lr*Math.sign(td)*.1;
+for(let j=0;j<this.ARCH.C_INPUT;j++){const p=j<this._lastCInput.length?this._lastCInput[j]:0,b=j*this.DIM.DIM_C;
+for(let i=0;i<this.DIM.DIM_C;i++){const idx=b+i;let v2=dc*this.traceC[idx]+p*this.C[i];this.traceC[idx]=v2>mt?mt:v2<-mt?-mt:v2;
+let d=al*.01*this.traceC[idx];if(d>mg)d=mg;else if(d<-mg)d=-mg;
+if(this.W_C[j])this.W_C[j][i]=clamp(this.W_C[j][i]+d,-mw,mw)}}}
+return td}
+_updateEmotions(r,x){
+if(r<.1)this.emotions.frustration=Math.min(1,this.emotions.frustration+.03);else this.emotions.frustration*=.92;
+if(r>1)this.emotions.confidence=Math.min(1,this.emotions.confidence+.05);else this.emotions.confidence*=.95;
+if(r<-.5)this.emotions.fear=Math.min(1,this.emotions.fear+.1);else this.emotions.fear*=.85;
+this.emotions.surprise=this._avgPE();
+this.emotions.caution=1-(x[12]||.5);
+this.emotions.threat=1-(x[2]||.5);
+const nr=clamp((this.cumulativeReward+100)/200,0,1);
+if(nr<.3)this.emotions.desperation=Math.min(1,this.emotions.desperation+.05);else this.emotions.desperation*=.85;
+const fb=(1-this.emotions.desperation)*this.emotions.fear;
+this.emotions.aggression=this.emotions.frustration*.6+this.emotions.desperation*.8+this.emotions.vengeance*.9-fb*.4;
+for(const k of Object.keys(this.emotions))this.emotions[k]*=this.emotionDecay}
+reset(){this._initS();this._initT();this.predictionErrors.fill(0);this.step=0;this.cumulativeReward=0;
+this.emotions={threat:0,frustration:0,confidence:0,aggression:0,fear:0,surprise:0,caution:0,desperation:0,vengeance:0,empathy:0,curiosity:0}}}
+
+// ============================================================================
+// ARENA ENGINE
+// ============================================================================
+
+const TANK_NAMES=['Apex','Bravo','Cipher','Delta','Echo','Forge','Ghost','Havoc','Iron','Jinx','Krait','Lynx'];
+const TANK_COLORS=['#3b82f6','#ef4444','#22c55e','#eab308','#a855f7','#06b6d4','#f97316','#ec4899','#14b8a6','#8b5cf6','#f43f5e','#84cc16'];
+
+const ARENA_W=1200,ARENA_H=800;
+const TANK_RADIUS=14,BARREL_LEN=22,BULLET_SPEED=6,BULLET_LIFE=90,BULLET_DMG=12;
+const TANK_MAX_HP=100,TANK_SPEED=2.2,TANK_ROT_SPEED=.045;
+const RELOAD_TIME=25,RESPAWN_TIME=120;
+const WALL_COUNT=8,WALL_MIN=60,WALL_MAX=180,WALL_THICK=12;
+
+class Arena{
+constructor(tankCount=6){
+this.tankCount=tankCount;this.tanks=[];this.bullets=[];this.walls=[];this.particles=[];
+this.tick=0;this.round=1;this.running=false;this.speed=2;this.selectedTank=null;
+this.logs=[];this.maxLogs=80;
+this.leaderboard=new Map();
+this._generateWalls();
+}
+
+_generateWalls(){
+this.walls=[];const rng=new SeededRNG('walls'+this.round);
+for(let i=0;i<WALL_COUNT;i++){
+const w=WALL_MIN+rng.next()*(WALL_MAX-WALL_MIN);
+const h=WALL_THICK+rng.next()*WALL_THICK;
+const x=50+rng.next()*(ARENA_W-100-w);
+const y=50+rng.next()*(ARENA_H-100-h);
+if(rng.next()>.5)this.walls.push({x,y,w,h});
+else this.walls.push({x,y,w:h,h:w})}
+}
+
+init(){
+this.tanks=[];this.bullets=[];this.particles=[];this.tick=0;
+for(let i=0;i<this.tankCount;i++){
+const brain=new Cortex2Brain({seed:`tank_${i}_r${this.round}_${Date.now()}`});
+const pos=this._spawnPos();
+const t={
+id:i,name:TANK_NAMES[i%TANK_NAMES.length],color:TANK_COLORS[i%TANK_COLORS.length],
+x:pos.x,y:pos.y,angle:Math.random()*Math.PI*2,
+hp:TANK_MAX_HP,maxHp:TANK_MAX_HP,alive:true,
+speed:0,rotSpeed:0,reload:0,respawnTimer:0,
+brain,kills:0,deaths:0,damage:0,wins:0,shotsFired:0,shotsHit:0,
+lastHitBy:null,lastReward:0,totalReward:0,
+trail:[],trailMax:20};
+if(!this.leaderboard.has(t.name))this.leaderboard.set(t.name,{kills:0,deaths:0,damage:0,wins:0});
+this.tanks.push(t)}
+this.log('spawn',`Round ${this.round}: ${this.tankCount} tanks deployed`);
+}
+
+_spawnPos(){
+for(let attempt=0;attempt<50;attempt++){
+const x=60+Math.random()*(ARENA_W-120),y=60+Math.random()*(ARENA_H-120);
+let ok=true;
+for(const w of this.walls){if(x>w.x-20&&x<w.x+w.w+20&&y>w.y-20&&y<w.y+w.h+20){ok=false;break}}
+if(ok){for(const t of this.tanks){if(t.alive){const dx=t.x-x,dy=t.y-y;if(dx*dx+dy*dy<80*80){ok=false;break}}}}
+if(ok)return{x,y}}
+return{x:100+Math.random()*(ARENA_W-200),y:100+Math.random()*(ARENA_H-200)}}
+
+log(type,msg){this.logs.unshift({type,msg,tick:this.tick});if(this.logs.length>this.maxLogs)this.logs.length=this.maxLogs}
+
+update(){
+if(!this.running)return;
+for(let s=0;s<this.speed;s++){this.tick++;this._stepSim()}
+}
+
+_stepSim(){
+const alive=this.tanks.filter(t=>t.alive);
+
+// Check round end
+if(alive.length<=1){
+if(alive.length===1){
+const w=alive[0];w.wins++;
+const lb=this.leaderboard.get(w.name);if(lb)lb.wins++;
+this.log('event',`🏆 ${w.name} wins Round ${this.round}!`)}
+else this.log('event',`Round ${this.round} — draw`);
+this.round++;this._generateWalls();this.init();return}
+
+for(const t of this.tanks){
+if(!t.alive){t.respawnTimer--;if(t.respawnTimer<=0)this._respawn(t);continue}
+if(t.reload>0)t.reload--;
+
+// Build sensor vector
+const sensors=this._buildSensors(t,alive);
+const result=t.brain.forward(sensors,t.lastReward);
+const out=result.output;
+
+// Interpret outputs
+const moveX=clamp(out[0]||0,-1,1);
+const moveY=clamp(out[1]||0,-1,1);
+const aimX=clamp(out[2]||0,-1,1);
+const aimY=clamp(out[3]||0,-1,1);
+const throttle=clamp(out[4]||0,-1,1);
+const doShoot=(out[6]||0)>.3;
+const retreat=clamp(out[10]||0,0,1);
+
+// Movement
+let targetAngle=Math.atan2(moveY,moveX);
+if(retreat>.5)targetAngle+=Math.PI;
+let angleDiff=targetAngle-t.angle;
+while(angleDiff>Math.PI)angleDiff-=2*Math.PI;
+while(angleDiff<-Math.PI)angleDiff+=2*Math.PI;
+t.angle+=clamp(angleDiff,-TANK_ROT_SPEED,TANK_ROT_SPEED);
+
+const spd=TANK_SPEED*(0.5+Math.abs(throttle)*0.5);
+const nx=t.x+Math.cos(t.angle)*spd;
+const ny=t.y+Math.sin(t.angle)*spd;
+
+if(!this._collides(nx,ny,TANK_RADIUS,t.id)){
+t.x=clamp(nx,TANK_RADIUS,ARENA_W-TANK_RADIUS);
+t.y=clamp(ny,TANK_RADIUS,ARENA_H-TANK_RADIUS)}
+
+// Turret aim
+if(Math.abs(aimX)>.05||Math.abs(aimY)>.05){t.angle=Math.atan2(aimY,aimX)}
+
+// Shoot
+if(doShoot&&t.reload<=0){
+t.reload=RELOAD_TIME;t.shotsFired++;
+const bx=t.x+Math.cos(t.angle)*BARREL_LEN;
+const by=t.y+Math.sin(t.angle)*BARREL_LEN;
+this.bullets.push({x:bx,y:by,vx:Math.cos(t.angle)*BULLET_SPEED,vy:Math.sin(t.angle)*BULLET_SPEED,owner:t.id,life:BULLET_LIFE,dmg:BULLET_DMG});
+this._addParticles(bx,by,t.color,3,2)}
+
+// Trail
+t.trail.push({x:t.x,y:t.y});if(t.trail.length>t.trailMax)t.trail.shift();
+t.lastReward=0}
+
+// Update bullets
+for(let i=this.bullets.length-1;i>=0;i--){
+const b=this.bullets[i];b.x+=b.vx;b.y+=b.vy;b.life--;
+if(b.x<0||b.x>ARENA_W||b.y<0||b.y>ARENA_H||b.life<=0){this.bullets.splice(i,1);continue}
+
+// Wall collision
+let hitWall=false;
+for(const w of this.walls){if(b.x>w.x&&b.x<w.x+w.w&&b.y>w.y&&b.y<w.y+w.h){hitWall=true;break}}
+if(hitWall){this._addParticles(b.x,b.y,'#888',4,1.5);this.bullets.splice(i,1);continue}
+
+// Tank collision
+for(const t of this.tanks){
+if(!t.alive||t.id===b.owner)continue;
+const dx=t.x-b.x,dy=t.y-b.y;
+if(dx*dx+dy*dy<TANK_RADIUS*TANK_RADIUS){
+t.hp-=b.dmg;t.lastHitBy=b.owner;
+const shooter=this.tanks[b.owner];
+if(shooter){shooter.damage+=b.dmg;shooter.shotsHit++;shooter.lastReward+=1.5;shooter.brain.learn(1.5);
+const slb=this.leaderboard.get(shooter.name);if(slb)slb.damage+=b.dmg}
+t.lastReward-=1;t.brain.learn(-1);
+
+this._addParticles(b.x,b.y,t.color,6,2);
+this.bullets.splice(i,1);
+
+if(t.hp<=0){this._killTank(t,b.owner)}
+break}}}
+
+// Decay particles
+for(let i=this.particles.length-1;i>=0;i--){
+const p=this.particles[i];p.x+=p.vx;p.y+=p.vy;p.life--;p.vx*=.95;p.vy*=.95;
+if(p.life<=0)this.particles.splice(i,1)}
+}
+
+_buildSensors(t,alive){
+const s=new Array(64).fill(0);
+// Find nearest enemy
+let nearest=null,nearDist=Infinity;
+for(const o of alive){if(o.id===t.id)continue;
+const dx=o.x-t.x,dy=o.y-t.y,d=Math.sqrt(dx*dx+dy*dy);
+if(d<nearDist){nearDist=d;nearest=o}}
+
+if(nearest){
+const dx=nearest.x-t.x,dy=nearest.y-t.y;
+const dist=Math.sqrt(dx*dx+dy*dy);
+const maxDist=Math.sqrt(ARENA_W*ARENA_W+ARENA_H*ARENA_H);
+s[0]=dx/maxDist;s[1]=dy/maxDist;s[2]=1-dist/maxDist;s[3]=nearest.hp/nearest.maxHp;
+const angleToEnemy=Math.atan2(dy,dx);
+s[25]=(angleToEnemy-t.angle)/(Math.PI);
+const enemyAngleToMe=Math.atan2(-dy,-dx);
+const enemyFacing=nearest.angle;
+let relAngle=enemyAngleToMe-enemyFacing;
+while(relAngle>Math.PI)relAngle-=2*Math.PI;while(relAngle<-Math.PI)relAngle+=2*Math.PI;
+s[26]=Math.abs(relAngle)<Math.PI/4?1:-1;
+s[27]=Math.abs(relAngle)<Math.PI/3?1:0;
+const myAngleToE=angleToEnemy-t.angle;
+s[28]=Math.abs(myAngleToE)<Math.PI/3?1:0;
+s[29]=dist<150?1:dist<300?.5:0;
+// Flanking
+const perpX=-dy/dist,perpY=dx/dist;
+s[30]=perpX;s[31]=perpY}
+
+// Walls
+let nearWDist=Infinity,nearWX=0,nearWY=0;
+for(const w of this.walls){
+const cx=clamp(t.x,w.x,w.x+w.w),cy=clamp(t.y,w.y,w.y+w.h);
+const dx=cx-t.x,dy=cy-t.y,d=Math.sqrt(dx*dx+dy*dy);
+if(d<nearWDist){nearWDist=d;nearWX=dx;nearWY=dy}}
+if(nearWDist<Infinity){const md=200;s[4]=nearWX/md;s[5]=nearWY/md;s[6]=1-clamp(nearWDist/md,0,1)}
+
+s[7]=t.x/ARENA_W*2-1;s[8]=t.y/ARENA_H*2-1;s[9]=t.hp/t.maxHp;
+s[10]=t.lastReward;s[11]=t.damage/500;s[12]=t.hp/t.maxHp;s[13]=t.reload/RELOAD_TIME;
+s[14]=this.tick/3000;
+s[23]=t.deaths/10;s[24]=alive.length<=2?1:0;
+s[34]=1-t.hp/t.maxHp;
+s[38]=t.reload>0?1:0;s[39]=nearWDist<50?1:0;s[40]=alive.length/this.tankCount;
+s[41]=nearWDist<30?(nearWX>0?-1:1):0;
+
+// Incoming bullets
+let incomingThreat=0;
+for(const b of this.bullets){if(b.owner===t.id)continue;
+const dx=t.x-b.x,dy=t.y-b.y,d=Math.sqrt(dx*dx+dy*dy);
+if(d<120){const dot=(b.vx*dx+b.vy*dy)/(d*BULLET_SPEED);if(dot>.5)incomingThreat=Math.max(incomingThreat,1-d/120)}}
+s[29]=Math.max(s[29]||0,incomingThreat);
+
+return s}
+
+_killTank(t,killerId){
+t.alive=false;t.deaths++;t.respawnTimer=RESPAWN_TIME;t.hp=0;
+t.brain.learn(-5);t.brain.emotions.vengeance=Math.min(1,(t.brain.emotions.vengeance||0)+.6);
+t.brain.emotions.fear=Math.min(1,(t.brain.emotions.fear||0)+.3);
+const lb=this.leaderboard.get(t.name);if(lb)lb.deaths++;
+
+const killer=this.tanks[killerId];
+if(killer){killer.kills++;killer.brain.learn(5);
+killer.brain.emotions.confidence=Math.min(1,(killer.brain.emotions.confidence||0)+.3);
+const klb=this.leaderboard.get(killer.name);if(klb)klb.kills++;
+this.log('kill',`💀 ${killer.name} destroyed ${t.name}`)}
+
+this._addParticles(t.x,t.y,t.color,20,4);
+this._addParticles(t.x,t.y,'#ff6600',15,3);
+}
+
+_respawn(t){
+const pos=this._spawnPos();t.x=pos.x;t.y=pos.y;t.hp=t.maxHp;t.alive=true;
+t.angle=Math.random()*Math.PI*2;t.reload=0;t.trail=[];t.lastReward=0;
+t.brain.reset();
+this.log('spawn',`🔄 ${t.name} respawned`)}
+
+_collides(x,y,r,skipId){
+for(const w of this.walls){
+const cx=clamp(x,w.x,w.x+w.w),cy=clamp(y,w.y,w.y+w.h);
+const dx=cx-x,dy=cy-y;if(dx*dx+dy*dy<r*r)return true}
+for(const t of this.tanks){if(!t.alive||t.id===skipId)continue;
+const dx=t.x-x,dy=t.y-y;if(dx*dx+dy*dy<(r+TANK_RADIUS)*(r+TANK_RADIUS)*.8)return true}
+return false}
+
+_addParticles(x,y,color,count,speed){
+for(let i=0;i<count;i++){
+const a=Math.random()*Math.PI*2;const s=Math.random()*speed;
+this.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,color,life:15+Math.random()*20|0,maxLife:35})}}
+}
+
+// ============================================================================
+// RENDERER
+// ============================================================================
+
+class Renderer{
+constructor(canvas,arena){
+this.canvas=canvas;this.ctx=canvas.getContext('2d');this.arena=arena;
+this.dpr=window.devicePixelRatio||1;this._resize();
+window.addEventListener('resize',()=>this._resize())}
+
+_resize(){
+const wrap=this.canvas.parentElement;
+const w=wrap.clientWidth,h=wrap.clientHeight;
+this.canvas.width=w*this.dpr;this.canvas.height=h*this.dpr;
+this.canvas.style.width=w+'px';this.canvas.style.height=h+'px';
+this.scaleX=w/ARENA_W;this.scaleY=h/ARENA_H;
+this.scale=Math.min(this.scaleX,this.scaleY);
+this.offsetX=(w-ARENA_W*this.scale)/2;
+this.offsetY=(h-ARENA_H*this.scale)/2}
+
+render(){
+const ctx=this.ctx,a=this.arena,sc=this.scale*this.dpr;
+const ox=this.offsetX*this.dpr,oy=this.offsetY*this.dpr;
+ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
+ctx.save();ctx.translate(ox,oy);ctx.scale(sc,sc);
+
+// Background grid
+ctx.fillStyle='#080c14';ctx.fillRect(0,0,ARENA_W,ARENA_H);
+ctx.strokeStyle='#111827';ctx.lineWidth=.5;
+for(let x=0;x<=ARENA_W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,ARENA_H);ctx.stroke()}
+for(let y=0;y<=ARENA_H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(ARENA_W,y);ctx.stroke()}
+
+// Arena border
+ctx.strokeStyle='#1e293b';ctx.lineWidth=2;ctx.strokeRect(0,0,ARENA_W,ARENA_H);
+
+// Walls
+for(const w of a.walls){
+ctx.fillStyle='#1e293b';ctx.fillRect(w.x,w.y,w.w,w.h);
+ctx.strokeStyle='#334155';ctx.lineWidth=1;ctx.strokeRect(w.x,w.y,w.w,w.h);
+// Top highlight
+ctx.fillStyle='rgba(255,255,255,.03)';ctx.fillRect(w.x,w.y,w.w,2)}
+
+// Tank trails
+for(const t of a.tanks){if(!t.alive||t.trail.length<2)continue;
+ctx.beginPath();ctx.moveTo(t.trail[0].x,t.trail[0].y);
+for(let i=1;i<t.trail.length;i++)ctx.lineTo(t.trail[i].x,t.trail[i].y);
+ctx.strokeStyle=t.color+'20';ctx.lineWidth=3;ctx.stroke()}
+
+// Bullets
+for(const b of a.bullets){
+const owner=a.tanks[b.owner];const c=owner?owner.color:'#fff';
+ctx.beginPath();ctx.arc(b.x,b.y,3,0,Math.PI*2);ctx.fillStyle=c;ctx.fill();
+// Bullet trail
+ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.lineTo(b.x-b.vx*3,b.y-b.vy*3);
+ctx.strokeStyle=c+'80';ctx.lineWidth=2;ctx.stroke()}
+
+// Tanks
+for(const t of a.tanks){if(!t.alive)continue;
+const sel=a.selectedTank===t.id;
+ctx.save();ctx.translate(t.x,t.y);
+
+// Selection ring
+if(sel){ctx.beginPath();ctx.arc(0,0,TANK_RADIUS+6,0,Math.PI*2);
+ctx.strokeStyle=t.color+'60';ctx.lineWidth=2;ctx.setLineDash([4,4]);ctx.stroke();ctx.setLineDash([])}
+
+// Body
+ctx.beginPath();ctx.arc(0,0,TANK_RADIUS,0,Math.PI*2);
+const grad=ctx.createRadialGradient(0,-3,2,0,0,TANK_RADIUS);
+grad.addColorStop(0,t.color+'dd');grad.addColorStop(1,t.color+'88');
+ctx.fillStyle=grad;ctx.fill();
+ctx.strokeStyle=t.color;ctx.lineWidth=1.5;ctx.stroke();
+
+// Barrel
+ctx.save();ctx.rotate(t.angle);
+ctx.fillStyle=t.color;ctx.fillRect(TANK_RADIUS-4,-2.5,BARREL_LEN-TANK_RADIUS+8,5);
+ctx.restore();
+
+// HP bar
+const hpPct=t.hp/t.maxHp;
+const barW=TANK_RADIUS*2+4,barH=3,barY=-TANK_RADIUS-8;
+ctx.fillStyle='#000000aa';ctx.fillRect(-barW/2,barY,barW,barH);
+ctx.fillStyle=hpPct>.6?'#22c55e':hpPct>.3?'#eab308':'#ef4444';
+ctx.fillRect(-barW/2,barY,barW*hpPct,barH);
+
+// Reload indicator
+if(t.reload>0){const rPct=t.reload/RELOAD_TIME;
+ctx.beginPath();ctx.arc(0,0,TANK_RADIUS+3,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-rPct));
+ctx.strokeStyle='#ffffff30';ctx.lineWidth=2;ctx.stroke()}
+
+// Emotion indicator
+const em=t.brain.emotions;
+if(em.fear>.5){ctx.beginPath();ctx.arc(0,0,TANK_RADIUS+5,0,Math.PI*2);ctx.strokeStyle='#eab30860';ctx.lineWidth=1;ctx.stroke()}
+if(em.aggression>.5){ctx.beginPath();ctx.arc(0,0,TANK_RADIUS+5,0,Math.PI*2);ctx.strokeStyle='#ef444460';ctx.lineWidth=1;ctx.stroke()}
+if(em.confidence>.5){ctx.beginPath();ctx.arc(0,0,TANK_RADIUS+5,0,Math.PI*2);ctx.strokeStyle='#22c55e60';ctx.lineWidth=1;ctx.stroke()}
+
+// Name
+ctx.fillStyle='#ffffffcc';ctx.font='bold 9px system-ui';ctx.textAlign='center';
+ctx.fillText(t.name,0,TANK_RADIUS+14);
+
+ctx.restore()}
+
+// Particles
+for(const p of a.particles){
+const alpha=p.life/p.maxLife;
+ctx.beginPath();ctx.arc(p.x,p.y,1.5+alpha*2,0,Math.PI*2);
+ctx.fillStyle=p.color+Math.floor(alpha*255).toString(16).padStart(2,'0');
+ctx.fill()}
+
+// Dead tank markers
+for(const t of a.tanks){if(t.alive)continue;
+ctx.save();ctx.translate(t.x,t.y);ctx.globalAlpha=.3;
+ctx.beginPath();ctx.moveTo(-8,-8);ctx.lineTo(8,8);ctx.moveTo(8,-8);ctx.lineTo(-8,8);
+ctx.strokeStyle=t.color;ctx.lineWidth=2;ctx.stroke();
+ctx.font='8px system-ui';ctx.textAlign='center';ctx.fillStyle=t.color;
+ctx.fillText(Math.ceil(t.respawnTimer/60)+'s',0,16);
+ctx.restore()}
+
+ctx.restore()}
+
+screenToArena(sx,sy){
+const rect=this.canvas.getBoundingClientRect();
+const px=sx-rect.left-this.offsetX;
+const py=sy-rect.top-this.offsetY;
+return{x:px/this.scale,y:py/this.scale}}
+}
+
+// ============================================================================
+// UI CONTROLLER
+// ============================================================================
+
+class UIController{
+constructor(arena,renderer){
+this.arena=arena;this.renderer=renderer;
+this._bindControls();this._lastFpsTime=performance.now();this._frameCount=0;this._fps=0;
+}
+
+_bindControls(){
+const a=this.arena;
+document.getElementById('btn-start').addEventListener('click',()=>{
+if(!a.running){a.init();a.running=true;
+document.getElementById('overlay').classList.remove('show');
+document.getElementById('btn-start').textContent='⏸ Pause'}
+else{a.running=!a.running;
+document.getElementById('btn-start').textContent=a.running?'⏸ Pause':'▶ Resume'}});
+
+document.getElementById('btn-reset').addEventListener('click',()=>{
+a.running=false;a.round=1;a.leaderboard.clear();a.logs=[];a._generateWalls();a.init();
+document.getElementById('btn-start').textContent='▶ Start';
+document.getElementById('overlay').classList.add('show');
+document.getElementById('overlay-title').textContent='CORTEX ARENA';
+document.getElementById('overlay-text').textContent='Press Start to begin';
+this.updateUI()});
+
+document.getElementById('speed-select').addEventListener('change',e=>{a.speed=parseInt(e.target.value)});
+
+document.getElementById('tank-count').addEventListener('change',e=>{
+a.tankCount=parseInt(e.target.value);
+if(a.running){a.running=false;a.round=1;a.leaderboard.clear();a._generateWalls();a.init();a.running=true}});
+
+this.renderer.canvas.addEventListener('click',e=>{
+const pos=this.renderer.screenToArena(e.clientX,e.clientY);
+let closest=null,closestDist=40;
+for(const t of a.tanks){
+const dx=t.x-pos.x,dy=t.y-pos.y,d=Math.sqrt(dx*dx+dy*dy);
+if(d<closestDist){closestDist=d;closest=t.id}}
+a.selectedTank=closest;this._updateSelected()});
+}
+
+updateUI(){
+const a=this.arena;
+this._frameCount++;const now=performance.now();
+if(now-this._lastFpsTime>=1000){this._fps=this._frameCount;this._frameCount=0;this._lastFpsTime=now}
+
+document.getElementById('hdr-round').textContent=a.round;
+document.getElementById('hdr-tick').textContent=a.tick;
+document.getElementById('hdr-alive').textContent=a.tanks.filter(t=>t.alive).length;
+document.getElementById('hdr-fps').textContent=this._fps;
+
+this._updateTankList();this._updateSelected();this._updateLog();this._updateGlobalStats();this._updateLeaderboard();
+}
+
+_updateTankList(){
+const container=document.getElementById('tank-list');
+const a=this.arena;
+let html='';
+for(const t of a.tanks){
+const sel=a.selectedTank===t.id;
+const hpPct=(t.hp/t.maxHp*100).toFixed(0);
+const hpColor=t.hp/t.maxHp>.6?'var(--green)':t.hp/t.maxHp>.3?'var(--yellow)':'var(--red)';
+const em=t.brain.emotions;
+const topEmotion=Object.entries(em).sort((a,b)=>b[1]-a[1])[0];
+html+=`<div class="tank-card${sel?' selected':''}" data-id="${t.id}">
+<div class="name"><span class="dot" style="background:${t.color}"></span>${t.name}
+<span class="status">${t.alive?'ACTIVE':'DEAD'}</span></div>
+<div class="stat-row"><span>HP</span><span class="val" style="color:${hpColor}">${t.hp.toFixed(0)}/${t.maxHp}</span></div>
+<div class="bar-wrap"><div class="bar-fill" style="width:${hpPct}%;background:${hpColor}"></div></div>
+<div class="stat-row"><span>K/D</span><span class="val">${t.kills}/${t.deaths}</span></div>
+<div class="stat-row"><span>Accuracy</span><span class="val">${t.shotsFired>0?(t.shotsHit/t.shotsFired*100).toFixed(0)+'%':'—'}</span></div>
+<div class="stat-row"><span>Emotion</span><span class="val">${topEmotion?topEmotion[0]:'—'} ${topEmotion?(topEmotion[1]*100).toFixed(0)+'%':''}</span></div>
+</div>`;
+}
+container.innerHTML=html;
+container.querySelectorAll('.tank-card').forEach(card=>{
+card.addEventListener('click',()=>{this.arena.selectedTank=parseInt(card.dataset.id);this._updateSelected()})});
+}
+
+_updateSelected(){
+const container=document.getElementById('selected-detail');
+const a=this.arena;
+if(a.selectedTank===null){container.innerHTML='<p style="color:var(--muted);font-size:12px">Click a tank to inspect</p>';return}
+const t=a.tanks[a.selectedTank];if(!t){container.innerHTML='';return}
+
+const em=t.brain.emotions;
+const emotionKeys=['threat','frustration','confidence','aggression','fear','surprise','caution','desperation','vengeance','empathy','curiosity'];
+let emotionHtml='<div class="emotion-grid">';
+for(const k of emotionKeys){
+const v=(em[k]||0);
+const c=v>.6?'var(--red)':v>.3?'var(--yellow)':'var(--green)';
+emotionHtml+=`<div class="emotion-item"><span>${k}</span><span class="ev" style="color:${c}">${(v*100).toFixed(0)}</span></div>`}
+emotionHtml+='</div>';
+
+const pe=t.brain._avgPE();
+const brainStep=t.brain.step;
+
+container.innerHTML=`
+<div class="tank-card selected" style="border-color:${t.color}">
+<div class="name"><span class="dot" style="background:${t.color}"></span>${t.name}
+<span class="status">${t.alive?'ACTIVE':'RESPAWN '+Math.ceil(t.respawnTimer/60)+'s'}</span></div>
+</div>
+<div class="panel-title" style="margin-top:12px">Vitals</div>
+<div class="stat-row"><span>Health</span><span class="val">${t.hp.toFixed(0)} / ${t.maxHp}</span></div>
+<div class="bar-wrap"><div class="bar-fill" style="width:${t.hp/t.maxHp*100}%;background:${t.hp/t.maxHp>.5?'var(--green)':'var(--red)'}"></div></div>
+<div class="stat-row"><span>Kills</span><span class="val">${t.kills}</span></div>
+<div class="stat-row"><span>Deaths</span><span class="val">${t.deaths}</span></div>
+<div class="stat-row"><span>Damage</span><span class="val">${t.damage.toFixed(0)}</span></div>
+<div class="stat-row"><span>Accuracy</span><span class="val">${t.shotsFired>0?(t.shotsHit/t.shotsFired*100).toFixed(0)+'%':'—'}</span></div>
+<div class="stat-row"><span>Shots</span><span class="val">${t.shotsFired}</span></div>
+<div class="stat-row"><span>Wins</span><span class="val">${t.wins}</span></div>
+
+<div class="panel-title" style="margin-top:12px">Neural State</div>
+<div class="stat-row"><span>Brain Step</span><span class="val">${brainStep}</span></div>
+<div class="stat-row"><span>Pred. Error</span><span class="val">${(pe*100).toFixed(1)}%</span></div>
+<div class="stat-row"><span>Cum. Reward</span><span class="val">${t.brain.cumulativeReward.toFixed(2)}</span></div>
+
+<div class="panel-title" style="margin-top:12px">Emotions</div>
+${emotionHtml}
+`;
+}
+
+_updateLog(){
+const container=document.getElementById('battle-log');
+let html='';
+const show=this.arena.logs.slice(0,30);
+for(const l of show){
+const cls=l.type==='kill'?'kill':l.type==='spawn'?'spawn':l.type==='event'?'event':'info';
+html+=`<div class="log-line ${cls}">[${l.tick}] ${l.msg}</div>`}
+container.innerHTML=html}
+
+_updateGlobalStats(){
+const container=document.getElementById('global-stats');
+const a=this.arena;
+const totalKills=a.tanks.reduce((s,t)=>s+t.kills,0);
+const totalShots=a.tanks.reduce((s,t)=>s+t.shotsFired,0);
+const totalHits=a.tanks.reduce((s,t)=>s+t.shotsHit,0);
+const avgAcc=totalShots>0?(totalHits/totalShots*100).toFixed(1)+'%':'—';
+
+// Aggregate emotions
+const emotionAvgs={};const emotionKeys=['threat','frustration','confidence','aggression','fear','desperation','vengeance'];
+for(const k of emotionKeys){emotionAvgs[k]=a.tanks.reduce((s,t)=>s+(t.brain.emotions[k]||0),0)/a.tanks.length}
+
+let html=`
+<div class="stat-row"><span>Total Kills</span><span class="val">${totalKills}</span></div>
+<div class="stat-row"><span>Total Shots</span><span class="val">${totalShots}</span></div>
+<div class="stat-row"><span>Avg Accuracy</span><span class="val">${avgAcc}</span></div>
+<div class="stat-row"><span>Bullets Live</span><span class="val">${a.bullets.length}</span></div>
+<div class="stat-row"><span>Particles</span><span class="val">${a.particles.length}</span></div>
+<div class="panel-title" style="margin-top:8px">Avg Emotions</div>`;
+for(const k of emotionKeys){
+const v=emotionAvgs[k];const pct=(v*100).toFixed(0);
+const c=k==='confidence'||k==='curiosity'?'var(--green)':v>.5?'var(--red)':v>.25?'var(--yellow)':'var(--cyan)';
+html+=`<div class="chart-row"><span class="label">${k.slice(0,8)}</span><div class="track"><div class="fill" style="width:${pct}%;background:${c}"></div></div><span style="width:30px;text-align:right;font-family:var(--font-mono);font-size:10px;color:var(--muted)">${pct}%</span></div>`}
+container.innerHTML=html}
+
+_updateLeaderboard(){
+const body=document.getElementById('lb-body');
+const a=this.arena;
+const rows=[...a.leaderboard.entries()].map(([name,s])=>({name,...s}));
+rows.sort((a,b)=>(b.kills-b.deaths)-(a.kills-a.deaths)||(b.damage-a.damage));
+let html='';
+rows.forEach((r,i)=>{
+const t=a.tanks.find(t=>t.name===r.name);
+const color=t?t.color:'var(--text)';
+html+=`<tr><td>${i+1}</td><td style="color:${color};font-weight:600">${r.name}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.damage.toFixed(0)}</td><td>${r.wins}</td></tr>`});
+body.innerHTML=html}
+}
+
+// ============================================================================
+// MAIN LOOP
+// ============================================================================
+
+const canvas=document.getElementById('arena');
+const arena=new Arena(6);
+const renderer=new Renderer(canvas,arena);
+const ui=new UIController(arena,renderer);
+
+let uiThrottle=0;
+function loop(){
+requestAnimationFrame(loop);
+arena.update();
+renderer.render();
+uiThrottle++;
+if(uiThrottle%6===0)ui.updateUI();
+}
+
+// Show initial overlay
+document.getElementById('overlay').classList.add('show');
+
+loop();
 </script>
 </body>
 </html>
