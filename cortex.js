@@ -1026,7 +1026,7 @@ function softmax(arr, temp = 1) {
 // MAIN CLASS
 // ============================================================================
 
-export class Cortex2Brain {
+exportclass Cortex2Brain {
 
     /** @param {CortexConfig} config */
     constructor(config = {}) {
