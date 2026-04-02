@@ -3,838 +3,1499 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CORTEX2BRAIN — Tank Arena</title>
+<title>CORTEX ARENA v3 — Neural Tank Combat</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0a0e17;--panel:#111827;--border:#1e293b;--accent:#3b82f6;
-  --green:#22c55e;--red:#ef4444;--yellow:#eab308;--cyan:#06b6d4;
-  --text:#e2e8f0;--muted:#64748b;--dim:#334155;
-  --font-mono:'Courier New',monospace;--font-ui:system-ui,-apple-system,sans-serif;
+--bg:#080b12;--panel:#0f1420;--panel2:#151c2c;--border:#1c2537;
+--accent:#4f8eff;--green:#2ecc71;--red:#e74c3c;--yellow:#f1c40f;
+--cyan:#00d2d3;--purple:#a55eea;--orange:#f39c12;--pink:#fd79a8;
+--text:#c8d6e5;--muted:#576574;--dim:#222f3e;
+--mono:'JetBrains Mono','Fira Code','Courier New',monospace;
+--sans:Inter,system-ui,-apple-system,sans-serif;
 }
-html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-ui);font-size:14px}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px}
 
-/* ── Layout ── */
-#app{display:grid;grid-template-rows:48px 1fr 220px;grid-template-columns:280px 1fr 280px;height:100vh;gap:1px;background:var(--border)}
-#header{grid-column:1/-1;background:var(--panel);display:flex;align-items:center;padding:0 16px;gap:16px}
-#left-panel{background:var(--panel);overflow-y:auto;padding:12px}
-#arena-wrap{position:relative;background:#080c14;overflow:hidden}
-#right-panel{background:var(--panel);overflow-y:auto;padding:12px}
-#bottom-panel{grid-column:1/-1;background:var(--panel);display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;padding:0}
+#app{display:grid;grid-template-rows:44px 1fr 200px;grid-template-columns:260px 1fr 280px;height:100vh;gap:1px;background:var(--border)}
+header{grid-column:1/-1;background:var(--panel);display:flex;align-items:center;padding:0 14px;gap:12px;z-index:5}
+header h1{font-size:14px;font-weight:800;letter-spacing:1.2px;color:var(--accent);white-space:nowrap}
+.hsep{width:1px;height:22px;background:var(--border)}
+.hstat{font-size:11px;color:var(--muted);white-space:nowrap}.hstat b{color:var(--text);font-weight:600}
+.spacer{flex:1}
+select,button{font-family:var(--sans);font-size:11px;border:1px solid var(--border);border-radius:4px;background:var(--panel2);color:var(--text);padding:4px 10px;cursor:pointer;transition:.15s}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.primary:hover{opacity:.85}
+button.danger{border-color:var(--red);color:var(--red)}
+button.danger:hover{background:var(--red);color:#fff}
 
-canvas#arena{display:block;width:100%;height:100%}
+#left{background:var(--panel);overflow-y:auto;padding:10px;scrollbar-width:thin}
+#arena-wrap{position:relative;background:#060910;overflow:hidden}
+canvas#c{display:block;width:100%;height:100%}
+#right{background:var(--panel);overflow-y:auto;padding:10px;scrollbar-width:thin}
+#bottom{grid-column:1/-1;background:var(--panel);display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px}
 
-/* ── Header ── */
-#header h1{font-size:15px;font-weight:700;letter-spacing:1px;color:var(--accent)}
-#header .sep{width:1px;height:24px;background:var(--border)}
-.hdr-stat{font-size:12px;color:var(--muted)}
-.hdr-stat span{color:var(--text);font-weight:600}
-.btn{padding:5px 14px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--text);cursor:pointer;font-size:12px;font-family:var(--font-ui);transition:all .15s}
-.btn:hover{border-color:var(--accent);color:var(--accent)}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-.btn.primary:hover{opacity:.85}
-.btn.danger{border-color:var(--red);color:var(--red)}
-.btn.danger:hover{background:var(--red);color:#fff}
-select.ctrl{padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--panel);color:var(--text);font-size:12px}
+.ptitle{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:700;margin-bottom:6px}
+.card{background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:8px 10px;margin-bottom:6px;cursor:pointer;transition:.15s}
+.card:hover,.card.sel{border-color:var(--accent)}
+.card .top{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.card .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.card .nm{font-weight:700;font-size:12px;flex:1}
+.card .st{font-size:9px;color:var(--muted);text-transform:uppercase}
+.row{display:flex;justify-content:space-between;font-size:11px;padding:1px 0;color:var(--muted)}
+.row .v{color:var(--text);font-weight:600;font-family:var(--mono);font-size:10px}
+.bar{height:3px;background:var(--dim);border-radius:2px;margin-top:1px;overflow:hidden}
+.bar .fill{height:100%;border-radius:2px;transition:width .25s}
+.egrid{display:grid;grid-template-columns:1fr 1fr;gap:1px 6px;font-size:9px;margin-top:4px}
+.egrid .ei{display:flex;justify-content:space-between;color:var(--muted)}.egrid .ev{font-family:var(--mono);font-size:9px}
 
-/* ── Panels ── */
-.panel-title{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:8px;font-weight:600}
-.tank-card{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:8px}
-.tank-card.selected{border-color:var(--accent)}
-.tank-card .name{font-weight:700;font-size:13px;margin-bottom:4px;display:flex;align-items:center;gap:6px}
-.tank-card .name .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
-.tank-card .name .status{font-size:10px;color:var(--muted);margin-left:auto;font-weight:400}
+.bsec{padding:8px 12px;overflow-y:auto;border-right:1px solid var(--border)}.bsec:last-child{border:none}
+.log{font-size:10px;font-family:var(--mono);padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+.log.kill{color:var(--red)}.log.spawn{color:var(--green)}.log.win{color:var(--yellow)}.log.info{color:var(--cyan)}
+.crow{display:flex;align-items:center;gap:4px;font-size:10px;margin-bottom:2px}
+.crow .cl{width:56px;color:var(--muted);flex-shrink:0}
+.crow .ct{flex:1;height:6px;background:var(--dim);border-radius:3px;overflow:hidden}
+.crow .cf{height:100%;border-radius:3px;transition:width .3s}
+.crow .cv{width:28px;text-align:right;font-family:var(--mono);font-size:9px;color:var(--muted)}
+table.lb{width:100%;border-collapse:collapse;font-size:10px}
+table.lb th{text-align:left;color:var(--muted);font-weight:600;padding:2px 3px;border-bottom:1px solid var(--border)}
+table.lb td{padding:2px 3px;font-family:var(--mono)}
 
-.stat-row{display:flex;justify-content:space-between;font-size:11px;padding:2px 0;color:var(--muted)}
-.stat-row .val{color:var(--text);font-weight:600;font-family:var(--font-mono)}
-.bar-wrap{height:4px;background:var(--dim);border-radius:2px;margin-top:2px;overflow:hidden}
-.bar-fill{height:100%;border-radius:2px;transition:width .2s}
-
-.emotion-grid{display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;font-size:10px;margin-top:6px}
-.emotion-item{display:flex;justify-content:space-between;color:var(--muted)}
-.emotion-item .ev{font-family:var(--font-mono);color:var(--text)}
-
-/* ── Bottom Panels ── */
-.bottom-section{padding:10px 14px;overflow-y:auto;border-right:1px solid var(--border)}
-.bottom-section:last-child{border-right:none}
-.log-line{font-size:11px;font-family:var(--font-mono);padding:1px 0;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.log-line.kill{color:var(--red)}
-.log-line.spawn{color:var(--green)}
-.log-line.event{color:var(--yellow)}
-.log-line.info{color:var(--cyan)}
-
-.chart-row{display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:3px}
-.chart-row .label{width:60px;color:var(--muted);flex-shrink:0}
-.chart-row .track{flex:1;height:8px;background:var(--dim);border-radius:4px;overflow:hidden}
-.chart-row .fill{height:100%;border-radius:4px;transition:width .3s}
-
-.mini-table{width:100%;border-collapse:collapse;font-size:11px}
-.mini-table th{text-align:left;color:var(--muted);font-weight:600;padding:3px 4px;border-bottom:1px solid var(--border)}
-.mini-table td{padding:3px 4px;font-family:var(--font-mono)}
-
-/* ── Overlay ── */
-#overlay{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;
-  background:rgba(0,0,0,.7);z-index:10;pointer-events:none;opacity:0;transition:opacity .3s}
+#overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.75);z-index:10;opacity:0;pointer-events:none;transition:opacity .3s}
 #overlay.show{opacity:1;pointer-events:auto}
-#overlay .msg{text-align:center}
-#overlay .msg h2{font-size:28px;margin-bottom:8px}
-#overlay .msg p{color:var(--muted);font-size:14px}
+#overlay h2{font-size:26px;text-align:center;margin-bottom:6px}
+#overlay p{color:var(--muted);text-align:center;font-size:13px}
 
-/* ── Tooltip ── */
-#tooltip{position:absolute;background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:8px 10px;
-  font-size:11px;pointer-events:none;z-index:20;display:none;max-width:200px}
-
-/* ── Responsive ── */
-@media(max-width:900px){
-  #app{grid-template-columns:1fr;grid-template-rows:48px 1fr 160px}
-  #left-panel,#right-panel{display:none}
-  #bottom-panel{grid-template-columns:1fr}
+@media(max-width:960px){
+#app{grid-template-columns:1fr;grid-template-rows:44px 1fr 180px}
+#left,#right{display:none}
+#bottom{grid-template-columns:1fr}
 }
 </style>
 </head>
 <body>
 <div id="app">
-  <!-- Header -->
-  <div id="header">
-    <h1>⬡ CORTEX ARENA</h1>
-    <div class="sep"></div>
-    <div class="hdr-stat">Round <span id="hdr-round">0</span></div>
-    <div class="hdr-stat">Tick <span id="hdr-tick">0</span></div>
-    <div class="hdr-stat">Alive <span id="hdr-alive">0</span></div>
-    <div class="hdr-stat">FPS <span id="hdr-fps">0</span></div>
-    <div style="flex:1"></div>
-    <select class="ctrl" id="speed-select" title="Simulation speed">
-      <option value="1">1× Speed</option>
-      <option value="2" selected>2× Speed</option>
-      <option value="4">4× Speed</option>
-      <option value="8">8× Speed</option>
-      <option value="0">Paused</option>
-    </select>
-    <select class="ctrl" id="tank-count" title="Tank count">
-      <option value="4">4 Tanks</option>
-      <option value="6" selected>6 Tanks</option>
-      <option value="8">8 Tanks</option>
-      <option value="12">12 Tanks</option>
-    </select>
-    <button class="btn primary" id="btn-start">▶ Start</button>
-    <button class="btn danger" id="btn-reset">↻ Reset</button>
-  </div>
-
-  <!-- Left Panel -->
-  <div id="left-panel">
-    <div class="panel-title">Combatants</div>
-    <div id="tank-list"></div>
-  </div>
-
-  <!-- Arena -->
-  <div id="arena-wrap">
-    <canvas id="arena"></canvas>
-    <div id="overlay"><div class="msg"><h2 id="overlay-title">CORTEX ARENA</h2><p id="overlay-text">Press Start to begin</p></div></div>
-    <div id="tooltip"></div>
-  </div>
-
-  <!-- Right Panel -->
-  <div id="right-panel">
-    <div class="panel-title">Selected Tank</div>
-    <div id="selected-detail"><p style="color:var(--muted);font-size:12px">Click a tank to inspect</p></div>
-  </div>
-
-  <!-- Bottom Panel -->
-  <div id="bottom-panel">
-    <div class="bottom-section" id="log-section">
-      <div class="panel-title">Battle Log</div>
-      <div id="battle-log"></div>
-    </div>
-    <div class="bottom-section" id="stats-section">
-      <div class="panel-title">Global Stats</div>
-      <div id="global-stats"></div>
-    </div>
-    <div class="bottom-section" id="leaderboard-section">
-      <div class="panel-title">Leaderboard</div>
-      <table class="mini-table" id="leaderboard">
-        <thead><tr><th>#</th><th>Name</th><th>K</th><th>D</th><th>Dmg</th><th>W</th></tr></thead>
-        <tbody id="lb-body"></tbody>
-      </table>
-    </div>
-  </div>
+<header>
+  <h1>⬡ CORTEX ARENA</h1><div class="hsep"></div>
+  <div class="hstat">Round <b id="h-rnd">0</b></div>
+  <div class="hstat">Tick <b id="h-tick">0</b></div>
+  <div class="hstat">Alive <b id="h-alive">0</b></div>
+  <div class="hstat">FPS <b id="h-fps">0</b></div>
+  <div class="spacer"></div>
+  <select id="sel-spd"><option value="0">Paused</option><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option><option value="8">8×</option></select>
+  <select id="sel-cnt"><option value="4">4 Tanks</option><option value="6" selected>6</option><option value="8">8</option><option value="12">12</option></select>
+  <button class="primary" id="btn-go">▶ START</button>
+  <button class="danger" id="btn-rst">↻</button>
+</header>
+<div id="left"><div class="ptitle">Combatants</div><div id="tank-list"></div></div>
+<div id="arena-wrap"><canvas id="c"></canvas><div id="overlay" class="show"><div><h2>CORTEX ARENA</h2><p>Neural tanks powered by Cortex2Brain<br>Press START to begin</p></div></div></div>
+<div id="right"><div class="ptitle">Inspector</div><div id="detail"><p style="color:var(--muted);font-size:11px">Click a tank to inspect its neural state</p></div></div>
+<div id="bottom">
+  <div class="bsec"><div class="ptitle">Battle Log</div><div id="blog"></div></div>
+  <div class="bsec"><div class="ptitle">Global Emotions</div><div id="gstats"></div></div>
+  <div class="bsec"><div class="ptitle">Leaderboard</div><table class="lb"><thead><tr><th>#</th><th>Name</th><th>K</th><th>D</th><th>Dmg</th><th>W</th></tr></thead><tbody id="lb-body"></tbody></table></div>
+</div>
 </div>
 
 <script>
-// ============================================================================
-// CORTEX2BRAIN v2.3 — INLINE (production-patched, see cortex.js for full docs)
-// ============================================================================
-function clamp(v,a,b){return v<a?a:v>b?b:v}
-function lerp(a,b,t){const c=t<0?0:t>1?1:t;return a+(b-a)*c}
-function safeNum(v,f){return typeof v==='number'&&isFinite(v)?v:f}
-function tanh(x){if(x>20)return 1;if(x<-20)return -1;const e=Math.exp(2*x);return(e-1)/(e+1)}
-function leakyRelu(x,a=.01){return x>0?x:a*x}
-function softmax(a,t=1){if(!a||!a.length)return[];let m=-Infinity;for(let i=0;i<a.length;i++)if(a[i]>m)m=a[i];const e=new Array(a.length);let s=0;for(let i=0;i<a.length;i++){const v=Math.exp(Math.min((a[i]-m)/t,700));e[i]=v;s+=v}if(s<1e-10)s=1e-10;for(let i=0;i<e.length;i++)e[i]/=s;return e}
-function deriveArch(D){return Object.freeze({P_INPUT:D.DIM_SENSOR+D.DIM_C+D.DIM_S+48,A_INPUT:D.DIM_P+48+64+D.DIM_D,M_WORK_INPUT:D.DIM_P+D.DIM_A+64,M_PERM_INPUT:D.DIM_C+48,M_PRED_INPUT:D.DIM_A+64+48+D.DIM_D,C_INPUT:D.DIM_P+D.DIM_A+D.DIM_M+D.DIM_S+D.DIM_D+1,S_INPUT:D.DIM_P+48+32+D.DIM_D,D_INPUT:D.DIM_C+D.DIM_S+48,C_PRED_OFFSET:192,C_STATE_OFFSET:224,C_STATE_SLICE:32,A_HEAD_C_SLICE:64,M_WORK_C_SLICE:64,M_BLOCK_SIZE:48,MAX_WEIGHT:2,MAX_GRADIENT:.3,MAX_TRACE_VAL:10,REFLEX_THRESHOLD:.9})}
+"use strict";
 
-class SeededRNG{constructor(s){let h=0x811c9dc5;const st=String(s||'d');for(let i=0;i<st.length;i++){h^=st.charCodeAt(i);h=Math.imul(h,0x01000193)}this._s=(h>>>0)||1}next(){let x=this._s;x^=x<<13;x^=x>>>17;x^=x<<5;this._s=x>>>0;if(!this._s)this._s=1;return this._s/4294967296}gaussian(m=0,s=1){const u1=Math.max(this.next(),1e-10),u2=this.next();return Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2)*s+m}}
+// ═══════════════════════════════════════════════════════════════════════════
+// CORTEX2BRAIN v2.3 — FULL INLINE (all fixes from code review applied)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function clamp(v,mn,mx){return v<mn?mn:v>mx?mx:v}
+function lerp(a,b,t){return a+(b-a)*(t<0?0:t>1?1:t)}
+function safeN(v,f){return typeof v==='number'&&isFinite(v)?v:f}
+function tanh(x){if(x>20)return 1;if(x<-20)return -1;const e=Math.exp(2*x);return(e-1)/(e+1)}
+function lrelu(x){return x>0?x:.01*x}
+function softmax(a,t=1){if(!a||!a.length)return[];let m=-1/0;for(let i=0;i<a.length;i++)if(a[i]>m)m=a[i];const e=[];let s=0;for(let i=0;i<a.length;i++){const v=Math.exp(Math.min((a[i]-m)/t,700));e.push(v);s+=v}if(s<1e-10)s=1e-10;for(let i=0;i<e.length;i++)e[i]/=s;return e}
+
+function deriveArch(D){
+return{
+P_IN:D.SP+D.C+D.S+48,A_IN:D.P+48+64+D.D,MW_IN:D.P+D.A+64,
+MP_IN:D.C+48,MR_IN:D.A+64+48+D.D,C_IN:D.P+D.A+D.M+D.S+D.D+1,
+S_IN:D.P+48+32+D.D,D_IN:D.C+D.S+48,BS:48,CPO:192,CSO:224,CSS:32,ACS:64,MCS:64}}
+
+class RNG{
+constructor(s){let h=0x811c9dc5;const st=String(s||'x');for(let i=0;i<st.length;i++){h^=st.charCodeAt(i);h=Math.imul(h,0x01000193)}this.s=(h>>>0)||1}
+next(){let x=this.s;x^=x<<13;x^=x>>>17;x^=x<<5;this.s=(x>>>0)||1;return this.s/4294967296}
+gauss(m=0,s=1){return Math.sqrt(-2*Math.log(Math.max(this.next(),1e-10)))*Math.cos(2*Math.PI*this.next())*s+m}
+}
 
 class Cortex2Brain{
 constructor(cfg={}){
-this.config={seed:cfg.seed||`C_${Date.now()}`,lr:cfg.lr??.015,gamma:cfg.gamma??.99,lambda:cfg.lambda??.95,hebbianRate:cfg.hebbianRate??.002,...cfg};
-this.DIM=Object.freeze({DIM_P:32,DIM_A:64,DIM_M:144,DIM_C:256,DIM_S:32,DIM_D:16,DIM_SENSOR:64,NUM_HEADS:4,HEAD_DIM:16,M_WORK_START:0,M_WORK_END:48,M_PERM_START:48,M_PERM_END:96,M_PRED_START:96,M_PRED_END:144});
-this.ARCH=deriveArch(this.DIM);this._rng=new SeededRNG(this.config.seed);this._initW();this._initS();this._initT();
-this.predictionErrors=new Float32Array(this.DIM.DIM_SENSOR);this.step=0;this.cumulativeReward=0;this._lastCInput=null;
-this.emotions={threat:0,frustration:0,confidence:0,aggression:0,fear:0,surprise:0,caution:0,desperation:0,vengeance:0,empathy:0,curiosity:0};
-this.emotionDecay=.98;this.emotionInfluence=.35;this._isReady=true}
-_hashSeed(s,i,j){let h=0x811c9dc5;const st=`${s}:${i}:${j}`;for(let k=0;k<st.length;k++){h^=st.charCodeAt(k);h=Math.imul(h,0x01000193)}return((h>>>0)^((h>>>16)&0xFFFF))/4294967296}
-_initMat(r,c,sc){const m=[];for(let i=0;i<r;i++){const row=new Float32Array(c);for(let j=0;j<c;j++)row[j]=(this._hashSeed(this.config.seed,i*10000+j,0)*2-1)*sc;m.push(row)}return m}
-_initVec(l,sc){const v=new Float32Array(l);for(let i=0;i<l;i++)v[i]=(this._hashSeed(this.config.seed,i,1000)*2-1)*sc;return v}
-_initW(){const A=this.ARCH,D=this.DIM,bs=A.M_BLOCK_SIZE;
-this.W_P=this._initMat(A.P_INPUT,D.DIM_P,.3);this.b_P=this._initVec(D.DIM_P,.1);
-this.W_A=[];this.b_A=[];for(let h=0;h<D.NUM_HEADS;h++){this.W_A.push(this._initMat(A.A_INPUT,D.HEAD_DIM,.3));this.b_A.push(this._initVec(D.HEAD_DIM,.1))}
-this.W_gate=this._initVec(D.NUM_HEADS,.25);
-this.W_M_work=this._initMat(A.M_WORK_INPUT,bs,.3);this.b_M_work=this._initVec(bs,.1);
-this.W_M_perm=this._initMat(A.M_PERM_INPUT,bs,.3);this.b_M_perm=this._initVec(bs,.1);
-this.W_M_pred=this._initMat(A.M_PRED_INPUT,bs,.3);this.b_M_pred=this._initVec(bs,.1);
-this.W_C=this._initMat(A.C_INPUT,D.DIM_C,.25);this.b_C=this._initVec(D.DIM_C,.1);
-this.W_S=this._initMat(A.S_INPUT,D.DIM_S,.3);this.b_S=this._initVec(D.DIM_S,.1);
-this.W_D=this._initMat(A.D_INPUT,D.DIM_D,.2);this.b_D=this._initVec(D.DIM_D,.1);
-this.W_pred=this._initMat(bs,D.DIM_SENSOR,.15);this.b_pred=this._initVec(D.DIM_SENSOR,.05);
-this.W_V=this._initVec(D.DIM_C,.1);this.b_V=0}
-_initS(){const D=this.DIM;this.P=new Float32Array(D.DIM_P);this.A=new Float32Array(D.DIM_A);this.M=new Float32Array(D.DIM_M);this.C=new Float32Array(D.DIM_C);this.S=new Float32Array(D.DIM_S);this.D=new Float32Array(D.DIM_D);
-this.P_prev=new Float32Array(D.DIM_P);this.A_prev=new Float32Array(D.DIM_A);this.M_prev=new Float32Array(D.DIM_M);this.C_prev=new Float32Array(D.DIM_C);this.S_prev=new Float32Array(D.DIM_S);this.D_prev=new Float32Array(D.DIM_D)}
-_initT(){const A=this.ARCH,D=this.DIM;this.traceP=new Float32Array(A.P_INPUT*D.DIM_P);this.traceC=new Float32Array(A.C_INPUT*D.DIM_C);this.traceD=new Float32Array(A.D_INPUT*D.DIM_D)}
+this.cfg={seed:cfg.seed||'C'+Date.now(),lr:cfg.lr??.015,gamma:cfg.gamma??.99,lambda:cfg.lambda??.95,hebb:cfg.hebb??.002};
+this.D={SP:64,P:32,A:64,M:144,C:256,S:32,D:16,NH:4,HD:16};
+this.AR=deriveArch(this.D);
+this.rng=new RNG(this.cfg.seed);
+this._iw();this._is();this._it();
+this.pe=new Float32Array(this.D.SP);this.step=0;this.cumR=0;this._lci=null;
+this.em={threat:0,frust:0,conf:0,aggr:0,fear:0,surp:0,caut:0,desp:0,veng:0,empa:0,curi:0};
+this.emDecay=.98;this.emInf=.35;this._ready=true}
+
+_h(s,i,j){let h=0x811c9dc5;const st=`${s}:${i}:${j}`;for(let k=0;k<st.length;k++){h^=st.charCodeAt(k);h=Math.imul(h,0x01000193)}return((h>>>0)^((h>>>16)&0xFFFF))/4294967296}
+_im(r,c,sc){const m=[];for(let i=0;i<r;i++){const row=new Float32Array(c);for(let j=0;j<c;j++)row[j]=(this._h(this.cfg.seed,i*1e4+j,0)*2-1)*sc;m.push(row)}return m}
+_iv(l,sc){const v=new Float32Array(l);for(let i=0;i<l;i++)v[i]=(this._h(this.cfg.seed,i,1e3)*2-1)*sc;return v}
+
+_iw(){const A=this.AR,D=this.D;
+this.wP=this._im(A.P_IN,D.P,.3);this.bP=this._iv(D.P,.1);
+this.wA=[];this.bA=[];for(let h=0;h<D.NH;h++){this.wA.push(this._im(A.A_IN,D.HD,.3));this.bA.push(this._iv(D.HD,.1))}
+this.wG=this._iv(D.NH,.25);
+this.wMw=this._im(A.MW_IN,A.BS,.3);this.bMw=this._iv(A.BS,.1);
+this.wMp=this._im(A.MP_IN,A.BS,.3);this.bMp=this._iv(A.BS,.1);
+this.wMr=this._im(A.MR_IN,A.BS,.3);this.bMr=this._iv(A.BS,.1);
+this.wC=this._im(A.C_IN,D.C,.25);this.bC=this._iv(D.C,.1);
+this.wS=this._im(A.S_IN,D.S,.3);this.bS=this._iv(D.S,.1);
+this.wD=this._im(A.D_IN,D.D,.2);this.bD=this._iv(D.D,.1);
+this.wPr=this._im(A.BS,D.SP,.15);this.bPr=this._iv(D.SP,.05);
+this.wV=this._iv(D.C,.1);this.bV=0}
+
+_is(){const D=this.D;
+this.vP=new Float32Array(D.P);this.vA=new Float32Array(D.A);this.vM=new Float32Array(D.M);
+this.vC=new Float32Array(D.C);this.vS=new Float32Array(D.S);this.vD=new Float32Array(D.D);
+this.pP=new Float32Array(D.P);this.pA=new Float32Array(D.A);this.pM=new Float32Array(D.M);
+this.pC=new Float32Array(D.C);this.pS=new Float32Array(D.S);this.pD=new Float32Array(D.D)}
+
+_it(){this.tC=new Float32Array(this.AR.C_IN*this.D.C)}
+
 _mm(v,m){const r=m.length,c=m[0].length,n=Math.min(v.length,r),o=new Float32Array(c);for(let i=0;i<c;i++){let s=0;for(let j=0;j<n;j++)s+=v[j]*m[j][i];o[i]=s}return o}
-_proj(raw){const o=new Float32Array(this.DIM.DIM_SENSOR),src=raw||[],sl=Math.min(src.length,this.DIM.DIM_SENSOR);for(let i=0;i<sl;i++){const v=safeNum(src[i],0);o[i]=v<-1?-1:v>1?1:v}return o}
-_gW(M){return M.subarray(this.DIM.M_WORK_START,this.DIM.M_WORK_END)}
-_gPe(M){return M.subarray(this.DIM.M_PERM_START,this.DIM.M_PERM_END)}
-_gPr(M){return M.subarray(this.DIM.M_PRED_START,this.DIM.M_PRED_END)}
+
+_proj(raw){const o=new Float32Array(this.D.SP);if(!raw)return o;const sl=Math.min(raw.length,this.D.SP);for(let i=0;i<sl;i++){const v=safeN(raw[i],0);o[i]=v<-1?-1:v>1?1:v}return o}
+
 forward(rawIn,reward=0){
-const D=this.DIM,A=this.ARCH,x=this._proj(Array.isArray(rawIn)?rawIn:(rawIn||[])),r=safeNum(reward,0);
-this.cumulativeReward=lerp(this.cumulativeReward,r,.1);
-const mpv=this._gPe(this.M_prev),mwv=this._gW(this.M_prev),mrv=this._gPr(this.M_prev);
-// Build inputs
-const pi=new Float32Array(A.P_INPUT);let idx=0;for(let i=0;i<D.DIM_SENSOR;i++)pi[idx++]=x[i]*.5;for(let i=0;i<D.DIM_C;i++)pi[idx++]=this.C_prev[i];for(let i=0;i<D.DIM_S;i++)pi[idx++]=this.S_prev[i];for(let i=0;i<48;i++)pi[idx++]=mpv[i];
-const pN=this._mm(pi,this.W_P);for(let i=0;i<D.DIM_P;i++)pN[i]=leakyRelu(pN[i]+this.b_P[i]);
-const ga=new Array(D.NUM_HEADS);for(let i=0;i<D.NUM_HEADS;i++)ga[i]=this.W_gate[i];const gp=softmax(ga);
-const aN=new Float32Array(D.DIM_A);
-for(let h=0;h<D.NUM_HEADS;h++){const ai=new Float32Array(A.A_INPUT);let ax=0;for(let i=0;i<D.DIM_P;i++)ai[ax++]=this.P_prev[i]*.25;for(let i=0;i<48;i++)ai[ax++]=mwv[i];const cs=h*64;for(let i=0;i<64;i++){const ci=cs+i;ai[ax++]=ci<D.DIM_C?this.C_prev[ci]:0}for(let i=0;i<D.DIM_D;i++)ai[ax++]=this.D_prev[i];
-const ho=this._mm(ai,this.W_A[h]);for(let i=0;i<D.HEAD_DIM;i++)aN[h*D.HEAD_DIM+i]=leakyRelu(ho[i]+this.b_A[h][i])*gp[h]}
-const mwi=new Float32Array(A.M_WORK_INPUT);idx=0;for(let i=0;i<D.DIM_P;i++)mwi[idx++]=this.P_prev[i]*.75;for(let i=0;i<D.DIM_A;i++)mwi[idx++]=this.A_prev[i]*.75;for(let i=0;i<64;i++)mwi[idx++]=i<D.DIM_C?this.C_prev[i]:0;
-const mwN=this._mm(mwi,this.W_M_work);for(let i=0;i<48;i++)mwN[i]=leakyRelu(mwN[i]+this.b_M_work[i]);
-const mpi=new Float32Array(A.M_PERM_INPUT);idx=0;for(let i=0;i<D.DIM_C;i++)mpi[idx++]=this.C_prev[i]*.75;for(let i=0;i<48;i++)mpi[idx++]=mpv[i];
-const mpN=this._mm(mpi,this.W_M_perm);for(let i=0;i<48;i++)mpN[i]=leakyRelu(mpN[i]+this.b_M_perm[i]);
-const mri=new Float32Array(A.M_PRED_INPUT);idx=0;for(let i=0;i<D.DIM_A;i++)mri[idx++]=this.A_prev[i]*.75;for(let i=0;i<64;i++){const ci=A.C_PRED_OFFSET+i;mri[idx++]=ci<D.DIM_C?this.C_prev[ci]:0}for(let i=0;i<48;i++)mri[idx++]=mwv[i];for(let i=0;i<D.DIM_D;i++)mri[idx++]=this.D_prev[i];
-const mrN=this._mm(mri,this.W_M_pred);for(let i=0;i<48;i++)mrN[i]=leakyRelu(mrN[i]+this.b_M_pred[i]);
-const mN=new Float32Array(D.DIM_M);for(let i=0;i<48;i++)mN[i]=mwN[i];for(let i=0;i<48;i++)mN[48+i]=mpN[i];for(let i=0;i<48;i++)mN[96+i]=mrN[i];
-const ci2=new Float32Array(A.C_INPUT);idx=0;for(let i=0;i<D.DIM_P;i++)ci2[idx++]=this.P_prev[i]*4;for(let i=0;i<D.DIM_A;i++)ci2[idx++]=this.A_prev[i]*4;for(let i=0;i<D.DIM_M;i++)ci2[idx++]=this.M_prev[i]*4;for(let i=0;i<D.DIM_S;i++)ci2[idx++]=this.S_prev[i];for(let i=0;i<D.DIM_D;i++)ci2[idx++]=this.D_prev[i];ci2[idx++]=r;
-this._lastCInput=ci2;
-const cN=this._mm(ci2,this.W_C);for(let i=0;i<D.DIM_C;i++)cN[i]=leakyRelu(cN[i]+this.b_C[i]);
-const si2=new Float32Array(A.S_INPUT);idx=0;for(let i=0;i<D.DIM_P;i++)si2[idx++]=this.P_prev[i]*.5;for(let i=0;i<48;i++)si2[idx++]=mpv[i];for(let i=0;i<32;i++){const cv=A.C_STATE_OFFSET+i;si2[idx++]=cv<D.DIM_C?this.C_prev[cv]:0}for(let i=0;i<D.DIM_D;i++)si2[idx++]=this.D_prev[i]*.5;
-const sN=this._mm(si2,this.W_S);for(let i=0;i<D.DIM_S;i++)sN[i]=leakyRelu(sN[i]+this.b_S[i]);
-const di2=new Float32Array(A.D_INPUT);idx=0;for(let i=0;i<D.DIM_C;i++)di2[idx++]=cN[i];for(let i=0;i<D.DIM_S;i++)di2[idx++]=sN[i];for(let i=0;i<48;i++)di2[idx++]=mrN[i];
-const dN=this._mm(di2,this.W_D);for(let i=0;i<D.DIM_D;i++)dN[i]=tanh(dN[i]+this.b_D[i]);
-// Update prediction
-const xp=this._mm(mrN,this.W_pred);for(let i=0;i<D.DIM_SENSOR;i++){xp[i]+=this.b_pred[i];this.predictionErrors[i]=lerp(this.predictionErrors[i],Math.abs(xp[i]-x[i]),.1)}
+const D=this.D,A=this.AR,x=this._proj(rawIn),r=safeN(reward,0);
+this.cumR=lerp(this.cumR,r,.1);
+
+const bs=A.BS;
+const mw=this.pM.subarray(0,48),mp=this.pM.subarray(48,96),mr=this.pM.subarray(96,144);
+
+// P layer
+let buf=new Float32Array(A.P_IN),idx=0;
+for(let i=0;i<D.SP;i++)buf[idx++]=x[i]*.5;
+for(let i=0;i<D.C;i++)buf[idx++]=this.pC[i];
+for(let i=0;i<D.S;i++)buf[idx++]=this.pS[i];
+for(let i=0;i<48;i++)buf[idx++]=mp[i];
+const nP=this._mm(buf,this.wP);for(let i=0;i<D.P;i++)nP[i]=lrelu(nP[i]+this.bP[i]);
+
+// A heads
+const ga=[];for(let i=0;i<D.NH;i++)ga.push(this.wG[i]);
+const gp=softmax(ga);
+const nA=new Float32Array(D.A);
+for(let h=0;h<D.NH;h++){
+buf=new Float32Array(A.A_IN);idx=0;
+for(let i=0;i<D.P;i++)buf[idx++]=this.pP[i]*.25;
+for(let i=0;i<48;i++)buf[idx++]=mw[i];
+const cs=h*A.ACS;for(let i=0;i<A.ACS;i++){const ci=cs+i;buf[idx++]=ci<D.C?this.pC[ci]:0}
+for(let i=0;i<D.D;i++)buf[idx++]=this.pD[i];
+const ho=this._mm(buf,this.wA[h]);
+for(let i=0;i<D.HD;i++)nA[h*D.HD+i]=lrelu(ho[i]+this.bA[h][i])*gp[h]}
+
+// M work
+buf=new Float32Array(A.MW_IN);idx=0;
+for(let i=0;i<D.P;i++)buf[idx++]=this.pP[i]*.75;
+for(let i=0;i<D.A;i++)buf[idx++]=this.pA[i]*.75;
+for(let i=0;i<A.MCS;i++)buf[idx++]=i<D.C?this.pC[i]:0;
+const nMw=this._mm(buf,this.wMw);for(let i=0;i<bs;i++)nMw[i]=lrelu(nMw[i]+this.bMw[i]);
+
+// M perm
+buf=new Float32Array(A.MP_IN);idx=0;
+for(let i=0;i<D.C;i++)buf[idx++]=this.pC[i]*.75;
+for(let i=0;i<48;i++)buf[idx++]=mp[i];
+const nMp=this._mm(buf,this.wMp);for(let i=0;i<bs;i++)nMp[i]=lrelu(nMp[i]+this.bMp[i]);
+
+// M pred
+buf=new Float32Array(A.MR_IN);idx=0;
+for(let i=0;i<D.A;i++)buf[idx++]=this.pA[i]*.75;
+for(let i=0;i<A.ACS;i++){const ci=A.CPO+i;buf[idx++]=ci<D.C?this.pC[ci]:0}
+for(let i=0;i<48;i++)buf[idx++]=mw[i];
+for(let i=0;i<D.D;i++)buf[idx++]=this.pD[i];
+const nMr=this._mm(buf,this.wMr);for(let i=0;i<bs;i++)nMr[i]=lrelu(nMr[i]+this.bMr[i]);
+
+const nM=new Float32Array(D.M);
+for(let i=0;i<48;i++){nM[i]=nMw[i];nM[48+i]=nMp[i];nM[96+i]=nMr[i]}
+
+// C layer
+const ci=new Float32Array(A.C_IN);idx=0;
+for(let i=0;i<D.P;i++)ci[idx++]=this.pP[i]*4;
+for(let i=0;i<D.A;i++)ci[idx++]=this.pA[i]*4;
+for(let i=0;i<D.M;i++)ci[idx++]=this.pM[i]*4;
+for(let i=0;i<D.S;i++)ci[idx++]=this.pS[i];
+for(let i=0;i<D.D;i++)ci[idx++]=this.pD[i];
+ci[idx++]=r;
+this._lci=ci;
+const nC=this._mm(ci,this.wC);for(let i=0;i<D.C;i++)nC[i]=lrelu(nC[i]+this.bC[i]);
+
+// S layer
+buf=new Float32Array(A.S_IN);idx=0;
+for(let i=0;i<D.P;i++)buf[idx++]=this.pP[i]*.5;
+for(let i=0;i<48;i++)buf[idx++]=mp[i];
+for(let i=0;i<A.CSS;i++){const cv=A.CSO+i;buf[idx++]=cv<D.C?this.pC[cv]:0}
+for(let i=0;i<D.D;i++)buf[idx++]=this.pD[i]*.5;
+const nS=this._mm(buf,this.wS);for(let i=0;i<D.S;i++)nS[i]=lrelu(nS[i]+this.bS[i]);
+
+// D layer
+buf=new Float32Array(A.D_IN);idx=0;
+for(let i=0;i<D.C;i++)buf[idx++]=nC[i];
+for(let i=0;i<D.S;i++)buf[idx++]=nS[i];
+for(let i=0;i<48;i++)buf[idx++]=nMr[i];
+const nD=this._mm(buf,this.wD);for(let i=0;i<D.D;i++)nD[i]=tanh(nD[i]+this.bD[i]);
+
+// Prediction
+const xp=this._mm(nMr,this.wPr);
+for(let i=0;i<D.SP;i++){xp[i]+=this.bPr[i];this.pe[i]=lerp(this.pe[i],Math.abs(xp[i]-x[i]),.1)}
+
 // Emotions
-this._updateEmotions(r,x);
-sN[0]=this.emotions.threat;sN[1]=this.emotions.frustration;sN[2]=this.emotions.confidence;sN[3]=this.emotions.aggression;sN[4]=this.emotions.fear;sN[5]=this.emotions.surprise;sN[6]=this.emotions.caution;sN[7]=this.emotions.desperation;sN[8]=this.emotions.vengeance;
-// State commit
-this.P_prev.set(this.P);this.A_prev.set(this.A);this.M_prev.set(this.M);this.C_prev.set(this.C);this.S_prev.set(this.S);this.D_prev.set(this.D);
-this.P.set(pN);this.A.set(aN);this.M.set(mN);this.C.set(cN);this.S.set(sN);this.D.set(dN);
+this._ue(r,x);
+nS[0]=this.em.threat;nS[1]=this.em.frust;nS[2]=this.em.conf;
+nS[3]=this.em.aggr;nS[4]=this.em.fear;nS[5]=this.em.surp;
+nS[6]=this.em.caut;nS[7]=this.em.desp;nS[8]=this.em.veng;
+
+// Reflexes BEFORE commit
+const ei=this.emInf;
+if(nS[8]>.6){nD[6]=lerp(nD[6],Math.min(1,nD[6]+.4),ei);nD[4]=lerp(nD[4],Math.min(1,nD[4]+.3),ei)}
+if(nS[7]>.6){nD[6]=lerp(nD[6],Math.min(1,nD[6]+.35),ei);nD[4]=lerp(nD[4],Math.min(1,nD[4]+.3),ei)}
+if(nS[4]>.7){nD[10]=lerp(nD[10],Math.min(1,nD[10]+.35),ei);nD[4]=lerp(nD[4],Math.max(0,nD[4]-.2),ei)}
+
+// Commit state
+this.pP.set(this.vP);this.pA.set(this.vA);this.pM.set(this.vM);
+this.pC.set(this.vC);this.pS.set(this.vS);this.pD.set(this.vD);
+this.vP.set(nP);this.vA.set(nA);this.vM.set(nM);
+this.vC.set(nC);this.vS.set(nS);this.vD.set(nD);
 this.step++;
-const out=[];for(let i=0;i<D.DIM_D;i++)out.push(clamp(dN[i],-1,1));
-return{output:out,predictionError:this._avgPE()}}
-_avgPE(){let s=0;for(let i=0;i<this.DIM.DIM_SENSOR;i++)s+=this.predictionErrors[i];return s/this.DIM.DIM_SENSOR}
-_estimateValue(){let s=this.b_V;for(let i=0;i<this.DIM.DIM_C;i++)s+=this.C[i]*this.W_V[i];return tanh(s)}
+
+const out=[];for(let i=0;i<D.D;i++)out.push(clamp(nD[i],-1,1));
+return out}
+
 learn(reward){
-const v=this._estimateValue(),td=safeNum(reward,0)+this.config.gamma*v-v,a=this.config.lr*.5,mw=this.ARCH.MAX_WEIGHT;
-for(let i=0;i<this.DIM.DIM_C;i++)this.W_V[i]=clamp(this.W_V[i]+a*td*this.C[i],-mw,mw);
-this.b_V+=a*td;
-if(this._lastCInput){const dc=this.config.gamma*this.config.lambda,mt=this.ARCH.MAX_TRACE_VAL,mg=this.ARCH.MAX_GRADIENT,al=this.config.lr*Math.sign(td)*.1;
-for(let j=0;j<this.ARCH.C_INPUT;j++){const p=j<this._lastCInput.length?this._lastCInput[j]:0,b=j*this.DIM.DIM_C;
-for(let i=0;i<this.DIM.DIM_C;i++){const idx=b+i;let v2=dc*this.traceC[idx]+p*this.C[i];this.traceC[idx]=v2>mt?mt:v2<-mt?-mt:v2;
-let d=al*.01*this.traceC[idx];if(d>mg)d=mg;else if(d<-mg)d=-mg;
-if(this.W_C[j])this.W_C[j][i]=clamp(this.W_C[j][i]+d,-mw,mw)}}}
+const r=safeN(reward,0);
+const v=this._ev(),td=r+this.cfg.gamma*v-v;
+const a=this.cfg.lr*.5;
+for(let i=0;i<this.D.C;i++)this.wV[i]=clamp(this.wV[i]+a*td*this.vC[i],-2,2);
+this.bV+=a*td;
+if(this._lci){
+const dc=this.cfg.gamma*this.cfg.lambda,al=this.cfg.lr*Math.sign(td)*.1;
+const cIn=this._lci,cLen=cIn.length,dC=this.D.C;
+for(let j=0;j<this.AR.C_IN;j++){
+const p=j<cLen?cIn[j]:0,b=j*dC;
+for(let i=0;i<dC;i++){
+const idx=b+i;let v2=dc*this.tC[idx]+p*this.vC[i];
+this.tC[idx]=v2>10?10:v2<-10?-10:v2;
+let d=al*.01*this.tC[idx];d=d>.3?.3:d<-.3?-.3:d;
+if(this.wC[j])this.wC[j][i]=clamp(this.wC[j][i]+d,-2,2)}}}
 return td}
-_updateEmotions(r,x){
-if(r<.1)this.emotions.frustration=Math.min(1,this.emotions.frustration+.03);else this.emotions.frustration*=.92;
-if(r>1)this.emotions.confidence=Math.min(1,this.emotions.confidence+.05);else this.emotions.confidence*=.95;
-if(r<-.5)this.emotions.fear=Math.min(1,this.emotions.fear+.1);else this.emotions.fear*=.85;
-this.emotions.surprise=this._avgPE();
-this.emotions.caution=1-(x[12]||.5);
-this.emotions.threat=1-(x[2]||.5);
-const nr=clamp((this.cumulativeReward+100)/200,0,1);
-if(nr<.3)this.emotions.desperation=Math.min(1,this.emotions.desperation+.05);else this.emotions.desperation*=.85;
-const fb=(1-this.emotions.desperation)*this.emotions.fear;
-this.emotions.aggression=this.emotions.frustration*.6+this.emotions.desperation*.8+this.emotions.vengeance*.9-fb*.4;
-for(const k of Object.keys(this.emotions))this.emotions[k]*=this.emotionDecay}
-reset(){this._initS();this._initT();this.predictionErrors.fill(0);this.step=0;this.cumulativeReward=0;
-this.emotions={threat:0,frustration:0,confidence:0,aggression:0,fear:0,surprise:0,caution:0,desperation:0,vengeance:0,empathy:0,curiosity:0}}}
 
-// ============================================================================
-// ARENA ENGINE
-// ============================================================================
+_ev(){let s=this.bV;for(let i=0;i<this.D.C;i++)s+=this.vC[i]*this.wV[i];return tanh(s)}
+_ape(){let s=0;for(let i=0;i<this.D.SP;i++)s+=this.pe[i];return s/this.D.SP}
 
-const TANK_NAMES=['Apex','Bravo','Cipher','Delta','Echo','Forge','Ghost','Havoc','Iron','Jinx','Krait','Lynx'];
-const TANK_COLORS=['#3b82f6','#ef4444','#22c55e','#eab308','#a855f7','#06b6d4','#f97316','#ec4899','#14b8a6','#8b5cf6','#f43f5e','#84cc16'];
+_ue(r,x){
+if(r<.1)this.em.frust=Math.min(1,this.em.frust+.03);else this.em.frust*=.92;
+if(r>1)this.em.conf=Math.min(1,this.em.conf+.05);else this.em.conf*=.95;
+if(r<-.5)this.em.fear=Math.min(1,this.em.fear+.1);else this.em.fear*=.85;
+this.em.surp=this._ape();
+this.em.caut=1-(x[12]||.5);
+this.em.threat=1-(x[2]||.5);
+const nr=clamp((this.cumR+100)/200,0,1);
+if(nr<.3)this.em.desp=Math.min(1,this.em.desp+.05);else this.em.desp*=.85;
+const fb=(1-this.em.desp)*this.em.fear;
+this.em.aggr=this.em.frust*.6+this.em.desp*.8+this.em.veng*.9-fb*.4;
+for(const k of Object.keys(this.em))this.em[k]*=this.emDecay}
 
-const ARENA_W=1200,ARENA_H=800;
-const TANK_RADIUS=14,BARREL_LEN=22,BULLET_SPEED=6,BULLET_LIFE=90,BULLET_DMG=12;
-const TANK_MAX_HP=100,TANK_SPEED=2.2,TANK_ROT_SPEED=.045;
-const RELOAD_TIME=25,RESPAWN_TIME=120;
-const WALL_COUNT=8,WALL_MIN=60,WALL_MAX=180,WALL_THICK=12;
-
-class Arena{
-constructor(tankCount=6){
-this.tankCount=tankCount;this.tanks=[];this.bullets=[];this.walls=[];this.particles=[];
-this.tick=0;this.round=1;this.running=false;this.speed=2;this.selectedTank=null;
-this.logs=[];this.maxLogs=80;
-this.leaderboard=new Map();
-this._generateWalls();
+reset(){this._is();this._it();this.pe.fill(0);this.step=0;this.cumR=0;this._lci=null;
+for(const k of Object.keys(this.em))this.em[k]=0}
 }
 
-_generateWalls(){
-this.walls=[];const rng=new SeededRNG('walls'+this.round);
-for(let i=0;i<WALL_COUNT;i++){
-const w=WALL_MIN+rng.next()*(WALL_MAX-WALL_MIN);
-const h=WALL_THICK+rng.next()*WALL_THICK;
-const x=50+rng.next()*(ARENA_W-100-w);
-const y=50+rng.next()*(ARENA_H-100-h);
-if(rng.next()>.5)this.walls.push({x,y,w,h});
-else this.walls.push({x,y,w:h,h:w})}
+// ═══════════════════════════════════════════════════════════════════════════
+// SOLID ARCHITECTURE — INTERFACES / VALUE OBJECTS / DOMAIN SERVICES
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── S: Single Responsibility ──────────────────────────────────────────────
+
+// Value objects (immutable-ish structs)
+const V2 = {
+  create(x=0,y=0){return{x,y}},
+  add(a,b){return{x:a.x+b.x,y:a.y+b.y}},
+  sub(a,b){return{x:a.x-b.x,y:a.y-b.y}},
+  scale(v,s){return{x:v.x*s,y:v.y*s}},
+  len(v){return Math.sqrt(v.x*v.x+v.y*v.y)},
+  norm(v){const l=V2.len(v)||1;return{x:v.x/l,y:v.y/l}},
+  dist(a,b){const dx=a.x-b.x,dy=a.y-b.y;return Math.sqrt(dx*dx+dy*dy)},
+  distSq(a,b){const dx=a.x-b.x,dy=a.y-b.y;return dx*dx+dy*dy},
+  dot(a,b){return a.x*b.x+a.y*b.y},
+  angle(v){return Math.atan2(v.y,v.x)},
+  fromAngle(a,l=1){return{x:Math.cos(a)*l,y:Math.sin(a)*l}},
+  rotate(v,a){const c=Math.cos(a),s=Math.sin(a);return{x:v.x*c-v.y*s,y:v.x*s+v.y*c}},
+  perp(v){return{x:-v.y,y:v.x}},
+};
+
+// ── Physics Service (S: only does collision & movement) ───────────────────
+
+class PhysicsService {
+  constructor(arenaW, arenaH) {
+    this.w = arenaW;
+    this.h = arenaH;
+  }
+
+  /** @returns {{x,y}} clamped position or null if blocked */
+  tryMove(pos, vel, radius, walls, tanks, skipId) {
+    const nx = pos.x + vel.x;
+    const ny = pos.y + vel.y;
+    if (this.collidesWall(nx, ny, radius, walls)) return null;
+    if (this.collidesTank(nx, ny, radius, tanks, skipId)) return null;
+    return {
+      x: clamp(nx, radius, this.w - radius),
+      y: clamp(ny, radius, this.h - radius),
+    };
+  }
+
+  collidesWall(x, y, r, walls) {
+    for (const w of walls) {
+      const cx = clamp(x, w.x, w.x + w.w);
+      const cy = clamp(y, w.y, w.y + w.h);
+      if ((cx - x) ** 2 + (cy - y) ** 2 < r * r) return true;
+    }
+    return false;
+  }
+
+  collidesTank(x, y, r, tanks, skipId) {
+    const rr = (r * 1.8) ** 2;
+    for (const t of tanks) {
+      if (!t.alive || t.id === skipId) continue;
+      if (V2.distSq({ x, y }, t.pos) < rr) return true;
+    }
+    return false;
+  }
+
+  pointInWall(x, y, walls) {
+    for (const w of walls) {
+      if (x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h) return true;
+    }
+    return false;
+  }
+
+  /** Raycast: returns distance to first wall hit, or maxDist */
+  raycast(ox, oy, dx, dy, maxDist, walls) {
+    const steps = Math.ceil(maxDist / 4);
+    for (let i = 1; i <= steps; i++) {
+      const t = (i / steps) * maxDist;
+      if (this.pointInWall(ox + dx * t, oy + dy * t, walls)) return t;
+    }
+    return maxDist;
+  }
 }
 
-init(){
-this.tanks=[];this.bullets=[];this.particles=[];this.tick=0;
-for(let i=0;i<this.tankCount;i++){
-const brain=new Cortex2Brain({seed:`tank_${i}_r${this.round}_${Date.now()}`});
-const pos=this._spawnPos();
-const t={
-id:i,name:TANK_NAMES[i%TANK_NAMES.length],color:TANK_COLORS[i%TANK_COLORS.length],
-x:pos.x,y:pos.y,angle:Math.random()*Math.PI*2,
-hp:TANK_MAX_HP,maxHp:TANK_MAX_HP,alive:true,
-speed:0,rotSpeed:0,reload:0,respawnTimer:0,
-brain,kills:0,deaths:0,damage:0,wins:0,shotsFired:0,shotsHit:0,
-lastHitBy:null,lastReward:0,totalReward:0,
-trail:[],trailMax:20};
-if(!this.leaderboard.has(t.name))this.leaderboard.set(t.name,{kills:0,deaths:0,damage:0,wins:0});
-this.tanks.push(t)}
-this.log('spawn',`Round ${this.round}: ${this.tankCount} tanks deployed`);
+// ── Sensor Builder (S: only builds sensor arrays) ─────────────────────────
+// This is the CRITICAL class that was wrong before — proper, rich sensors
+// that give the brain real information to act on.
+
+class SensorBuilder {
+  constructor(arenaW, arenaH, physics) {
+    this.aw = arenaW;
+    this.ah = arenaH;
+    this.maxDist = Math.sqrt(arenaW ** 2 + arenaH ** 2);
+    this.physics = physics;
+  }
+
+  /**
+   * Build 64-dim sensor vector for tank t.
+   * Every value normalised to [-1,1] or [0,1].
+   * Cortex2Brain DIM_SENSOR = 64.
+   */
+  build(t, allTanks, bullets, walls, tick) {
+    const s = new Float32Array(64);
+    const alive = allTanks.filter(o => o.alive && o.id !== t.id);
+
+    // [0-3] Nearest enemy: relative position + distance + health
+    let nearest = null, nDist = Infinity;
+    for (const o of alive) {
+      const d = V2.dist(t.pos, o.pos);
+      if (d < nDist) { nDist = d; nearest = o; }
+    }
+    if (nearest) {
+      const rel = V2.sub(nearest.pos, t.pos);
+      s[0] = rel.x / this.maxDist;                           // enemy_rel_x
+      s[1] = rel.y / this.maxDist;                           // enemy_rel_y
+      s[2] = 1 - clamp(nDist / this.maxDist, 0, 1);         // proximity [0=far,1=close]
+      s[3] = nearest.hp / nearest.maxHp;                     // enemy_health
+
+      // [25-33] Combat geometry
+      const angleToEnemy = V2.angle(rel);
+      const relAngle = this._normAngle(angleToEnemy - t.angle);
+      s[25] = relAngle / Math.PI;                            // angle_to_enemy [-1,1]
+
+      // Does enemy see me?
+      const enemyToMe = V2.sub(t.pos, nearest.pos);
+      const enemyRelAngle = this._normAngle(V2.angle(enemyToMe) - nearest.angle);
+      s[26] = Math.abs(enemyRelAngle) < Math.PI / 4 ? 1 : -1;  // enemy_sees_me
+      s[27] = Math.abs(enemyRelAngle) < Math.PI / 3 ? 1 : 0;   // in_enemy_arc
+      s[28] = Math.abs(relAngle) < Math.PI / 3 ? 1 : 0;        // enemy_in_my_arc
+
+      // Threat level (close + facing me = dangerous)
+      const threatDist = 1 - clamp(nDist / 300, 0, 1);
+      const threatAim = Math.abs(enemyRelAngle) < Math.PI / 4 ? 1 : 0;
+      s[29] = clamp(threatDist * 0.6 + threatAim * 0.4, 0, 1);  // threat_level
+
+      // Flanking vector (perpendicular to enemy direction)
+      const toE = V2.norm(rel);
+      const perp = V2.perp(toE);
+      s[30] = perp.x;  // flank_x
+      s[31] = perp.y;  // flank_y
+      s[32] = this._normAngle(nearest.angle - angleToEnemy) / Math.PI; // angle_from_enemy
+      s[33] = clamp(1 - Math.abs(relAngle) / (Math.PI / 3), -1, 1);   // dist_to_arc_edge
+
+      // [35-36] Predicted enemy position (simple linear extrapolation)
+      const predPos = V2.add(nearest.pos, V2.fromAngle(nearest.angle, 20));
+      const predRel = V2.sub(predPos, t.pos);
+      s[35] = predRel.x / this.maxDist;
+      s[36] = predRel.y / this.maxDist;
+    }
+
+    // [4-6] Nearest wall
+    let nwDist = Infinity, nwX = 0, nwY = 0;
+    for (const w of walls) {
+      const cx = clamp(t.pos.x, w.x, w.x + w.w);
+      const cy = clamp(t.pos.y, w.y, w.y + w.h);
+      const d = V2.dist(t.pos, { x: cx, y: cy });
+      if (d < nwDist) { nwDist = d; nwX = cx - t.pos.x; nwY = cy - t.pos.y; }
+    }
+    s[4] = nwX / 200;                                        // wall_rel_x
+    s[5] = nwY / 200;                                        // wall_rel_y
+    s[6] = 1 - clamp(nwDist / 200, 0, 1);                   // wall_proximity
+
+    // [7-14] Self state
+    s[7] = t.pos.x / this.aw * 2 - 1;                       // self_x [-1,1]
+    s[8] = t.pos.y / this.ah * 2 - 1;                       // self_y [-1,1]
+    s[9] = t.hp / t.maxHp;                                   // self_health
+    s[10] = clamp(t.lastReward / 5, -1, 1);                 // last_reward
+    s[11] = clamp(t.totalDamage / 500, 0, 1);               // damage_dealt
+    s[12] = t.hp / t.maxHp;                                  // dodge_proxy (health)
+    s[13] = t.reload / t.reloadTime;                         // reload_progress
+    s[14] = clamp(tick / 5000, 0, 1);                        // time_progress
+
+    // [15-22] Weapon flags (unused in basic mode, zero)
+    // [23-24]
+    s[23] = clamp(t.deaths / 10, 0, 1);                     // death_count
+    s[24] = alive.length <= 1 ? 1 : 0;                      // forced_combat (last two)
+
+    // [34] Self damage ratio
+    s[34] = 1 - t.hp / t.maxHp;                             // self_damage_ratio
+
+    // [37] Path blocked (raycast forward)
+    const fwd = V2.fromAngle(t.angle);
+    const rayDist = this.physics.raycast(t.pos.x, t.pos.y, fwd.x, fwd.y, 100, walls);
+    s[37] = rayDist < 50 ? 1 : 0;                           // path_blocked
+
+    // [38-42] Incoming bullet threat
+    let maxThreat = 0, threatDir = {x: 0, y: 0};
+    for (const b of bullets) {
+      if (b.owner === t.id) continue;
+      const toBullet = V2.sub(t.pos, b.pos);
+      const d = V2.len(toBullet);
+      if (d > 200) continue;
+      const bulletDir = V2.norm({ x: b.vx, y: b.vy });
+      const toMeDir = V2.norm(toBullet);
+      const dot = V2.dot(bulletDir, toMeDir);
+      if (dot > 0.3) {
+        const threat = (1 - d / 200) * dot;
+        if (threat > maxThreat) {
+          maxThreat = threat;
+          threatDir = V2.perp(bulletDir); // dodge direction
+        }
+      }
+    }
+    s[38] = maxThreat;                                       // incoming_threat
+    s[39] = threatDir.x;                                     // dodge_dir_x
+    s[40] = threatDir.y;                                     // dodge_dir_y
+
+    // [41-42] Wall avoidance
+    s[41] = nwDist < 40 ? 1 : 0;                            // wall_danger
+    s[42] = nwDist < 30 ? (nwX > 0 ? -1 : 1) : 0;          // wall_steer
+
+    // [43-47] Directional wall raycasts (8 directions)
+    for (let i = 0; i < 5; i++) {
+      const a = t.angle + (i - 2) * Math.PI / 4;
+      const dir = V2.fromAngle(a);
+      const rd = this.physics.raycast(t.pos.x, t.pos.y, dir.x, dir.y, 120, walls);
+      s[43 + i] = 1 - clamp(rd / 120, 0, 1);               // wall_ray_i
+    }
+
+    // [48-51] Nearest 2 enemies angular positions
+    const sorted = alive.map(o => ({
+      o,
+      dist: V2.dist(t.pos, o.pos),
+      angle: this._normAngle(V2.angle(V2.sub(o.pos, t.pos)) - t.angle),
+    })).sort((a, b) => a.dist - b.dist);
+    for (let i = 0; i < Math.min(2, sorted.length); i++) {
+      s[48 + i * 2] = sorted[i].angle / Math.PI;
+      s[49 + i * 2] = 1 - clamp(sorted[i].dist / this.maxDist, 0, 1);
+    }
+
+    // [52-55] Movement history signal (encoded in heading vs velocity)
+    s[52] = Math.cos(t.angle);
+    s[53] = Math.sin(t.angle);
+    s[54] = clamp(alive.length / 12, 0, 1);                 // alive_ratio
+    s[55] = t.reload <= 0 ? 1 : 0;                          // can_shoot
+
+    // [56-59] Second-nearest enemy details
+    if (sorted.length > 1) {
+      const sn = sorted[1];
+      s[56] = V2.sub(sn.o.pos, t.pos).x / this.maxDist;
+      s[57] = V2.sub(sn.o.pos, t.pos).y / this.maxDist;
+      s[58] = sn.o.hp / sn.o.maxHp;
+      s[59] = sn.angle / Math.PI;
+    }
+
+    // [60-63] Edge distances
+    s[60] = t.pos.x / this.aw;                              // dist_to_left
+    s[61] = 1 - t.pos.x / this.aw;                          // dist_to_right
+    s[62] = t.pos.y / this.ah;                               // dist_to_top
+    s[63] = 1 - t.pos.y / this.ah;                           // dist_to_bottom
+
+    return s;
+  }
+
+  _normAngle(a) {
+    while (a > Math.PI) a -= 2 * Math.PI;
+    while (a < -Math.PI) a += 2 * Math.PI;
+    return a;
+  }
 }
 
-_spawnPos(){
-for(let attempt=0;attempt<50;attempt++){
-const x=60+Math.random()*(ARENA_W-120),y=60+Math.random()*(ARENA_H-120);
-let ok=true;
-for(const w of this.walls){if(x>w.x-20&&x<w.x+w.w+20&&y>w.y-20&&y<w.y+w.h+20){ok=false;break}}
-if(ok){for(const t of this.tanks){if(t.alive){const dx=t.x-x,dy=t.y-y;if(dx*dx+dy*dy<80*80){ok=false;break}}}}
-if(ok)return{x,y}}
-return{x:100+Math.random()*(ARENA_W-200),y:100+Math.random()*(ARENA_H-200)}}
+// ── Output Interpreter (S: only interprets brain output) ──────────────────
+// Maps the 16 cortex outputs to actual tank commands.
 
-log(type,msg){this.logs.unshift({type,msg,tick:this.tick});if(this.logs.length>this.maxLogs)this.logs.length=this.maxLogs}
+class OutputInterpreter {
+  /**
+   * @param {number[]} out - 16-dim brain output [-1,1]
+   * @param {Object} tank
+   * @param {Object|null} nearestEnemy
+   * @returns {{moveAngle:number, speed:number, aimAngle:number, shoot:boolean}}
+   */
+  interpret(out, tank, nearestEnemy) {
+    // out[0,1]: movement direction
+    const moveX = out[0] || 0;
+    const moveY = out[1] || 0;
+    let moveAngle = Math.atan2(moveY, moveX);
 
-update(){
-if(!this.running)return;
-for(let s=0;s<this.speed;s++){this.tick++;this._stepSim()}
+    // out[2,3]: aim direction
+    const aimX = out[2] || 0;
+    const aimY = out[3] || 0;
+    let aimAngle = tank.angle;
+
+    // If aim signal is strong enough, use it
+    if (Math.abs(aimX) > 0.1 || Math.abs(aimY) > 0.1) {
+      aimAngle = Math.atan2(aimY, aimX);
+    } else if (nearestEnemy) {
+      // Default: aim at nearest enemy
+      const rel = V2.sub(nearestEnemy.pos, tank.pos);
+      aimAngle = V2.angle(rel);
+    }
+
+    // out[4]: throttle (-1=reverse, 1=full)
+    const throttle = clamp(out[4] || 0, -1, 1);
+    const speed = 0.4 + Math.abs(throttle) * 0.6;
+
+    // out[6]: aggression → shoot threshold
+    const aggressionBias = clamp(out[6] || 0, 0, 1);
+    const shoot = aggressionBias > 0.25;
+
+    // out[8]: steering modifier
+    const steer = (out[8] || 0) * 0.3;
+    moveAngle += steer;
+
+    // out[10]: retreat urgency
+    const retreat = clamp(out[10] || 0, 0, 1);
+    if (retreat > 0.5 && nearestEnemy) {
+      const awayAngle = V2.angle(V2.sub(tank.pos, nearestEnemy.pos));
+      moveAngle = lerp(moveAngle, awayAngle, retreat);
+    }
+
+    // out[11]: flank commit
+    const flank = clamp(out[11] || 0, 0, 1);
+    if (flank > 0.3 && nearestEnemy) {
+      const toEnemy = V2.sub(nearestEnemy.pos, tank.pos);
+      const perpAngle = V2.angle(V2.perp(V2.norm(toEnemy)));
+      moveAngle = lerp(moveAngle, perpAngle, flank * 0.5);
+    }
+
+    return { moveAngle, speed, aimAngle, shoot };
+  }
 }
 
-_stepSim(){
-const alive=this.tanks.filter(t=>t.alive);
+// ── Reward Calculator (S: only computes rewards) ──────────────────────────
 
-// Check round end
-if(alive.length<=1){
-if(alive.length===1){
-const w=alive[0];w.wins++;
-const lb=this.leaderboard.get(w.name);if(lb)lb.wins++;
-this.log('event',`🏆 ${w.name} wins Round ${this.round}!`)}
-else this.log('event',`Round ${this.round} — draw`);
-this.round++;this._generateWalls();this.init();return}
+class RewardCalculator {
+  /**
+   * Frame-by-frame reward shaping.
+   * Returns a reward float that trains the brain every tick.
+   */
+  compute(tank, nearestEnemy, walls, physics, prevState) {
+    let r = 0;
 
-for(const t of this.tanks){
-if(!t.alive){t.respawnTimer--;if(t.respawnTimer<=0)this._respawn(t);continue}
-if(t.reload>0)t.reload--;
+    // Small positive for being alive
+    r += 0.005;
 
-// Build sensor vector
-const sensors=this._buildSensors(t,alive);
-const result=t.brain.forward(sensors,t.lastReward);
-const out=result.output;
+    if (nearestEnemy) {
+      const dist = V2.dist(tank.pos, nearestEnemy.pos);
 
-// Interpret outputs
-const moveX=clamp(out[0]||0,-1,1);
-const moveY=clamp(out[1]||0,-1,1);
-const aimX=clamp(out[2]||0,-1,1);
-const aimY=clamp(out[3]||0,-1,1);
-const throttle=clamp(out[4]||0,-1,1);
-const doShoot=(out[6]||0)>.3;
-const retreat=clamp(out[10]||0,0,1);
+      // Reward for being at good combat distance (80-200 units)
+      if (dist > 80 && dist < 200) r += 0.02;
+      else if (dist < 40) r -= 0.01;  // too close
+      else if (dist > 400) r -= 0.005; // too far
 
-// Movement
-let targetAngle=Math.atan2(moveY,moveX);
-if(retreat>.5)targetAngle+=Math.PI;
-let angleDiff=targetAngle-t.angle;
-while(angleDiff>Math.PI)angleDiff-=2*Math.PI;
-while(angleDiff<-Math.PI)angleDiff+=2*Math.PI;
-t.angle+=clamp(angleDiff,-TANK_ROT_SPEED,TANK_ROT_SPEED);
+      // Reward for aiming at enemy
+      const toEnemy = V2.angle(V2.sub(nearestEnemy.pos, tank.pos));
+      const aimDiff = Math.abs(this._normAngle(tank.angle - toEnemy));
+      if (aimDiff < Math.PI / 6) r += 0.015;   // good aim
+      else if (aimDiff < Math.PI / 3) r += 0.005;
 
-const spd=TANK_SPEED*(0.5+Math.abs(throttle)*0.5);
-const nx=t.x+Math.cos(t.angle)*spd;
-const ny=t.y+Math.sin(t.angle)*spd;
+      // Reward for NOT being aimed at by enemy
+      const enemyToMe = V2.angle(V2.sub(tank.pos, nearestEnemy.pos));
+      const enemyAimDiff = Math.abs(this._normAngle(nearestEnemy.angle - enemyToMe));
+      if (enemyAimDiff > Math.PI / 3) r += 0.01;  // enemy not aiming at me — good position
 
-if(!this._collides(nx,ny,TANK_RADIUS,t.id)){
-t.x=clamp(nx,TANK_RADIUS,ARENA_W-TANK_RADIUS);
-t.y=clamp(ny,TANK_RADIUS,ARENA_H-TANK_RADIUS)}
+      // Reward for flanking (being at enemy's side/back)
+      if (enemyAimDiff > Math.PI / 2) r += 0.015;  // flanking bonus
+    }
 
-// Turret aim
-if(Math.abs(aimX)>.05||Math.abs(aimY)>.05){t.angle=Math.atan2(aimY,aimX)}
+    // Penalty for wall hugging
+    for (const w of walls) {
+      const cx = clamp(tank.pos.x, w.x, w.x + w.w);
+      const cy = clamp(tank.pos.y, w.y, w.y + w.h);
+      const wd = V2.dist(tank.pos, { x: cx, y: cy });
+      if (wd < 25) r -= 0.02;
+    }
 
-// Shoot
-if(doShoot&&t.reload<=0){
-t.reload=RELOAD_TIME;t.shotsFired++;
-const bx=t.x+Math.cos(t.angle)*BARREL_LEN;
-const by=t.y+Math.sin(t.angle)*BARREL_LEN;
-this.bullets.push({x:bx,y:by,vx:Math.cos(t.angle)*BULLET_SPEED,vy:Math.sin(t.angle)*BULLET_SPEED,owner:t.id,life:BULLET_LIFE,dmg:BULLET_DMG});
-this._addParticles(bx,by,t.color,3,2)}
+    // Penalty for edge hugging
+    const edgeMargin = 30;
+    if (tank.pos.x < edgeMargin || tank.pos.x > physics.w - edgeMargin ||
+        tank.pos.y < edgeMargin || tank.pos.y > physics.h - edgeMargin) {
+      r -= 0.015;
+    }
 
-// Trail
-t.trail.push({x:t.x,y:t.y});if(t.trail.length>t.trailMax)t.trail.shift();
-t.lastReward=0}
+    // Reward for movement (anti-camping)
+    if (prevState) {
+      const moved = V2.dist(tank.pos, prevState.pos);
+      if (moved < 0.5) r -= 0.01;  // standing still penalty
+      else r += 0.003;
+    }
 
-// Update bullets
-for(let i=this.bullets.length-1;i>=0;i--){
-const b=this.bullets[i];b.x+=b.vx;b.y+=b.vy;b.life--;
-if(b.x<0||b.x>ARENA_W||b.y<0||b.y>ARENA_H||b.life<=0){this.bullets.splice(i,1);continue}
+    return clamp(r, -0.2, 0.2);
+  }
 
-// Wall collision
-let hitWall=false;
-for(const w of this.walls){if(b.x>w.x&&b.x<w.x+w.w&&b.y>w.y&&b.y<w.y+w.h){hitWall=true;break}}
-if(hitWall){this._addParticles(b.x,b.y,'#888',4,1.5);this.bullets.splice(i,1);continue}
-
-// Tank collision
-for(const t of this.tanks){
-if(!t.alive||t.id===b.owner)continue;
-const dx=t.x-b.x,dy=t.y-b.y;
-if(dx*dx+dy*dy<TANK_RADIUS*TANK_RADIUS){
-t.hp-=b.dmg;t.lastHitBy=b.owner;
-const shooter=this.tanks[b.owner];
-if(shooter){shooter.damage+=b.dmg;shooter.shotsHit++;shooter.lastReward+=1.5;shooter.brain.learn(1.5);
-const slb=this.leaderboard.get(shooter.name);if(slb)slb.damage+=b.dmg}
-t.lastReward-=1;t.brain.learn(-1);
-
-this._addParticles(b.x,b.y,t.color,6,2);
-this.bullets.splice(i,1);
-
-if(t.hp<=0){this._killTank(t,b.owner)}
-break}}}
-
-// Decay particles
-for(let i=this.particles.length-1;i>=0;i--){
-const p=this.particles[i];p.x+=p.vx;p.y+=p.vy;p.life--;p.vx*=.95;p.vy*=.95;
-if(p.life<=0)this.particles.splice(i,1)}
+  _normAngle(a) {
+    while (a > Math.PI) a -= 2 * Math.PI;
+    while (a < -Math.PI) a += 2 * Math.PI;
+    return a;
+  }
 }
 
-_buildSensors(t,alive){
-const s=new Array(64).fill(0);
-// Find nearest enemy
-let nearest=null,nearDist=Infinity;
-for(const o of alive){if(o.id===t.id)continue;
-const dx=o.x-t.x,dy=o.y-t.y,d=Math.sqrt(dx*dx+dy*dy);
-if(d<nearDist){nearDist=d;nearest=o}}
+// ── Tank Entity (S: only holds tank state) ────────────────────────────────
 
-if(nearest){
-const dx=nearest.x-t.x,dy=nearest.y-t.y;
-const dist=Math.sqrt(dx*dx+dy*dy);
-const maxDist=Math.sqrt(ARENA_W*ARENA_W+ARENA_H*ARENA_H);
-s[0]=dx/maxDist;s[1]=dy/maxDist;s[2]=1-dist/maxDist;s[3]=nearest.hp/nearest.maxHp;
-const angleToEnemy=Math.atan2(dy,dx);
-s[25]=(angleToEnemy-t.angle)/(Math.PI);
-const enemyAngleToMe=Math.atan2(-dy,-dx);
-const enemyFacing=nearest.angle;
-let relAngle=enemyAngleToMe-enemyFacing;
-while(relAngle>Math.PI)relAngle-=2*Math.PI;while(relAngle<-Math.PI)relAngle+=2*Math.PI;
-s[26]=Math.abs(relAngle)<Math.PI/4?1:-1;
-s[27]=Math.abs(relAngle)<Math.PI/3?1:0;
-const myAngleToE=angleToEnemy-t.angle;
-s[28]=Math.abs(myAngleToE)<Math.PI/3?1:0;
-s[29]=dist<150?1:dist<300?.5:0;
-// Flanking
-const perpX=-dy/dist,perpY=dx/dist;
-s[30]=perpX;s[31]=perpY}
+class Tank {
+  constructor(id, name, color, pos, brain) {
+    this.id = id;
+    this.name = name;
+    this.color = color;
+    this.pos = { ...pos };
+    this.prevPos = { ...pos };
+    this.angle = Math.random() * Math.PI * 2;
+    this.turretAngle = this.angle;
+    this.hp = 100;
+    this.maxHp = 100;
+    this.alive = true;
+    this.reload = 0;
+    this.reloadTime = 22;
+    this.respawnTimer = 0;
+    this.brain = brain;
 
-// Walls
-let nearWDist=Infinity,nearWX=0,nearWY=0;
-for(const w of this.walls){
-const cx=clamp(t.x,w.x,w.x+w.w),cy=clamp(t.y,w.y,w.y+w.h);
-const dx=cx-t.x,dy=cy-t.y,d=Math.sqrt(dx*dx+dy*dy);
-if(d<nearWDist){nearWDist=d;nearWX=dx;nearWY=dy}}
-if(nearWDist<Infinity){const md=200;s[4]=nearWX/md;s[5]=nearWY/md;s[6]=1-clamp(nearWDist/md,0,1)}
+    // Stats
+    this.kills = 0;
+    this.deaths = 0;
+    this.totalDamage = 0;
+    this.shotsFired = 0;
+    this.shotsHit = 0;
+    this.wins = 0;
+    this.lastReward = 0;
+    this.lastHitBy = null;
 
-s[7]=t.x/ARENA_W*2-1;s[8]=t.y/ARENA_H*2-1;s[9]=t.hp/t.maxHp;
-s[10]=t.lastReward;s[11]=t.damage/500;s[12]=t.hp/t.maxHp;s[13]=t.reload/RELOAD_TIME;
-s[14]=this.tick/3000;
-s[23]=t.deaths/10;s[24]=alive.length<=2?1:0;
-s[34]=1-t.hp/t.maxHp;
-s[38]=t.reload>0?1:0;s[39]=nearWDist<50?1:0;s[40]=alive.length/this.tankCount;
-s[41]=nearWDist<30?(nearWX>0?-1:1):0;
+    // Visual
+    this.trail = [];
+    this.trailMax = 25;
+  }
 
-// Incoming bullets
-let incomingThreat=0;
-for(const b of this.bullets){if(b.owner===t.id)continue;
-const dx=t.x-b.x,dy=t.y-b.y,d=Math.sqrt(dx*dx+dy*dy);
-if(d<120){const dot=(b.vx*dx+b.vy*dy)/(d*BULLET_SPEED);if(dot>.5)incomingThreat=Math.max(incomingThreat,1-d/120)}}
-s[29]=Math.max(s[29]||0,incomingThreat);
-
-return s}
-
-_killTank(t,killerId){
-t.alive=false;t.deaths++;t.respawnTimer=RESPAWN_TIME;t.hp=0;
-t.brain.learn(-5);t.brain.emotions.vengeance=Math.min(1,(t.brain.emotions.vengeance||0)+.6);
-t.brain.emotions.fear=Math.min(1,(t.brain.emotions.fear||0)+.3);
-const lb=this.leaderboard.get(t.name);if(lb)lb.deaths++;
-
-const killer=this.tanks[killerId];
-if(killer){killer.kills++;killer.brain.learn(5);
-killer.brain.emotions.confidence=Math.min(1,(killer.brain.emotions.confidence||0)+.3);
-const klb=this.leaderboard.get(killer.name);if(klb)klb.kills++;
-this.log('kill',`💀 ${killer.name} destroyed ${t.name}`)}
-
-this._addParticles(t.x,t.y,t.color,20,4);
-this._addParticles(t.x,t.y,'#ff6600',15,3);
+  get accuracy() {
+    return this.shotsFired > 0 ? this.shotsHit / this.shotsFired : 0;
+  }
 }
 
-_respawn(t){
-const pos=this._spawnPos();t.x=pos.x;t.y=pos.y;t.hp=t.maxHp;t.alive=true;
-t.angle=Math.random()*Math.PI*2;t.reload=0;t.trail=[];t.lastReward=0;
-t.brain.reset();
-this.log('spawn',`🔄 ${t.name} respawned`)}
+// ── Bullet Entity ─────────────────────────────────────────────────────────
 
-_collides(x,y,r,skipId){
-for(const w of this.walls){
-const cx=clamp(x,w.x,w.x+w.w),cy=clamp(y,w.y,w.y+w.h);
-const dx=cx-x,dy=cy-y;if(dx*dx+dy*dy<r*r)return true}
-for(const t of this.tanks){if(!t.alive||t.id===skipId)continue;
-const dx=t.x-x,dy=t.y-y;if(dx*dx+dy*dy<(r+TANK_RADIUS)*(r+TANK_RADIUS)*.8)return true}
-return false}
-
-_addParticles(x,y,color,count,speed){
-for(let i=0;i<count;i++){
-const a=Math.random()*Math.PI*2;const s=Math.random()*speed;
-this.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,color,life:15+Math.random()*20|0,maxLife:35})}}
+class Bullet {
+  constructor(x, y, vx, vy, owner, dmg = 12) {
+    this.pos = { x, y };
+    this.vx = vx;
+    this.vy = vy;
+    this.owner = owner;
+    this.life = 100;
+    this.dmg = dmg;
+  }
 }
 
-// ============================================================================
-// RENDERER
-// ============================================================================
+// ── Wall Generator (S: only generates walls) ──────────────────────────────
 
-class Renderer{
-constructor(canvas,arena){
-this.canvas=canvas;this.ctx=canvas.getContext('2d');this.arena=arena;
-this.dpr=window.devicePixelRatio||1;this._resize();
-window.addEventListener('resize',()=>this._resize())}
-
-_resize(){
-const wrap=this.canvas.parentElement;
-const w=wrap.clientWidth,h=wrap.clientHeight;
-this.canvas.width=w*this.dpr;this.canvas.height=h*this.dpr;
-this.canvas.style.width=w+'px';this.canvas.style.height=h+'px';
-this.scaleX=w/ARENA_W;this.scaleY=h/ARENA_H;
-this.scale=Math.min(this.scaleX,this.scaleY);
-this.offsetX=(w-ARENA_W*this.scale)/2;
-this.offsetY=(h-ARENA_H*this.scale)/2}
-
-render(){
-const ctx=this.ctx,a=this.arena,sc=this.scale*this.dpr;
-const ox=this.offsetX*this.dpr,oy=this.offsetY*this.dpr;
-ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
-ctx.save();ctx.translate(ox,oy);ctx.scale(sc,sc);
-
-// Background grid
-ctx.fillStyle='#080c14';ctx.fillRect(0,0,ARENA_W,ARENA_H);
-ctx.strokeStyle='#111827';ctx.lineWidth=.5;
-for(let x=0;x<=ARENA_W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,ARENA_H);ctx.stroke()}
-for(let y=0;y<=ARENA_H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(ARENA_W,y);ctx.stroke()}
-
-// Arena border
-ctx.strokeStyle='#1e293b';ctx.lineWidth=2;ctx.strokeRect(0,0,ARENA_W,ARENA_H);
-
-// Walls
-for(const w of a.walls){
-ctx.fillStyle='#1e293b';ctx.fillRect(w.x,w.y,w.w,w.h);
-ctx.strokeStyle='#334155';ctx.lineWidth=1;ctx.strokeRect(w.x,w.y,w.w,w.h);
-// Top highlight
-ctx.fillStyle='rgba(255,255,255,.03)';ctx.fillRect(w.x,w.y,w.w,2)}
-
-// Tank trails
-for(const t of a.tanks){if(!t.alive||t.trail.length<2)continue;
-ctx.beginPath();ctx.moveTo(t.trail[0].x,t.trail[0].y);
-for(let i=1;i<t.trail.length;i++)ctx.lineTo(t.trail[i].x,t.trail[i].y);
-ctx.strokeStyle=t.color+'20';ctx.lineWidth=3;ctx.stroke()}
-
-// Bullets
-for(const b of a.bullets){
-const owner=a.tanks[b.owner];const c=owner?owner.color:'#fff';
-ctx.beginPath();ctx.arc(b.x,b.y,3,0,Math.PI*2);ctx.fillStyle=c;ctx.fill();
-// Bullet trail
-ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.lineTo(b.x-b.vx*3,b.y-b.vy*3);
-ctx.strokeStyle=c+'80';ctx.lineWidth=2;ctx.stroke()}
-
-// Tanks
-for(const t of a.tanks){if(!t.alive)continue;
-const sel=a.selectedTank===t.id;
-ctx.save();ctx.translate(t.x,t.y);
-
-// Selection ring
-if(sel){ctx.beginPath();ctx.arc(0,0,TANK_RADIUS+6,0,Math.PI*2);
-ctx.strokeStyle=t.color+'60';ctx.lineWidth=2;ctx.setLineDash([4,4]);ctx.stroke();ctx.setLineDash([])}
-
-// Body
-ctx.beginPath();ctx.arc(0,0,TANK_RADIUS,0,Math.PI*2);
-const grad=ctx.createRadialGradient(0,-3,2,0,0,TANK_RADIUS);
-grad.addColorStop(0,t.color+'dd');grad.addColorStop(1,t.color+'88');
-ctx.fillStyle=grad;ctx.fill();
-ctx.strokeStyle=t.color;ctx.lineWidth=1.5;ctx.stroke();
-
-// Barrel
-ctx.save();ctx.rotate(t.angle);
-ctx.fillStyle=t.color;ctx.fillRect(TANK_RADIUS-4,-2.5,BARREL_LEN-TANK_RADIUS+8,5);
-ctx.restore();
-
-// HP bar
-const hpPct=t.hp/t.maxHp;
-const barW=TANK_RADIUS*2+4,barH=3,barY=-TANK_RADIUS-8;
-ctx.fillStyle='#000000aa';ctx.fillRect(-barW/2,barY,barW,barH);
-ctx.fillStyle=hpPct>.6?'#22c55e':hpPct>.3?'#eab308':'#ef4444';
-ctx.fillRect(-barW/2,barY,barW*hpPct,barH);
-
-// Reload indicator
-if(t.reload>0){const rPct=t.reload/RELOAD_TIME;
-ctx.beginPath();ctx.arc(0,0,TANK_RADIUS+3,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-rPct));
-ctx.strokeStyle='#ffffff30';ctx.lineWidth=2;ctx.stroke()}
-
-// Emotion indicator
-const em=t.brain.emotions;
-if(em.fear>.5){ctx.beginPath();ctx.arc(0,0,TANK_RADIUS+5,0,Math.PI*2);ctx.strokeStyle='#eab30860';ctx.lineWidth=1;ctx.stroke()}
-if(em.aggression>.5){ctx.beginPath();ctx.arc(0,0,TANK_RADIUS+5,0,Math.PI*2);ctx.strokeStyle='#ef444460';ctx.lineWidth=1;ctx.stroke()}
-if(em.confidence>.5){ctx.beginPath();ctx.arc(0,0,TANK_RADIUS+5,0,Math.PI*2);ctx.strokeStyle='#22c55e60';ctx.lineWidth=1;ctx.stroke()}
-
-// Name
-ctx.fillStyle='#ffffffcc';ctx.font='bold 9px system-ui';ctx.textAlign='center';
-ctx.fillText(t.name,0,TANK_RADIUS+14);
-
-ctx.restore()}
-
-// Particles
-for(const p of a.particles){
-const alpha=p.life/p.maxLife;
-ctx.beginPath();ctx.arc(p.x,p.y,1.5+alpha*2,0,Math.PI*2);
-ctx.fillStyle=p.color+Math.floor(alpha*255).toString(16).padStart(2,'0');
-ctx.fill()}
-
-// Dead tank markers
-for(const t of a.tanks){if(t.alive)continue;
-ctx.save();ctx.translate(t.x,t.y);ctx.globalAlpha=.3;
-ctx.beginPath();ctx.moveTo(-8,-8);ctx.lineTo(8,8);ctx.moveTo(8,-8);ctx.lineTo(-8,8);
-ctx.strokeStyle=t.color;ctx.lineWidth=2;ctx.stroke();
-ctx.font='8px system-ui';ctx.textAlign='center';ctx.fillStyle=t.color;
-ctx.fillText(Math.ceil(t.respawnTimer/60)+'s',0,16);
-ctx.restore()}
-
-ctx.restore()}
-
-screenToArena(sx,sy){
-const rect=this.canvas.getBoundingClientRect();
-const px=sx-rect.left-this.offsetX;
-const py=sy-rect.top-this.offsetY;
-return{x:px/this.scale,y:py/this.scale}}
+class WallGenerator {
+  generate(arenaW, arenaH, count, seed) {
+    const rng = new RNG('walls_' + seed);
+    const walls = [];
+    for (let i = 0; i < count; i++) {
+      let w = 50 + rng.next() * 140;
+      let h = 10 + rng.next() * 14;
+      if (rng.next() > 0.5) [w, h] = [h, w]; // vertical
+      const x = 60 + rng.next() * (arenaW - 120 - w);
+      const y = 60 + rng.next() * (arenaH - 120 - h);
+      walls.push({ x, y, w, h });
+    }
+    return walls;
+  }
 }
 
-// ============================================================================
-// UI CONTROLLER
-// ============================================================================
+// ── Particle System (S: only manages particles) ──────────────────────────
 
-class UIController{
-constructor(arena,renderer){
-this.arena=arena;this.renderer=renderer;
-this._bindControls();this._lastFpsTime=performance.now();this._frameCount=0;this._fps=0;
+class ParticleSystem {
+  constructor() { this.particles = []; }
+
+  emit(x, y, color, count, speed) {
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = Math.random() * speed;
+      this.particles.push({
+        x, y,
+        vx: Math.cos(a) * s,
+        vy: Math.sin(a) * s,
+        color,
+        life: 12 + (Math.random() * 20) | 0,
+        maxLife: 32,
+      });
+    }
+  }
+
+  update() {
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.x += p.vx; p.y += p.vy;
+      p.vx *= 0.94; p.vy *= 0.94;
+      if (--p.life <= 0) this.particles.splice(i, 1);
+    }
+  }
 }
 
-_bindControls(){
-const a=this.arena;
-document.getElementById('btn-start').addEventListener('click',()=>{
-if(!a.running){a.init();a.running=true;
-document.getElementById('overlay').classList.remove('show');
-document.getElementById('btn-start').textContent='⏸ Pause'}
-else{a.running=!a.running;
-document.getElementById('btn-start').textContent=a.running?'⏸ Pause':'▶ Resume'}});
+// ── Event Log (S: only stores log entries) ────────────────────────────────
 
-document.getElementById('btn-reset').addEventListener('click',()=>{
-a.running=false;a.round=1;a.leaderboard.clear();a.logs=[];a._generateWalls();a.init();
-document.getElementById('btn-start').textContent='▶ Start';
-document.getElementById('overlay').classList.add('show');
-document.getElementById('overlay-title').textContent='CORTEX ARENA';
-document.getElementById('overlay-text').textContent='Press Start to begin';
-this.updateUI()});
-
-document.getElementById('speed-select').addEventListener('change',e=>{a.speed=parseInt(e.target.value)});
-
-document.getElementById('tank-count').addEventListener('change',e=>{
-a.tankCount=parseInt(e.target.value);
-if(a.running){a.running=false;a.round=1;a.leaderboard.clear();a._generateWalls();a.init();a.running=true}});
-
-this.renderer.canvas.addEventListener('click',e=>{
-const pos=this.renderer.screenToArena(e.clientX,e.clientY);
-let closest=null,closestDist=40;
-for(const t of a.tanks){
-const dx=t.x-pos.x,dy=t.y-pos.y,d=Math.sqrt(dx*dx+dy*dy);
-if(d<closestDist){closestDist=d;closest=t.id}}
-a.selectedTank=closest;this._updateSelected()});
+class EventLog {
+  constructor(max = 80) { this.entries = []; this.max = max; }
+  add(type, msg, tick) {
+    this.entries.unshift({ type, msg, tick });
+    if (this.entries.length > this.max) this.entries.length = this.max;
+  }
+  clear() { this.entries = []; }
 }
 
-updateUI(){
-const a=this.arena;
-this._frameCount++;const now=performance.now();
-if(now-this._lastFpsTime>=1000){this._fps=this._frameCount;this._frameCount=0;this._lastFpsTime=now}
+// ═══════════════════════════════════════════════════════════════════════════
+// O: OPEN/CLOSED — GameSimulation orchestrates, but subsystems are pluggable
+// L: Liskov — Tank, Bullet are interchangeable entity shapes
+// I: Interface Segregation — each service has a narrow public API
+// D: Dependency Inversion — GameSimulation depends on abstractions (services)
+// ═══════════════════════════════════════════════════════════════════════════
 
-document.getElementById('hdr-round').textContent=a.round;
-document.getElementById('hdr-tick').textContent=a.tick;
-document.getElementById('hdr-alive').textContent=a.tanks.filter(t=>t.alive).length;
-document.getElementById('hdr-fps').textContent=this._fps;
+class GameSimulation {
+  constructor(arenaW, arenaH) {
+    this.AW = arenaW;
+    this.AH = arenaH;
+    this.TANK_R = 14;
+    this.BARREL_LEN = 22;
+    this.BULLET_SPEED = 6;
+    this.TANK_SPEED = 2.4;
+    this.TANK_ROT = 0.06;
+    this.RESPAWN_TICKS = 120;
 
-this._updateTankList();this._updateSelected();this._updateLog();this._updateGlobalStats();this._updateLeaderboard();
+    // Injected services (D: Dependency Inversion)
+    this.physics = new PhysicsService(arenaW, arenaH);
+    this.sensorBuilder = new SensorBuilder(arenaW, arenaH, this.physics);
+    this.outputInterp = new OutputInterpreter();
+    this.rewardCalc = new RewardCalculator();
+    this.wallGen = new WallGenerator();
+    this.particles = new ParticleSystem();
+    this.log = new EventLog();
+
+    this.tanks = [];
+    this.bullets = [];
+    this.walls = [];
+    this.tick = 0;
+    this.round = 1;
+    this.running = false;
+    this.speed = 2;
+    this.tankCount = 6;
+    this.selectedTankId = null;
+    this.leaderboard = new Map();
+
+    this.NAMES = ['Apex','Bravo','Cipher','Delta','Echo','Forge','Ghost','Havoc','Iron','Jinx','Krait','Lynx'];
+    this.COLORS = ['#4f8eff','#e74c3c','#2ecc71','#f1c40f','#a55eea','#00d2d3','#f39c12','#fd79a8','#1abc9c','#8854d0','#eb3b5a','#78e08f'];
+  }
+
+  init() {
+    this.tanks = [];
+    this.bullets = [];
+    this.tick = 0;
+    this.walls = this.wallGen.generate(this.AW, this.AH, 7, this.round);
+
+    for (let i = 0; i < this.tankCount; i++) {
+      const brain = new Cortex2Brain({
+        seed: `t${i}_r${this.round}_${Date.now()}`,
+        lr: 0.015 + Math.random() * 0.005,
+      });
+      const pos = this._findSpawn();
+      const tank = new Tank(i, this.NAMES[i % 12], this.COLORS[i % 12], pos, brain);
+      this.tanks.push(tank);
+      if (!this.leaderboard.has(tank.name)) {
+        this.leaderboard.set(tank.name, { kills: 0, deaths: 0, damage: 0, wins: 0 });
+      }
+    }
+    this.log.add('spawn', `Round ${this.round}: ${this.tankCount} tanks deployed`, this.tick);
+  }
+
+  step() {
+    if (!this.running) return;
+    for (let s = 0; s < this.speed; s++) this._simTick();
+  }
+
+  _simTick() {
+    this.tick++;
+    const alive = this.tanks.filter(t => t.alive);
+
+    // Round end check
+    if (alive.length <= 1) {
+      if (alive.length === 1) {
+        const w = alive[0];
+        w.wins++;
+        const lb = this.leaderboard.get(w.name);
+        if (lb) lb.wins++;
+        this.log.add('win', `🏆 ${w.name} wins Round ${this.round}!`, this.tick);
+      } else {
+        this.log.add('win', `Round ${this.round} — draw`, this.tick);
+      }
+      this.round++;
+      this.init();
+      return;
+    }
+
+    // Process each tank
+    for (const t of this.tanks) {
+      if (!t.alive) {
+        t.respawnTimer--;
+        if (t.respawnTimer <= 0) this._respawn(t);
+        continue;
+      }
+      if (t.reload > 0) t.reload--;
+
+      // Find nearest enemy for this tank
+      let nearest = null, nDist = Infinity;
+      for (const o of alive) {
+        if (o.id === t.id) continue;
+        const d = V2.dist(t.pos, o.pos);
+        if (d < nDist) { nDist = d; nearest = o; }
+      }
+
+      // Build sensors
+      const sensors = this.sensorBuilder.build(t, this.tanks, this.bullets, this.walls, this.tick);
+
+      // Compute frame reward
+      const frameReward = this.rewardCalc.compute(
+        t, nearest, this.walls, this.physics,
+        { pos: t.prevPos }
+      );
+      t.lastReward = frameReward;
+
+      // Forward pass through brain
+      const out = t.brain.forward(sensors, frameReward);
+
+      // Learn from frame reward
+      t.brain.learn(frameReward);
+
+      // Interpret outputs
+      const cmd = this.outputInterp.interpret(out, t, nearest);
+
+      // Apply movement
+      t.prevPos = { ...t.pos };
+
+      // Smooth rotation toward move angle
+      let angleDiff = cmd.moveAngle - t.angle;
+      while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+      while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+      t.angle += clamp(angleDiff, -this.TANK_ROT, this.TANK_ROT);
+
+      // Smooth turret rotation toward aim angle
+      let turretDiff = cmd.aimAngle - t.turretAngle;
+      while (turretDiff > Math.PI) turretDiff -= 2 * Math.PI;
+      while (turretDiff < -Math.PI) turretDiff += 2 * Math.PI;
+      t.turretAngle += clamp(turretDiff, -this.TANK_ROT * 1.5, this.TANK_ROT * 1.5);
+
+      const vel = V2.fromAngle(t.angle, this.TANK_SPEED * cmd.speed);
+      const newPos = this.physics.tryMove(t.pos, vel, this.TANK_R, this.walls, this.tanks, t.id);
+      if (newPos) {
+        t.pos = newPos;
+      } else {
+        // Try sliding along walls
+        const slideX = this.physics.tryMove(t.pos, { x: vel.x, y: 0 }, this.TANK_R, this.walls, this.tanks, t.id);
+        const slideY = this.physics.tryMove(t.pos, { x: 0, y: vel.y }, this.TANK_R, this.walls, this.tanks, t.id);
+        if (slideX) t.pos = slideX;
+        else if (slideY) t.pos = slideY;
+        // Wall collision penalty
+        t.brain.learn(-0.03);
+      }
+
+      // Shoot
+      if (cmd.shoot && t.reload <= 0) {
+        t.reload = t.reloadTime;
+        t.shotsFired++;
+        const bx = t.pos.x + Math.cos(t.turretAngle) * this.BARREL_LEN;
+        const by = t.pos.y + Math.sin(t.turretAngle) * this.BARREL_LEN;
+        this.bullets.push(new Bullet(
+          bx, by,
+          Math.cos(t.turretAngle) * this.BULLET_SPEED,
+          Math.sin(t.turretAngle) * this.BULLET_SPEED,
+          t.id
+        ));
+        this.particles.emit(bx, by, t.color, 3, 2);
+      }
+
+      // Trail
+      t.trail.push({ ...t.pos });
+      if (t.trail.length > t.trailMax) t.trail.shift();
+    }
+
+    // Update bullets
+    for (let i = this.bullets.length - 1; i >= 0; i--) {
+      const b = this.bullets[i];
+      b.pos.x += b.vx;
+      b.pos.y += b.vy;
+      if (--b.life <= 0 || b.pos.x < 0 || b.pos.x > this.AW || b.pos.y < 0 || b.pos.y > this.AH) {
+        this.bullets.splice(i, 1);
+        continue;
+      }
+
+      // Wall hit
+      if (this.physics.pointInWall(b.pos.x, b.pos.y, this.walls)) {
+        this.particles.emit(b.pos.x, b.pos.y, '#777', 4, 1.5);
+        this.bullets.splice(i, 1);
+        continue;
+      }
+
+      // Tank hit
+      for (const t of this.tanks) {
+        if (!t.alive || t.id === b.owner) continue;
+        if (V2.distSq(t.pos, b.pos) < this.TANK_R ** 2) {
+          t.hp -= b.dmg;
+          t.lastHitBy = b.owner;
+          const shooter = this.tanks[b.owner];
+          if (shooter) {
+            shooter.totalDamage += b.dmg;
+            shooter.shotsHit++;
+            shooter.brain.learn(2.0);   // hit reward
+            shooter.brain.em.conf = Math.min(1, shooter.brain.em.conf + 0.1);
+            const slb = this.leaderboard.get(shooter.name);
+            if (slb) slb.damage += b.dmg;
+          }
+          t.brain.learn(-1.5);  // damage penalty
+          t.brain.em.fear = Math.min(1, t.brain.em.fear + 0.15);
+
+          this.particles.emit(b.pos.x, b.pos.y, t.color, 6, 2.5);
+          this.bullets.splice(i, 1);
+
+          if (t.hp <= 0) this._killTank(t, b.owner);
+          break;
+        }
+      }
+    }
+
+    this.particles.update();
+  }
+
+  _killTank(t, killerId) {
+    t.alive = false;
+    t.deaths++;
+    t.respawnTimer = this.RESPAWN_TICKS;
+    t.hp = 0;
+    t.brain.learn(-8);  // death penalty
+    t.brain.em.veng = Math.min(1, (t.brain.em.veng || 0) + 0.6);
+    t.brain.em.fear = Math.min(1, (t.brain.em.fear || 0) + 0.4);
+    const lb = this.leaderboard.get(t.name);
+    if (lb) lb.deaths++;
+
+    const killer = this.tanks[killerId];
+    if (killer) {
+      killer.kills++;
+      killer.brain.learn(8);  // kill reward
+      killer.brain.em.conf = Math.min(1, (killer.brain.em.conf || 0) + 0.3);
+      const klb = this.leaderboard.get(killer.name);
+      if (klb) klb.kills++;
+      this.log.add('kill', `💀 ${killer.name} → ${t.name}`, this.tick);
+    }
+    this.particles.emit(t.pos.x, t.pos.y, t.color, 20, 4);
+    this.particles.emit(t.pos.x, t.pos.y, '#f80', 15, 3);
+  }
+
+  _respawn(t) {
+    const pos = this._findSpawn();
+    t.pos = { ...pos };
+    t.prevPos = { ...pos };
+    t.hp = t.maxHp;
+    t.alive = true;
+    t.angle = Math.random() * Math.PI * 2;
+    t.turretAngle = t.angle;
+    t.reload = 0;
+    t.trail = [];
+    t.lastReward = 0;
+    t.brain.reset();
+    this.log.add('spawn', `🔄 ${t.name} respawned`, this.tick);
+  }
+
+  _findSpawn() {
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const x = 60 + Math.random() * (this.AW - 120);
+      const y = 60 + Math.random() * (this.AH - 120);
+      if (!this.physics.collidesWall(x, y, this.TANK_R + 10, this.walls) &&
+          !this.physics.collidesTank(x, y, this.TANK_R + 20, this.tanks, -1)) {
+        return { x, y };
+      }
+    }
+    return { x: this.AW / 2, y: this.AH / 2 };
+  }
 }
 
-_updateTankList(){
-const container=document.getElementById('tank-list');
-const a=this.arena;
-let html='';
-for(const t of a.tanks){
-const sel=a.selectedTank===t.id;
-const hpPct=(t.hp/t.maxHp*100).toFixed(0);
-const hpColor=t.hp/t.maxHp>.6?'var(--green)':t.hp/t.maxHp>.3?'var(--yellow)':'var(--red)';
-const em=t.brain.emotions;
-const topEmotion=Object.entries(em).sort((a,b)=>b[1]-a[1])[0];
-html+=`<div class="tank-card${sel?' selected':''}" data-id="${t.id}">
-<div class="name"><span class="dot" style="background:${t.color}"></span>${t.name}
-<span class="status">${t.alive?'ACTIVE':'DEAD'}</span></div>
-<div class="stat-row"><span>HP</span><span class="val" style="color:${hpColor}">${t.hp.toFixed(0)}/${t.maxHp}</span></div>
-<div class="bar-wrap"><div class="bar-fill" style="width:${hpPct}%;background:${hpColor}"></div></div>
-<div class="stat-row"><span>K/D</span><span class="val">${t.kills}/${t.deaths}</span></div>
-<div class="stat-row"><span>Accuracy</span><span class="val">${t.shotsFired>0?(t.shotsHit/t.shotsFired*100).toFixed(0)+'%':'—'}</span></div>
-<div class="stat-row"><span>Emotion</span><span class="val">${topEmotion?topEmotion[0]:'—'} ${topEmotion?(topEmotion[1]*100).toFixed(0)+'%':''}</span></div>
-</div>`;
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDERER (S: only draws)
+// ═══════════════════════════════════════════════════════════════════════════
+
+class ArenaRenderer {
+  constructor(canvas, sim) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.sim = sim;
+    this.dpr = window.devicePixelRatio || 1;
+    this._resize();
+    window.addEventListener('resize', () => this._resize());
+  }
+
+  _resize() {
+    const wrap = this.canvas.parentElement;
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    this.canvas.width = w * this.dpr;
+    this.canvas.height = h * this.dpr;
+    this.canvas.style.width = w + 'px';
+    this.canvas.style.height = h + 'px';
+    this.scale = Math.min(w / this.sim.AW, h / this.sim.AH) * this.dpr;
+    this.ox = (w * this.dpr - this.sim.AW * this.scale) / 2;
+    this.oy = (h * this.dpr - this.sim.AH * this.scale) / 2;
+  }
+
+  render() {
+    const ctx = this.ctx, sim = this.sim, sc = this.scale;
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.save();
+    ctx.translate(this.ox, this.oy);
+    ctx.scale(sc, sc);
+
+    // BG
+    ctx.fillStyle = '#060910';
+    ctx.fillRect(0, 0, sim.AW, sim.AH);
+
+    // Grid
+    ctx.strokeStyle = '#0d1117';
+    ctx.lineWidth = 0.5;
+    for (let x = 0; x <= sim.AW; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, sim.AH); ctx.stroke(); }
+    for (let y = 0; y <= sim.AH; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(sim.AW, y); ctx.stroke(); }
+
+    // Border
+    ctx.strokeStyle = '#1c2537';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(0, 0, sim.AW, sim.AH);
+
+    // Walls
+    for (const w of sim.walls) {
+      ctx.fillStyle = '#1c2537';
+      ctx.fillRect(w.x, w.y, w.w, w.h);
+      ctx.strokeStyle = '#2d3a50';
+      ctx.lineWidth = 0.8;
+      ctx.strokeRect(w.x, w.y, w.w, w.h);
+      ctx.fillStyle = 'rgba(255,255,255,.02)';
+      ctx.fillRect(w.x, w.y, w.w, 2);
+    }
+
+    // Trails
+    for (const t of sim.tanks) {
+      if (!t.alive || t.trail.length < 2) continue;
+      ctx.beginPath();
+      ctx.moveTo(t.trail[0].x, t.trail[0].y);
+      for (let i = 1; i < t.trail.length; i++) ctx.lineTo(t.trail[i].x, t.trail[i].y);
+      ctx.strokeStyle = t.color + '18';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+
+    // Bullets
+    for (const b of sim.bullets) {
+      const owner = sim.tanks[b.owner];
+      const c = owner ? owner.color : '#fff';
+      ctx.beginPath();
+      ctx.arc(b.pos.x, b.pos.y, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = c;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(b.pos.x, b.pos.y);
+      ctx.lineTo(b.pos.x - b.vx * 3, b.pos.y - b.vy * 3);
+      ctx.strokeStyle = c + '60';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    // Tanks
+    for (const t of sim.tanks) {
+      if (!t.alive) {
+        // Death marker
+        ctx.save();
+        ctx.translate(t.pos.x, t.pos.y);
+        ctx.globalAlpha = 0.25;
+        ctx.strokeStyle = t.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(-7, -7); ctx.lineTo(7, 7); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(7, -7); ctx.lineTo(-7, 7); ctx.stroke();
+        ctx.font = '8px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = t.color;
+        ctx.fillText(Math.ceil(t.respawnTimer / 60) + 's', 0, 15);
+        ctx.restore();
+        continue;
+      }
+
+      const sel = sim.selectedTankId === t.id;
+      const R = sim.TANK_R;
+
+      ctx.save();
+      ctx.translate(t.pos.x, t.pos.y);
+
+      // Selection ring
+      if (sel) {
+        ctx.beginPath();
+        ctx.arc(0, 0, R + 7, 0, Math.PI * 2);
+        ctx.strokeStyle = t.color + '50';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 3]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Emotion aura
+      const em = t.brain.em;
+      if (em.aggr > 0.4) {
+        ctx.beginPath(); ctx.arc(0, 0, R + 4, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(231,76,60,${em.aggr * 0.3})`;
+        ctx.lineWidth = 2; ctx.stroke();
+      } else if (em.fear > 0.4) {
+        ctx.beginPath(); ctx.arc(0, 0, R + 4, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(241,196,15,${em.fear * 0.3})`;
+        ctx.lineWidth = 2; ctx.stroke();
+      } else if (em.conf > 0.4) {
+        ctx.beginPath(); ctx.arc(0, 0, R + 4, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(46,204,113,${em.conf * 0.3})`;
+        ctx.lineWidth = 2; ctx.stroke();
+      }
+
+      // Body
+      ctx.beginPath();
+      ctx.arc(0, 0, R, 0, Math.PI * 2);
+      const grad = ctx.createRadialGradient(0, -3, 2, 0, 0, R);
+      grad.addColorStop(0, t.color + 'dd');
+      grad.addColorStop(1, t.color + '77');
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.strokeStyle = t.color;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      // Turret (separate angle from body)
+      ctx.save();
+      ctx.rotate(t.turretAngle);
+      ctx.fillStyle = t.color;
+      ctx.fillRect(R - 6, -2.5, sim.BARREL_LEN - R + 10, 5);
+      ctx.fillStyle = t.color + 'cc';
+      ctx.beginPath();
+      ctx.arc(0, 0, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // HP bar
+      const hpPct = t.hp / t.maxHp;
+      const barW = R * 2 + 4, barH = 3, barY = -R - 9;
+      ctx.fillStyle = '#000a';
+      ctx.fillRect(-barW / 2, barY, barW, barH);
+      ctx.fillStyle = hpPct > 0.6 ? '#2ecc71' : hpPct > 0.3 ? '#f1c40f' : '#e74c3c';
+      ctx.fillRect(-barW / 2, barY, barW * hpPct, barH);
+
+      // Reload arc
+      if (t.reload > 0) {
+        const rPct = t.reload / t.reloadTime;
+        ctx.beginPath();
+        ctx.arc(0, 0, R + 3, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - rPct));
+        ctx.strokeStyle = '#ffffff20';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      // Name
+      ctx.fillStyle = '#ffffffbb';
+      ctx.font = 'bold 8px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText(t.name, 0, R + 13);
+
+      ctx.restore();
+    }
+
+    // Particles
+    for (const p of sim.particles.particles) {
+      const alpha = p.life / p.maxLife;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 1 + alpha * 2, 0, Math.PI * 2);
+      ctx.fillStyle = p.color + Math.floor(alpha * 200).toString(16).padStart(2, '0');
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  screenToArena(sx, sy) {
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      x: (sx - rect.left - this.ox / this.dpr) / (this.scale / this.dpr),
+      y: (sy - rect.top - this.oy / this.dpr) / (this.scale / this.dpr),
+    };
+  }
 }
-container.innerHTML=html;
-container.querySelectorAll('.tank-card').forEach(card=>{
-card.addEventListener('click',()=>{this.arena.selectedTank=parseInt(card.dataset.id);this._updateSelected()})});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UI CONTROLLER (S: only manages DOM updates)
+// ═══════════════════════════════════════════════════════════════════════════
+
+class UIController {
+  constructor(sim, renderer) {
+    this.sim = sim;
+    this.renderer = renderer;
+    this._fps = 0;
+    this._frames = 0;
+    this._lastFps = performance.now();
+    this._bind();
+  }
+
+  _bind() {
+    const sim = this.sim;
+
+    document.getElementById('btn-go').addEventListener('click', () => {
+      if (!sim.running) {
+        sim.init();
+        sim.running = true;
+        document.getElementById('overlay').classList.remove('show');
+        document.getElementById('btn-go').textContent = '⏸ PAUSE';
+      } else {
+        sim.running = !sim.running;
+        document.getElementById('btn-go').textContent = sim.running ? '⏸ PAUSE' : '▶ RESUME';
+      }
+    });
+
+    document.getElementById('btn-rst').addEventListener('click', () => {
+      sim.running = false;
+      sim.round = 1;
+      sim.leaderboard.clear();
+      sim.log.clear();
+      sim.init();
+      document.getElementById('btn-go').textContent = '▶ START';
+      document.getElementById('overlay').classList.add('show');
+      this.update();
+    });
+
+    document.getElementById('sel-spd').addEventListener('change', e => {
+      sim.speed = parseInt(e.target.value);
+    });
+
+    document.getElementById('sel-cnt').addEventListener('change', e => {
+      sim.tankCount = parseInt(e.target.value);
+      if (sim.running) {
+        sim.round++;
+        sim.init();
+      }
+    });
+
+    this.renderer.canvas.addEventListener('click', e => {
+      const pos = this.renderer.screenToArena(e.clientX, e.clientY);
+      let closest = null, closestDist = 35;
+      for (const t of sim.tanks) {
+        const d = V2.dist(t.pos, pos);
+        if (d < closestDist) { closestDist = d; closest = t.id; }
+      }
+      sim.selectedTankId = closest;
+    });
+  }
+
+  update() {
+    this._frames++;
+    const now = performance.now();
+    if (now - this._lastFps >= 1000) {
+      this._fps = this._frames;
+      this._frames = 0;
+      this._lastFps = now;
+    }
+
+    const sim = this.sim;
+    document.getElementById('h-rnd').textContent = sim.round;
+    document.getElementById('h-tick').textContent = sim.tick;
+    document.getElementById('h-alive').textContent = sim.tanks.filter(t => t.alive).length;
+    document.getElementById('h-fps').textContent = this._fps;
+
+    this._updateTankList();
+    this._updateDetail();
+    this._updateLog();
+    this._updateGlobalStats();
+    this._updateLeaderboard();
+  }
+
+  _updateTankList() {
+    const el = document.getElementById('tank-list');
+    let html = '';
+    for (const t of this.sim.tanks) {
+      const sel = this.sim.selectedTankId === t.id;
+      const hp = (t.hp / t.maxHp * 100) | 0;
+      const hpCol = t.hp / t.maxHp > 0.6 ? 'var(--green)' : t.hp / t.maxHp > 0.3 ? 'var(--yellow)' : 'var(--red)';
+      const em = t.brain.em;
+      const topEm = Object.entries(em).sort((a, b) => b[1] - a[1])[0];
+      html += `<div class="card${sel ? ' sel' : ''}" data-id="${t.id}">
+        <div class="top"><span class="dot" style="background:${t.color}"></span><span class="nm">${t.name}</span><span class="st">${t.alive ? 'ALIVE' : 'DEAD'}</span></div>
+        <div class="bar"><div class="fill" style="width:${hp}%;background:${hpCol}"></div></div>
+        <div class="row"><span>K/D</span><span class="v">${t.kills}/${t.deaths}</span></div>
+        <div class="row"><span>Acc</span><span class="v">${t.shotsFired > 0 ? ((t.accuracy * 100) | 0) + '%' : '—'}</span></div>
+        <div class="row"><span>Top Em</span><span class="v">${topEm ? topEm[0] + ' ' + ((topEm[1] * 100) | 0) + '%' : '—'}</span></div>
+      </div>`;
+    }
+    el.innerHTML = html;
+    el.querySelectorAll('.card').forEach(c => {
+      c.addEventListener('click', () => { this.sim.selectedTankId = parseInt(c.dataset.id); });
+    });
+  }
+
+  _updateDetail() {
+    const el = document.getElementById('detail');
+    if (this.sim.selectedTankId === null) {
+      el.innerHTML = '<p style="color:var(--muted);font-size:11px">Click a tank to inspect</p>';
+      return;
+    }
+    const t = this.sim.tanks[this.sim.selectedTankId];
+    if (!t) return;
+
+    const em = t.brain.em;
+    const emKeys = Object.keys(em);
+    let emHtml = '<div class="egrid">';
+    for (const k of emKeys) {
+      const v = em[k] || 0;
+      const c = v > 0.5 ? 'var(--red)' : v > 0.25 ? 'var(--yellow)' : 'var(--green)';
+      emHtml += `<div class="ei"><span>${k}</span><span class="ev" style="color:${c}">${(v * 100) | 0}</span></div>`;
+    }
+    emHtml += '</div>';
+
+    el.innerHTML = `
+      <div class="card sel" style="border-color:${t.color}">
+        <div class="top"><span class="dot" style="background:${t.color}"></span><span class="nm">${t.name}</span><span class="st">${t.alive ? 'ALIVE' : 'RESPAWN ' + Math.ceil(t.respawnTimer / 60) + 's'}</span></div>
+      </div>
+      <div class="ptitle" style="margin-top:8px">Vitals</div>
+      <div class="row"><span>HP</span><span class="v">${t.hp | 0} / ${t.maxHp}</span></div>
+      <div class="bar"><div class="fill" style="width:${t.hp / t.maxHp * 100}%;background:${t.hp / t.maxHp > .5 ? 'var(--green)' : 'var(--red)'}"></div></div>
+      <div class="row"><span>Kills</span><span class="v">${t.kills}</span></div>
+      <div class="row"><span>Deaths</span><span class="v">${t.deaths}</span></div>
+      <div class="row"><span>Damage</span><span class="v">${t.totalDamage | 0}</span></div>
+      <div class="row"><span>Accuracy</span><span class="v">${t.shotsFired > 0 ? ((t.accuracy * 100) | 0) + '%' : '—'}</span></div>
+      <div class="row"><span>Shots</span><span class="v">${t.shotsFired}</span></div>
+      <div class="row"><span>Wins</span><span class="v">${t.wins}</span></div>
+      <div class="ptitle" style="margin-top:8px">Neural</div>
+      <div class="row"><span>Brain Step</span><span class="v">${t.brain.step}</span></div>
+      <div class="row"><span>Pred Error</span><span class="v">${(t.brain._ape() * 100).toFixed(1)}%</span></div>
+      <div class="row"><span>Cum Reward</span><span class="v">${t.brain.cumR.toFixed(2)}</span></div>
+      <div class="row"><span>Value Est</span><span class="v">${t.brain._ev().toFixed(3)}</span></div>
+      <div class="ptitle" style="margin-top:8px">Emotions</div>
+      ${emHtml}
+    `;
+  }
+
+  _updateLog() {
+    const el = document.getElementById('blog');
+    let html = '';
+    for (const e of this.sim.log.entries.slice(0, 30)) {
+      html += `<div class="log ${e.type}">[${e.tick}] ${e.msg}</div>`;
+    }
+    el.innerHTML = html;
+  }
+
+  _updateGlobalStats() {
+    const el = document.getElementById('gstats');
+    const tanks = this.sim.tanks;
+    const emKeys = ['threat', 'frust', 'conf', 'aggr', 'fear', 'desp', 'veng', 'curi'];
+    const emLabels = { threat: 'Threat', frust: 'Frustrat', conf: 'Confid', aggr: 'Aggress', fear: 'Fear', desp: 'Desperat', veng: 'Vengean', curi: 'Curiosi' };
+    let html = '';
+    for (const k of emKeys) {
+      const avg = tanks.reduce((s, t) => s + (t.brain.em[k] || 0), 0) / tanks.length;
+      const pct = (avg * 100) | 0;
+      const c = k === 'conf' ? 'var(--green)' : avg > 0.4 ? 'var(--red)' : avg > 0.2 ? 'var(--yellow)' : 'var(--cyan)';
+      html += `<div class="crow"><span class="cl">${emLabels[k] || k}</span><div class="ct"><div class="cf" style="width:${pct}%;background:${c}"></div></div><span class="cv">${pct}%</span></div>`;
+    }
+
+    const totalK = tanks.reduce((s, t) => s + t.kills, 0);
+    const totalS = tanks.reduce((s, t) => s + t.shotsFired, 0);
+    const totalH = tanks.reduce((s, t) => s + t.shotsHit, 0);
+    html += `<div style="margin-top:6px">
+      <div class="row"><span>Total Kills</span><span class="v">${totalK}</span></div>
+      <div class="row"><span>Total Shots</span><span class="v">${totalS}</span></div>
+      <div class="row"><span>Global Acc</span><span class="v">${totalS > 0 ? ((totalH / totalS * 100) | 0) + '%' : '—'}</span></div>
+      <div class="row"><span>Bullets</span><span class="v">${this.sim.bullets.length}</span></div>
+    </div>`;
+    el.innerHTML = html;
+  }
+
+  _updateLeaderboard() {
+    const body = document.getElementById('lb-body');
+    const rows = [...this.sim.leaderboard.entries()].map(([name, s]) => ({ name, ...s }));
+    rows.sort((a, b) => (b.kills - b.deaths) - (a.kills - a.deaths) || b.damage - a.damage);
+    let html = '';
+    rows.forEach((r, i) => {
+      const t = this.sim.tanks.find(t => t.name === r.name);
+      const c = t ? t.color : 'var(--text)';
+      html += `<tr><td>${i + 1}</td><td style="color:${c};font-weight:600">${r.name}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.damage | 0}</td><td>${r.wins}</td></tr>`;
+    });
+    body.innerHTML = html;
+  }
 }
 
-_updateSelected(){
-const container=document.getElementById('selected-detail');
-const a=this.arena;
-if(a.selectedTank===null){container.innerHTML='<p style="color:var(--muted);font-size:12px">Click a tank to inspect</p>';return}
-const t=a.tanks[a.selectedTank];if(!t){container.innerHTML='';return}
+// ═══════════════════════════════════════════════════════════════════════════
+// BOOTSTRAP
+// ═══════════════════════════════════════════════════════════════════════════
 
-const em=t.brain.emotions;
-const emotionKeys=['threat','frustration','confidence','aggression','fear','surprise','caution','desperation','vengeance','empathy','curiosity'];
-let emotionHtml='<div class="emotion-grid">';
-for(const k of emotionKeys){
-const v=(em[k]||0);
-const c=v>.6?'var(--red)':v>.3?'var(--yellow)':'var(--green)';
-emotionHtml+=`<div class="emotion-item"><span>${k}</span><span class="ev" style="color:${c}">${(v*100).toFixed(0)}</span></div>`}
-emotionHtml+='</div>';
+const sim = new GameSimulation(1200, 800);
+const renderer = new ArenaRenderer(document.getElementById('c'), sim);
+const ui = new UIController(sim, renderer);
 
-const pe=t.brain._avgPE();
-const brainStep=t.brain.step;
-
-container.innerHTML=`
-<div class="tank-card selected" style="border-color:${t.color}">
-<div class="name"><span class="dot" style="background:${t.color}"></span>${t.name}
-<span class="status">${t.alive?'ACTIVE':'RESPAWN '+Math.ceil(t.respawnTimer/60)+'s'}</span></div>
-</div>
-<div class="panel-title" style="margin-top:12px">Vitals</div>
-<div class="stat-row"><span>Health</span><span class="val">${t.hp.toFixed(0)} / ${t.maxHp}</span></div>
-<div class="bar-wrap"><div class="bar-fill" style="width:${t.hp/t.maxHp*100}%;background:${t.hp/t.maxHp>.5?'var(--green)':'var(--red)'}"></div></div>
-<div class="stat-row"><span>Kills</span><span class="val">${t.kills}</span></div>
-<div class="stat-row"><span>Deaths</span><span class="val">${t.deaths}</span></div>
-<div class="stat-row"><span>Damage</span><span class="val">${t.damage.toFixed(0)}</span></div>
-<div class="stat-row"><span>Accuracy</span><span class="val">${t.shotsFired>0?(t.shotsHit/t.shotsFired*100).toFixed(0)+'%':'—'}</span></div>
-<div class="stat-row"><span>Shots</span><span class="val">${t.shotsFired}</span></div>
-<div class="stat-row"><span>Wins</span><span class="val">${t.wins}</span></div>
-
-<div class="panel-title" style="margin-top:12px">Neural State</div>
-<div class="stat-row"><span>Brain Step</span><span class="val">${brainStep}</span></div>
-<div class="stat-row"><span>Pred. Error</span><span class="val">${(pe*100).toFixed(1)}%</span></div>
-<div class="stat-row"><span>Cum. Reward</span><span class="val">${t.brain.cumulativeReward.toFixed(2)}</span></div>
-
-<div class="panel-title" style="margin-top:12px">Emotions</div>
-${emotionHtml}
-`;
+let uiThrottle = 0;
+function loop() {
+  requestAnimationFrame(loop);
+  sim.step();
+  renderer.render();
+  if (++uiThrottle % 6 === 0) ui.update();
 }
-
-_updateLog(){
-const container=document.getElementById('battle-log');
-let html='';
-const show=this.arena.logs.slice(0,30);
-for(const l of show){
-const cls=l.type==='kill'?'kill':l.type==='spawn'?'spawn':l.type==='event'?'event':'info';
-html+=`<div class="log-line ${cls}">[${l.tick}] ${l.msg}</div>`}
-container.innerHTML=html}
-
-_updateGlobalStats(){
-const container=document.getElementById('global-stats');
-const a=this.arena;
-const totalKills=a.tanks.reduce((s,t)=>s+t.kills,0);
-const totalShots=a.tanks.reduce((s,t)=>s+t.shotsFired,0);
-const totalHits=a.tanks.reduce((s,t)=>s+t.shotsHit,0);
-const avgAcc=totalShots>0?(totalHits/totalShots*100).toFixed(1)+'%':'—';
-
-// Aggregate emotions
-const emotionAvgs={};const emotionKeys=['threat','frustration','confidence','aggression','fear','desperation','vengeance'];
-for(const k of emotionKeys){emotionAvgs[k]=a.tanks.reduce((s,t)=>s+(t.brain.emotions[k]||0),0)/a.tanks.length}
-
-let html=`
-<div class="stat-row"><span>Total Kills</span><span class="val">${totalKills}</span></div>
-<div class="stat-row"><span>Total Shots</span><span class="val">${totalShots}</span></div>
-<div class="stat-row"><span>Avg Accuracy</span><span class="val">${avgAcc}</span></div>
-<div class="stat-row"><span>Bullets Live</span><span class="val">${a.bullets.length}</span></div>
-<div class="stat-row"><span>Particles</span><span class="val">${a.particles.length}</span></div>
-<div class="panel-title" style="margin-top:8px">Avg Emotions</div>`;
-for(const k of emotionKeys){
-const v=emotionAvgs[k];const pct=(v*100).toFixed(0);
-const c=k==='confidence'||k==='curiosity'?'var(--green)':v>.5?'var(--red)':v>.25?'var(--yellow)':'var(--cyan)';
-html+=`<div class="chart-row"><span class="label">${k.slice(0,8)}</span><div class="track"><div class="fill" style="width:${pct}%;background:${c}"></div></div><span style="width:30px;text-align:right;font-family:var(--font-mono);font-size:10px;color:var(--muted)">${pct}%</span></div>`}
-container.innerHTML=html}
-
-_updateLeaderboard(){
-const body=document.getElementById('lb-body');
-const a=this.arena;
-const rows=[...a.leaderboard.entries()].map(([name,s])=>({name,...s}));
-rows.sort((a,b)=>(b.kills-b.deaths)-(a.kills-a.deaths)||(b.damage-a.damage));
-let html='';
-rows.forEach((r,i)=>{
-const t=a.tanks.find(t=>t.name===r.name);
-const color=t?t.color:'var(--text)';
-html+=`<tr><td>${i+1}</td><td style="color:${color};font-weight:600">${r.name}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.damage.toFixed(0)}</td><td>${r.wins}</td></tr>`});
-body.innerHTML=html}
-}
-
-// ============================================================================
-// MAIN LOOP
-// ============================================================================
-
-const canvas=document.getElementById('arena');
-const arena=new Arena(6);
-const renderer=new Renderer(canvas,arena);
-const ui=new UIController(arena,renderer);
-
-let uiThrottle=0;
-function loop(){
-requestAnimationFrame(loop);
-arena.update();
-renderer.render();
-uiThrottle++;
-if(uiThrottle%6===0)ui.updateUI();
-}
-
-// Show initial overlay
-document.getElementById('overlay').classList.add('show');
-
 loop();
 </script>
 </body>
-</html>
+  </html>
