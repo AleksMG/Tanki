@@ -1,36 +1,20 @@
 /**
- * CORTEX2BRAIN v2.3 — Production Neural Architecture (Patched)
+ * CORTEX2BRAIN v2.4 — Production Neural Architecture (Critical Behavioral Fixes)
  *
- * FIXES APPLIED (v2.2 → v2.3):
- *   FIX-13  Dual export:             Removed duplicate `export` at bottom; guarded CJS export
- *   FIX-14  SeededRNG zero-state:    Guaranteed non-zero initial state for xorshift32
- *   FIX-15  _updateEligibilityTraces: Now receives and uses actual C_input vector (not raw sensors)
- *   FIX-16  _applyTDError:           Now updates ALL cortex columns, not just 64..127
- *   FIX-17  _canExitEmotion:         Inverted logic fixed — exits when expired/satisfied/faded
- *   FIX-18  Prediction error:        predictionErrors expanded to DIM_SENSOR; loop covers all dims
- *   FIX-19  learn():                 Properly forwards nextObservation to estimate next value
- *   FIX-20  _hashSeed:              Replaced with FNV-1a for better avalanche
- *   FIX-21  gradientClips counter:   Now incremented when clipping actually occurs
- *   FIX-22  Social memory bounded:   LRU eviction when relationships exceed MAX_RELATIONSHIPS
- *   FIX-23  Hot-loop performance:    Removed optional chaining, _safeNumber, console.assert from inner loops
- *   FIX-24  Constructor:             Extracted into focused init methods
- *   FIX-25  God class:               Extracted EmotionSystem, MemorySystem, SchemaManager, SeededRNG
- *   FIX-26  Magic numbers:           All remaining literals named as constants in ARCH
- *   FIX-27  fromJSON validation:     Dimension checks on all weight matrices
- *   FIX-28  Reflex ordering:         Reflex/conflict resolution moved BEFORE state commit (critical)
- *   FIX-29  Emotion serialisation:   toJSON/fromJSON now include current emotion values
- *   FIX-30  Naming consistency:      Standardised to camelCase throughout
+ * FIXES APPLIED (v2.3 → v2.4):
+ *   FIX-31  Emotion saturation:      threat/caution now use smoothed inputs, not raw overwrite
+ *   FIX-32  Cortex saturation:       Added layer normalization to prevent activation explosion
+ *   FIX-33  Output diversity:        Added exploration noise that decays with learning
+ *   FIX-34  Firing suppression:      Conflict resolution no longer zeroes aggression from fear
+ *   FIX-35  Parallel movement:       D outputs get per-agent noise from seeded RNG
+ *   FIX-36  Emotion decay:           Stronger decay (0.95) prevents permanent emotion lock
+ *   FIX-37  Reward signal:           Zero reward no longer pumps frustration every frame
+ *   FIX-38  State vector scaling:    C/S vectors normalized before building D input
+ *   FIX-39  Initial behavior:        Random initial D values for diverse starting behavior
+ *   FIX-40  Aggression floor:        Minimum aggression from personality trait
  *
- * PREVIOUS FIXES (v2.1 → v2.2) preserved:
- *   FIX-01 through FIX-12 (see v2.2 header)
- *
- * USAGE:
- *   import { Cortex2Brain } from './cortex.js';
- *   const brain = new Cortex2Brain({ seed: 'agent_1', taskSpec: {...} });
- *   brain.configurePersonality({ traits: { bravery: 0.8 } });
- *   const result = brain.forward(sensors, reward, context);
- *   const debug  = brain.getDebugInfo();
- *   brain.learn({ observation, action, reward, nextObservation, done });
+ * PREVIOUS FIXES (v2.1 → v2.3) preserved:
+ *   FIX-01 through FIX-30 (see v2.3 header)
  */
 
 // ============================================================================
@@ -119,14 +103,13 @@ function deriveArchSizes(DIM) {
         S_INPUT:      DIM.DIM_P + 48 + 32 + DIM.DIM_D,
         D_INPUT:      DIM.DIM_C + DIM.DIM_S + 48,
 
-        // FIX-26: named constants for all remaining magic numbers
         C_PRED_OFFSET:       192,
         C_STATE_OFFSET:      224,
         C_STATE_SLICE:       32,
         A_HEAD_C_SLICE:      64,
         M_WORK_C_SLICE:      64,
         M_BLOCK_SIZE:        48,
-        PRED_CHANNELS:       48, // kept equal to M_BLOCK_SIZE for prediction
+        PRED_CHANNELS:       48,
         MAX_RELATIONSHIPS:   100,
         MAX_EMOTION_HISTORY: 5,
         MAX_EPISODIC_EVENTS: 50,
@@ -137,6 +120,19 @@ function deriveArchSizes(DIM) {
         MAX_WEIGHT:          2.0,
         MAX_GRADIENT:        0.3,
         MAX_TRACE_VAL:       1.0,
+
+        // FIX-32: layer norm constants
+        LAYER_NORM_EPS:      1e-5,
+        // FIX-33: exploration noise
+        INITIAL_NOISE:       0.15,
+        NOISE_DECAY:         0.9999,
+        MIN_NOISE:           0.02,
+        // FIX-36: stronger emotion decay
+        EMOTION_DECAY_DEFAULT: 0.95,
+        // FIX-37: frustration threshold
+        FRUSTRATION_REWARD_THRESHOLD: -0.1,
+        // FIX-40: minimum aggression from personality
+        MIN_AGGRESSION_FACTOR: 0.15,
     });
 }
 
@@ -149,14 +145,13 @@ class SeededRNG {
      * @param {string|number} seed
      */
     constructor(seed) {
-        // FIX-14: guarantee non-zero state for xorshift32
-        let h = 0x811c9dc5; // FNV offset basis
+        let h = 0x811c9dc5;
         const s = String(seed || 'default');
         for (let i = 0; i < s.length; i++) {
             h ^= s.charCodeAt(i);
             h = Math.imul(h, 0x01000193);
         }
-        this._state = (h >>> 0) || 1; // xorshift32 requires non-zero
+        this._state = (h >>> 0) || 1;
     }
 
     /** @returns {number} float in [0, 1) */
@@ -166,7 +161,6 @@ class SeededRNG {
         x ^= x >>> 17;
         x ^= x << 5;
         this._state = x >>> 0;
-        // FIX-14: if state somehow becomes 0, reset to 1
         if (this._state === 0) this._state = 1;
         return this._state / 4294967296;
     }
@@ -354,17 +348,19 @@ class SchemaManager {
 }
 
 // ============================================================================
-// EMOTION SYSTEM (FIX-25: extracted)
+// EMOTION SYSTEM (FIX-25: extracted, FIX-31/36/37/40: behavioral fixes)
 // ============================================================================
 
 class EmotionSystem {
     /**
      * @param {Object} personality
      * @param {number} maxHistory
+     * @param {Object} archConstants
      */
-    constructor(personality, maxHistory = 30) {
+    constructor(personality, maxHistory = 30, archConstants = {}) {
         this.personality = personality;
         this.maxHistory = maxHistory;
+        this.ARCH = archConstants;
 
         this.emotions = EmotionSystem.createDefaultEmotions();
         this.emotionHistory = [];
@@ -396,7 +392,8 @@ class EmotionSystem {
             vengeance: { baseDuration: 360, intensityMultiplier: 3.5, satisfactionDecay: 0.003 },
         };
 
-        this.emotionDecay = 0.98;
+        // FIX-36: stronger default decay
+        this.emotionDecay = archConstants.EMOTION_DECAY_DEFAULT || 0.95;
         this.emotionInfluence = 0.35;
     }
 
@@ -422,6 +419,11 @@ class EmotionSystem {
     }
 
     /**
+     * FIX-31: threat/caution use smoothed lerp instead of raw overwrite
+     * FIX-36: stronger decay prevents emotion lock
+     * FIX-37: frustration only grows on actually negative reward
+     * FIX-40: aggression has minimum floor from personality
+     *
      * @param {number} reward
      * @param {Float32Array} sensorInputs
      * @param {Object|null} combatEvents
@@ -443,7 +445,6 @@ class EmotionSystem {
             state.remainingFrames--;
             state.satisfaction = lerp(state.satisfaction, this.emotionalState.satisfaction, 0.1);
 
-            // FIX-17: check exit FIRST (handles expiration)
             if (this._canExitEmotion(state)) {
                 this._exitEmotion(state);
             } else {
@@ -461,23 +462,48 @@ class EmotionSystem {
             if (dominant.intensity > 0.7) this._enterEmotion(dominant.name, dominant.intensity, step);
         }
 
-        // Reward-driven emotion updates
-        if (reward < 0.1) this.emotions.frustration = Math.min(1, this.emotions.frustration + 0.03);
-        else this.emotions.frustration *= 0.92;
+        // FIX-37: Only increase frustration on actually negative reward, not just < 0.1
+        const frustThreshold = this.ARCH.FRUSTRATION_REWARD_THRESHOLD || -0.1;
+        if (reward < frustThreshold) {
+            this.emotions.frustration = Math.min(1, this.emotions.frustration + 0.02);
+        } else if (reward > 0) {
+            // Positive reward reduces frustration faster
+            this.emotions.frustration *= 0.88;
+        } else {
+            // Neutral reward: gentle decay
+            this.emotions.frustration *= 0.95;
+        }
 
         const normalizedReward = clamp((cumulativeReward + 100) / 200, 0, 1);
-        if (normalizedReward < 0.3) this.emotions.desperation = Math.min(1, this.emotions.desperation + 0.05);
-        else this.emotions.desperation *= 0.85;
+        if (normalizedReward < 0.3) {
+            this.emotions.desperation = Math.min(1, this.emotions.desperation + 0.03);
+        } else {
+            this.emotions.desperation *= 0.90;
+        }
 
-        if (reward > 1) this.emotions.confidence = Math.min(1, this.emotions.confidence + 0.05);
-        else this.emotions.confidence *= 0.95;
+        if (reward > 1) {
+            this.emotions.confidence = Math.min(1, this.emotions.confidence + 0.08);
+        } else if (reward > 0) {
+            this.emotions.confidence = Math.min(1, this.emotions.confidence + 0.02);
+        } else {
+            this.emotions.confidence *= 0.97;
+        }
 
-        if (reward < -0.5) this.emotions.fear = Math.min(1, this.emotions.fear + 0.1);
-        else this.emotions.fear *= 0.85;
+        if (reward < -0.5) {
+            this.emotions.fear = Math.min(1, this.emotions.fear + 0.08);
+        } else {
+            this.emotions.fear *= 0.90;
+        }
 
-        this.emotions.surprise = avgPredError;
-        this.emotions.caution = 1 - (sensorInputs[12] ?? 0.5);
-        this.emotions.threat = 1 - (sensorInputs[2] ?? 0.5);
+        // FIX-31: Use smoothed lerp for threat/caution instead of raw overwrite
+        // This prevents instant saturation to 98%
+        const rawThreat = 1 - (sensorInputs[2] ?? 0.5);
+        this.emotions.threat = lerp(this.emotions.threat, rawThreat, 0.1);
+
+        const rawCaution = 1 - (sensorInputs[12] ?? 0.5);
+        this.emotions.caution = lerp(this.emotions.caution, rawCaution, 0.1);
+
+        this.emotions.surprise = lerp(this.emotions.surprise, avgPredError, 0.2);
 
         // Momentum
         const recentFrames = Math.min(this.maxHistory, this.emotionHistory.length);
@@ -493,17 +519,24 @@ class EmotionSystem {
             this.emotionalState.momentum.vengeance = avg('vengeance');
         }
 
-        // Derived aggression
+        // Derived aggression — FIX-40: personality-based floor
         const fearBlock = (1 - this.emotions.desperation) * this.emotionalState.momentum.fear;
-        this.emotions.aggression =
-            this.emotionalState.momentum.frustration * 0.6 +
-            this.emotionalState.momentum.desperation * 0.8 +
-            this.emotionalState.momentum.vengeance * 0.9 -
-            fearBlock * 0.4;
+        const personalityAggression = (this.personality.traits.aggression || 0.5) *
+            (this.ARCH.MIN_AGGRESSION_FACTOR || 0.15);
 
-        // Decay
+        this.emotions.aggression = Math.max(
+            personalityAggression,
+            this.emotionalState.momentum.frustration * 0.4 +
+            this.emotionalState.momentum.desperation * 0.5 +
+            this.emotionalState.momentum.vengeance * 0.7 -
+            fearBlock * 0.2
+        );
+
+        // FIX-36: stronger decay applied to all emotions
         for (const key of Object.keys(this.emotions)) {
             this.emotions[key] *= this.emotionDecay;
+            // Clamp small values to zero to prevent floating noise
+            if (this.emotions[key] < 0.001) this.emotions[key] = 0;
         }
     }
 
@@ -525,7 +558,7 @@ class EmotionSystem {
 
     /**
      * Apply reflex modifications to decision vector.
-     * FIX-28: This is now called BEFORE state commit in forward().
+     * FIX-34: Reduced suppression magnitudes so tanks still fire
      * @param {Float32Array} sensorInputs
      * @param {Float32Array} stateVector
      * @param {Float32Array} decisionVector
@@ -535,44 +568,47 @@ class EmotionSystem {
         const em = this.emotionInfluence;
         if (stateVector[8] > 0.6) {
             stats.reflexTriggers++;
-            decisionVector[6] = lerp(decisionVector[6], Math.min(1, decisionVector[6] + 0.40), em);
-            decisionVector[4] = lerp(decisionVector[4], Math.min(1, decisionVector[4] + 0.30), em);
+            decisionVector[6] = lerp(decisionVector[6], Math.min(1, decisionVector[6] + 0.30), em);
+            decisionVector[4] = lerp(decisionVector[4], Math.min(1, decisionVector[4] + 0.20), em);
         }
         if (stateVector[7] > 0.6) {
             stats.reflexTriggers++;
-            decisionVector[6] = lerp(decisionVector[6], Math.min(1, decisionVector[6] + 0.35), em);
-            decisionVector[4] = lerp(decisionVector[4], Math.min(1, decisionVector[4] + 0.30), em);
+            decisionVector[6] = lerp(decisionVector[6], Math.min(1, decisionVector[6] + 0.25), em);
+            decisionVector[4] = lerp(decisionVector[4], Math.min(1, decisionVector[4] + 0.20), em);
         }
+        // FIX-34: fear reflex no longer suppresses throttle as aggressively
         if (stateVector[4] > 0.7) {
             stats.reflexTriggers++;
-            decisionVector[10] = lerp(decisionVector[10], Math.min(1, decisionVector[10] + 0.35), em);
-            decisionVector[4] = lerp(decisionVector[4], Math.max(0, decisionVector[4] - 0.20), em);
+            decisionVector[10] = lerp(decisionVector[10], Math.min(1, decisionVector[10] + 0.20), em);
+            // Removed: decisionVector[4] reduction — was killing throttle
         }
         if (stateVector[1] > 0.7) {
             stats.reflexTriggers++;
-            decisionVector[6] = lerp(decisionVector[6], Math.min(1, decisionVector[6] + 0.30), em);
-            decisionVector[4] = lerp(decisionVector[4], Math.min(1, decisionVector[4] + 0.25), em);
+            decisionVector[6] = lerp(decisionVector[6], Math.min(1, decisionVector[6] + 0.20), em);
+            decisionVector[4] = lerp(decisionVector[4], Math.min(1, decisionVector[4] + 0.15), em);
         }
     }
 
     /**
-     * Resolve conflicts between emotion-driven commands.
+     * FIX-34: Conflict resolution no longer fully zeroes aggression from fear.
+     * Instead applies softer modulation to keep tanks reactive.
      * @param {Float32Array} decisionVector
      */
     resolveConflicts(decisionVector) {
-        const eb = this.emotionInfluence;
+        const eb = this.emotionInfluence * 0.5; // FIX-34: halved influence
         const emotions = this.emotions;
         if (emotions.vengeance > 0.6 || emotions.desperation > 0.6) {
-            decisionVector[10] = Math.max(0, decisionVector[10] - eb);
-            decisionVector[7] = Math.min(1, decisionVector[7] + eb * 0.5);
+            decisionVector[10] = Math.max(0, decisionVector[10] - eb * 0.5);
+            decisionVector[7] = Math.min(1, decisionVector[7] + eb * 0.3);
         }
+        // FIX-34: fear no longer zeroes aggression, just slightly reduces it
         if (emotions.fear > 0.7) {
-            decisionVector[6] = Math.max(0, decisionVector[6] - eb);
-            decisionVector[4] = Math.max(0, decisionVector[4] - eb * 0.3);
+            decisionVector[6] = Math.max(0.1, decisionVector[6] - eb * 0.3);
+            // Removed: throttle reduction from fear
         }
         if (emotions.aggression > 0.6) {
-            decisionVector[6] = Math.min(1, decisionVector[6] + eb);
-            decisionVector[4] = Math.min(1, decisionVector[4] + eb * 0.3);
+            decisionVector[6] = Math.min(1, decisionVector[6] + eb * 0.5);
+            decisionVector[4] = Math.min(1, decisionVector[4] + eb * 0.2);
         }
     }
 
@@ -598,11 +634,6 @@ class EmotionSystem {
         return { name: candidates[0].name, intensity: candidates[0].value };
     }
 
-    /**
-     * @param {string} name
-     * @param {number} intensity
-     * @param {number} step
-     */
     _enterEmotion(name, intensity, step) {
         const config = this.emotionConfig[name];
         if (!config) return;
@@ -625,10 +656,6 @@ class EmotionSystem {
         };
     }
 
-    /**
-     * @param {Object} state
-     * @param {string} reason
-     */
     _exitEmotion(state, reason = 'completed') {
         this.emotionalState.history.push({ ...state, reason });
         if (this.emotionalState.history.length > 5) this.emotionalState.history.shift();
@@ -646,29 +673,18 @@ class EmotionSystem {
         this.emotionalState.current = null;
     }
 
-    /**
-     * FIX-17: Fixed inverted logic.
-     * - Returns true when remainingFrames expired (natural completion)
-     * - Returns true when satisfied or faded
-     * - Returns false when emotion is still strong and has time left
-     * @param {Object} state
-     * @returns {boolean}
-     */
     _canExitEmotion(state) {
-        if (state.remainingFrames <= 0) return true;     // expired
-        if (state.satisfaction > 0.6) return true;       // satisfied
-        if (state.intensity < 0.3) return true;          // faded
-        // Too early to exit if more than 70% of time remains
+        if (state.remainingFrames <= 0) return true;
+        if (state.satisfaction > 0.6) return true;
+        if (state.intensity < 0.3) return true;
         if (state.remainingFrames > state.baseDuration * 0.7) return false;
         return false;
     }
 
-    /** @param {Object} state */
     _shouldExtendEmotion(state) {
         return state.intensity > state.initialIntensity + 0.2 || state.satisfaction < -0.3;
     }
 
-    /** @param {Object} state */
     _checkEmotionTransition(state) {
         const c = state.name;
         if (c === 'fear' && this.emotions.desperation > 0.7)
@@ -684,14 +700,12 @@ class EmotionSystem {
         return null;
     }
 
-    /**
-     * @param {Object} events
-     * @param {number} health
-     * @param {number} maxHealth
-     */
     _processCombatEvents(events, health, maxHealth) {
         if (!events) return;
-        for (const event of events) {
+        // Handle both array and single-event format
+        const eventList = Array.isArray(events) ? events : [events];
+        for (const event of eventList) {
+            if (!event || !event.type) continue;
             switch (event.type) {
                 case 'hit_dealt':
                     this.emotionalState.satisfaction = clamp(this.emotionalState.satisfaction + 0.15, -1, 1);
@@ -736,7 +750,6 @@ class EmotionSystem {
     /** @returns {Object} serialisable snapshot */
     toJSON() {
         return {
-            // FIX-29: include current emotion values
             emotions: { ...this.emotions },
             emotionMemory: {
                 trauma: this.emotionMemory.trauma,
@@ -755,7 +768,6 @@ class EmotionSystem {
 
     /** @param {Object} data */
     loadFromJSON(data) {
-        // FIX-29: restore current emotion values
         if (data.emotions) {
             for (const key of Object.keys(this.emotions)) {
                 if (key in data.emotions) this.emotions[key] = data.emotions[key];
@@ -807,13 +819,6 @@ class MemorySystem {
         };
     }
 
-    /**
-     * FIX-22: LRU eviction when relationships exceed max.
-     * @param {Object} socialContext
-     * @param {number} step
-     * @param {Object} personality
-     * @param {Object} emotions
-     */
     processSocialInput(socialContext, step, personality, emotions) {
         const others = socialContext.others || [];
         for (const other of others) {
@@ -846,14 +851,9 @@ class MemorySystem {
             this.socialMemory.relationships.set(other.id, rel);
         }
 
-        // FIX-22: LRU eviction
         this._evictOldRelationships();
     }
 
-    /**
-     * @param {Object} query
-     * @returns {Object[]}
-     */
     recallRelevantMemories({ enemyId, healthRatio, situation }) {
         const recalled = [];
         for (const event of this.episodicMemory.events) {
@@ -871,15 +871,6 @@ class MemorySystem {
         return recalled.slice(0, 3);
     }
 
-    /**
-     * FIX-11: consolidationEvents counter now incremented.
-     * @param {Float32Array} predictionErrors
-     * @param {Float32Array} memoryVector
-     * @param {number} reward
-     * @param {number} step
-     * @param {Object} stats
-     * @param {number} predStart
-     */
     consolidateMemories(predictionErrors, memoryVector, reward, step, stats, predStart) {
         let newEvents = 0;
         const blockSize = predictionErrors.length;
@@ -916,7 +907,6 @@ class MemorySystem {
         this.episodicMemory.events = [];
     }
 
-    /** FIX-22: evict least-recently-interacted relationship */
     _evictOldRelationships() {
         while (this.socialMemory.relationships.size > this.maxRelationships) {
             let oldestId = null;
@@ -935,7 +925,6 @@ class MemorySystem {
         }
     }
 
-    /** @returns {Object} */
     toJSON() {
         return {
             socialMemory: {
@@ -953,7 +942,6 @@ class MemorySystem {
         };
     }
 
-    /** @param {Object} data */
     loadFromJSON(data) {
         if (data.socialMemory) {
             this.socialMemory.reputation = data.socialMemory.reputation ?? 0;
@@ -975,37 +963,22 @@ class MemorySystem {
 }
 
 // ============================================================================
-// STANDALONE MATH UTILITIES (FIX-23, FIX-30: top-level for inlining)
+// STANDALONE MATH UTILITIES
 // ============================================================================
 
-/** @param {number} v @param {number} min @param {number} max */
 function clamp(v, min, max) { return v < min ? min : v > max ? max : v; }
-
-/** @param {number} a @param {number} b @param {number} t */
 function lerp(a, b, t) { const ct = t < 0 ? 0 : t > 1 ? 1 : t; return a + (b - a) * ct; }
-
-/** @param {*} val @param {number} fallback */
 function safeNumber(val, fallback) {
     return (typeof val === 'number' && isFinite(val)) ? val : fallback;
 }
-
-/** @param {number} x */
 function tanh(x) {
     if (x > 20) return 1;
     if (x < -20) return -1;
     const e = Math.exp(2 * x);
     return (e - 1) / (e + 1);
 }
-
-/** @param {number} x @param {number} alpha */
 function leakyRelu(x, alpha = 0.01) { return x > 0 ? x : alpha * x; }
 
-/**
- * FIX-09/FIX-23: safe softmax using reduce, accepts plain Array.
- * @param {number[]} arr
- * @param {number} temp
- * @returns {number[]}
- */
 function softmax(arr, temp = 1) {
     if (!arr || arr.length === 0) return [];
     let max = -Infinity;
@@ -1030,21 +1003,20 @@ class Cortex2Brain {
 
     /** @param {CortexConfig} config */
     constructor(config = {}) {
-        this._initConfig(config);       // FIX-24: extracted
-        this._initArchitecture();       // FIX-24: extracted
+        this._initConfig(config);
+        this._initArchitecture();
         this._initWeights();
         this._initStateVectors();
         this._initEligibilityTraces();
-        this._initSubsystems();         // FIX-24: extracted
-        this._initRuntimeState();       // FIX-24: extracted
+        this._initSubsystems();
+        this._initRuntimeState();
         this._isReady = true;
     }
 
     // ========================================================================
-    // INITIALISATION (FIX-24: decomposed constructor)
+    // INITIALISATION
     // ========================================================================
 
-    /** @param {CortexConfig} config */
     _initConfig(config) {
         this.config = {
             seed: config.seed || `CORTEX_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -1079,13 +1051,9 @@ class Cortex2Brain {
     }
 
     _initSubsystems() {
-        // FIX-18: predictionErrors now covers full DIM_SENSOR
         this.predictionErrors = new Float32Array(this.DIM.DIM_SENSOR);
-
-        // Stats
         this._stats = this._createEmptyStats();
 
-        // Personality
         this.personality = {
             traits: {
                 bravery: 0.5, loyalty: 0.5, empathy: 0.5,
@@ -1096,15 +1064,16 @@ class Cortex2Brain {
             },
         };
 
-        // FIX-25: extracted subsystems
-        this.emotionSystem = new EmotionSystem(this.personality);
+        // FIX-31/36: pass ARCH constants to EmotionSystem
+        this.emotionSystem = new EmotionSystem(this.personality, 30, this.ARCH);
         this.memorySystem = new MemorySystem(
             this.ARCH.MAX_RELATIONSHIPS,
             this.ARCH.MAX_EPISODIC_EVENTS
         );
-
-        // FIX-25: schema manager
         this._schemaManager = new SchemaManager(this.DIM.DIM_SENSOR);
+
+        // FIX-33: exploration noise level
+        this._noiseLevel = this.ARCH.INITIAL_NOISE;
     }
 
     _initRuntimeState() {
@@ -1115,9 +1084,15 @@ class Cortex2Brain {
         this._lastKiller = null;
         this._lastInputs = null;
         this._lastOutputs = null;
-        this._lastCInput = null;   // FIX-15: stored for eligibility traces
+        this._lastCInput = null;
         this._reflexThisFrame = false;
         this._traceBuffer = null;
+
+        // FIX-39: randomize initial D values for diverse starting behavior
+        for (let i = 0; i < this.DIM.DIM_D; i++) {
+            this.D[i] = (this._rng.next() * 2 - 1) * 0.3;
+            this.D_prev[i] = this.D[i];
+        }
     }
 
     _createEmptyStats() {
@@ -1165,7 +1140,7 @@ class Cortex2Brain {
     }
 
     // ========================================================================
-    // SCHEMA & VALIDATION (delegates to SchemaManager)
+    // SCHEMA & VALIDATION
     // ========================================================================
 
     getInputSchema() { return this._schemaManager.getInputSchema(); }
@@ -1199,18 +1174,15 @@ class Cortex2Brain {
         }
     }
 
-    /** @param {Object} config */
     configureEmotions(config) {
         this.emotionSystem.configure(config);
     }
 
-    /** @param {Object} taskSpec */
     updateTaskSpec(taskSpec) {
         this.config.taskSpec = { ...this.config.taskSpec, ...taskSpec };
         this.RATIOS = this._calculateRatios(this.config.taskSpec);
     }
 
-    /** FIX-06: targets this.config.* */
     setLearningParams(params) {
         if (params.lr !== undefined) this.config.lr = clamp(params.lr, 0.001, 0.1);
         if (params.gamma !== undefined) this.config.gamma = clamp(params.gamma, 0.9, 0.999);
@@ -1223,9 +1195,10 @@ class Cortex2Brain {
     // ========================================================================
 
     /**
-     * FIX-28: Reflex/conflict resolution now happens BEFORE this.D.set(D_new).
-     * FIX-07: Lightweight return object.
-     * FIX-15: C_input stored for eligibility traces.
+     * FIX-32: Layer normalization on C to prevent saturation
+     * FIX-33: Exploration noise on D outputs
+     * FIX-35: Per-agent noise from seeded RNG
+     * FIX-38: C/S normalized before D input
      *
      * @param {number[]|Object} rawInputs
      * @param {number}  [reward=0]
@@ -1238,7 +1211,6 @@ class Cortex2Brain {
 
         const trace = this._traceBuffer ? { start: performance.now(), layers: {} } : null;
 
-        // Validate inputs
         const sensorInput = this.validateAndNormalizeInputs(rawInputs);
         const rewardVal = safeNumber(reward, 0);
 
@@ -1279,17 +1251,15 @@ class Cortex2Brain {
         const sInput = this._buildSInput(this.P_prev, mPermPrev, this.C_prev, this.D_prev, this.RATIOS.state);
         const dInput = this._buildDInput(this.C_prev, this.S_prev, mPredPrev);
 
-        // FIX-15: store for eligibility trace update
         this._lastCInput = cInput;
 
         if (trace) trace.layers.inputBuild = performance.now();
 
-        // === FORWARD PROPAGATION (FIX-08: linear mode, bias + activation once) ===
+        // === FORWARD PROPAGATION ===
 
         const pNew = this._matrixMultiply(pInput, this.W_P);
         for (let i = 0; i < this.DIM.DIM_P; i++) pNew[i] = leakyRelu(pNew[i] + this.b_P[i]);
 
-        // FIX-03: convert to plain array for softmax
         const gateArr = new Array(this.DIM.NUM_HEADS);
         for (let i = 0; i < this.DIM.NUM_HEADS; i++) gateArr[i] = this.W_gate[i];
         const gateProbs = softmax(gateArr, 1.0);
@@ -1317,14 +1287,30 @@ class Cortex2Brain {
         for (let i = 0; i < this.ARCH.M_BLOCK_SIZE; i++) mNew[this.ARCH.M_BLOCK_SIZE + i] = mPermNew[i];
         for (let i = 0; i < this.ARCH.M_BLOCK_SIZE; i++) mNew[this.ARCH.M_BLOCK_SIZE * 2 + i] = mPredNew[i];
 
-        const cNew = this._matrixMultiply(cInput, this.W_C);
+        let cNew = this._matrixMultiply(cInput, this.W_C);
         for (let i = 0; i < this.DIM.DIM_C; i++) cNew[i] = leakyRelu(cNew[i] + this.b_C[i]);
+
+        // FIX-32: Layer normalization on cortex to prevent activation explosion
+        cNew = this._layerNorm(cNew);
 
         const sNew = this._matrixMultiply(sInput, this.W_S);
         for (let i = 0; i < this.DIM.DIM_S; i++) sNew[i] = leakyRelu(sNew[i] + this.b_S[i]);
 
-        const dNew = this._matrixMultiply(dInput, this.W_D);
+        // FIX-38: Build D input from normalized C and S
+        const dInputNorm = this._buildDInput(cNew, sNew, mPredNew);
+
+        const dNew = this._matrixMultiply(dInputNorm, this.W_D);
         for (let i = 0; i < this.DIM.DIM_D; i++) dNew[i] = tanh(dNew[i] + this.b_D[i]);
+
+        // FIX-33/35: Add exploration noise from per-agent seeded RNG
+        for (let i = 0; i < this.DIM.DIM_D; i++) {
+            dNew[i] = clamp(dNew[i] + this._rng.gaussian(0, this._noiseLevel), -1, 1);
+        }
+        // Decay noise over time
+        this._noiseLevel = Math.max(
+            this.ARCH.MIN_NOISE,
+            this._noiseLevel * this.ARCH.NOISE_DECAY
+        );
 
         if (trace) trace.layers.forward = performance.now();
 
@@ -1340,13 +1326,12 @@ class Cortex2Brain {
         );
         this.emotionSystem.writeToStateVector(sNew);
 
-        // === FIX-28: REFLEX + CONFLICT RESOLUTION *BEFORE* STATE COMMIT ===
+        // === REFLEX + CONFLICT RESOLUTION BEFORE STATE COMMIT ===
         this._reflexThisFrame = false;
         if (combatEvents) {
             this.emotionSystem.applyReflexes(sensorInput, sNew, dNew, this._stats);
         }
         this.emotionSystem.resolveConflicts(dNew);
-        // Check if any reflex fired (using threshold from ARCH)
         for (let i = 0; i < this.DIM.DIM_S; i++) {
             if (sNew[i] > this.ARCH.REFLEX_THRESHOLD) {
                 this._reflexThisFrame = true;
@@ -1356,7 +1341,7 @@ class Cortex2Brain {
 
         if (trace) trace.layers.emotions = performance.now();
 
-        // === NOW COMMIT STATE (FIX-28: after reflexes have modified dNew/sNew) ===
+        // === COMMIT STATE ===
         this.P_prev.set(this.P); this.A_prev.set(this.A); this.M_prev.set(this.M);
         this.C_prev.set(this.C); this.S_prev.set(this.S); this.D_prev.set(this.D);
         this.P.set(pNew); this.A.set(aNew); this.M.set(mNew);
@@ -1423,11 +1408,6 @@ class Cortex2Brain {
     // LEARNING
     // ========================================================================
 
-    /**
-     * FIX-19: Properly forwards nextObservation to estimate next-state value.
-     * Saves and restores state vectors so learn() doesn't corrupt the agent state.
-     * @param {Experience} experience
-     */
     learn(experience) {
         const { observation, action, reward, nextObservation, done } = experience;
         const inputs = this.validateAndNormalizeInputs(observation);
@@ -1437,7 +1417,6 @@ class Cortex2Brain {
         let nextValue = 0;
 
         if (!done && nextObservation) {
-            // FIX-19: save state, forward next observation, estimate value, restore
             const savedC = new Float32Array(this.C);
             const savedP = new Float32Array(this.P);
             const savedA = new Float32Array(this.A);
@@ -1450,7 +1429,6 @@ class Cortex2Brain {
                 this.forward(nextObservation, 0);
                 nextValue = this._estimateValue();
             } finally {
-                // Restore state
                 this.C.set(savedC);
                 this.P.set(savedP);
                 this.A.set(savedA);
@@ -1475,7 +1453,6 @@ class Cortex2Brain {
         }
 
         this._updateValueHead(tdErr);
-        // FIX-15: pass stored C_input for proper trace update
         this._updateEligibilityTraces(inputs, outputs, tdErr, this._lastCInput);
         this._applyTDError(tdErr);
 
@@ -1531,6 +1508,15 @@ class Cortex2Brain {
         this.cumulativeReward = 0;
         this._lastCInput = null;
         this.step = 0;
+
+        // FIX-39: Re-randomize D for diverse restart behavior
+        for (let i = 0; i < this.DIM.DIM_D; i++) {
+            this.D[i] = (this._rng.next() * 2 - 1) * 0.3;
+            this.D_prev[i] = this.D[i];
+        }
+
+        // FIX-33: Reset noise level
+        this._noiseLevel = this.ARCH.INITIAL_NOISE;
     }
 
     reset() {
@@ -1543,16 +1529,11 @@ class Cortex2Brain {
     // DEBUG & TRACING
     // ========================================================================
 
-    /** @param {boolean} enable @param {number} maxTraces */
     setTracing(enable, maxTraces = 10) {
         this._traceBuffer = enable ? [] : null;
         if (this._traceBuffer) this._traceBuffer.maxSize = maxTraces;
     }
 
-    /**
-     * FIX-07: Heavy introspection data, not returned from forward().
-     * @returns {DebugInfo}
-     */
     getDebugInfo() {
         const sm = this.memorySystem.socialMemory;
         return {
@@ -1616,7 +1597,7 @@ class Cortex2Brain {
 
         const data = {
             type: 'Cortex2Brain',
-            version: '2.3',
+            version: '2.4',
             config: {
                 seed: this.config.seed,
                 lr: this.config.lr,
@@ -1636,7 +1617,6 @@ class Cortex2Brain {
             };
         }
 
-        // FIX-29: emotions now serialised
         if (includeEmotions) {
             data.emotionSystem = this.emotionSystem.toJSON();
         }
@@ -1653,7 +1633,6 @@ class Cortex2Brain {
         return data;
     }
 
-    /** @param {Object} data */
     static fromJSON(data) {
         if (!data || data.type !== 'Cortex2Brain') throw new Error('Invalid Cortex2Brain JSON data');
 
@@ -1661,7 +1640,6 @@ class Cortex2Brain {
         const w = data.weights;
 
         if (w) {
-            // FIX-27: validate dimensions before loading
             brain._validateAndLoadWeights(w);
         }
 
@@ -1670,11 +1648,9 @@ class Cortex2Brain {
             brain.personality.values = { ...brain.personality.values, ...data.personality.values };
         }
 
-        // FIX-29: restore emotions
         if (data.emotionSystem) {
             brain.emotionSystem.loadFromJSON(data.emotionSystem);
         }
-        // Legacy support: v2.2 format
         if (data.emotionMemory && !data.emotionSystem) {
             brain.emotionSystem.loadFromJSON({ emotionMemory: data.emotionMemory });
         }
@@ -1720,10 +1696,6 @@ class Cortex2Brain {
         };
     }
 
-    /**
-     * FIX-27: Validates weight dimensions before loading.
-     * @param {Object} w - serialised weight data
-     */
     _validateAndLoadWeights(w) {
         const check = (name, mat, expectedRows, expectedCols) => {
             if (!mat || mat.length !== expectedRows) {
@@ -1746,7 +1718,6 @@ class Cortex2Brain {
             }
         };
 
-        // Validate matrix dimensions
         check('W_P', w.W_P, this.ARCH.P_INPUT, this.DIM.DIM_P);
         checkVec('b_P', w.b_P, this.DIM.DIM_P);
 
@@ -1778,7 +1749,6 @@ class Cortex2Brain {
         checkVec('b_pred', w.b_pred, this.DIM.DIM_SENSOR);
         checkVec('W_V', w.W_V, this.DIM.DIM_C);
 
-        // All checks passed — load weights
         this.W_P = w.W_P.map(r => new Float32Array(r));
         this.b_P = new Float32Array(w.b_P);
         this.W_A = w.W_A.map(m => m.map(r => new Float32Array(r)));
@@ -1850,11 +1820,8 @@ class Cortex2Brain {
         };
 
         if (copyMemory) {
-            // Clone emotion system state
             const emotionData = this.emotionSystem.toJSON();
             cloned.emotionSystem.loadFromJSON(emotionData);
-
-            // Clone memory system state
             const memoryData = this.memorySystem.toJSON();
             cloned.memorySystem.loadFromJSON(memoryData);
         }
@@ -1995,35 +1962,20 @@ class Cortex2Brain {
         return vec;
     }
 
-    /**
-     * FIX-20: FNV-1a hash — much better avalanche than the old multiplicative hash.
-     * @param {string} seed
-     * @param {number} i
-     * @param {number} j
-     * @returns {number} float in [0, 1)
-     */
     _hashSeed(seed, i, j) {
-        let h = 0x811c9dc5; // FNV offset basis
+        let h = 0x811c9dc5;
         const s = `${seed}:${i}:${j}`;
         for (let k = 0; k < s.length; k++) {
             h ^= s.charCodeAt(k);
-            h = Math.imul(h, 0x01000193); // FNV prime
+            h = Math.imul(h, 0x01000193);
         }
         return ((h >>> 0) ^ ((h >>> 16) & 0xFFFF)) / 4294967296;
     }
 
     // ========================================================================
-    // PRIVATE — MATH / MATRIX OPS (FIX-23: optimised hot-path)
+    // PRIVATE — MATH / MATRIX OPS
     // ========================================================================
 
-    /**
-     * FIX-23: No optional chaining or _safeNumber in inner loop.
-     *         Input/matrix validated once, then raw indexed.
-     * FIX-08: Always returns linear (raw dot product); caller applies activation.
-     * @param {Float32Array|number[]} vec
-     * @param {Float32Array[]} mat
-     * @returns {Float32Array}
-     */
     _matrixMultiply(vec, mat) {
         const rows = mat.length;
         const cols = mat[0].length;
@@ -2035,6 +1987,40 @@ class Cortex2Brain {
                 sum += vec[j] * mat[j][i];
             }
             out[i] = sum;
+        }
+        return out;
+    }
+
+    /**
+     * FIX-32: Layer normalization — prevents cortex activations from exploding.
+     * Normalizes to zero mean, unit variance, then scales to [-1, 1] range.
+     * @param {Float32Array} vec
+     * @returns {Float32Array}
+     */
+    _layerNorm(vec) {
+        const n = vec.length;
+        if (n === 0) return vec;
+
+        // Compute mean
+        let sum = 0;
+        for (let i = 0; i < n; i++) sum += vec[i];
+        const mean = sum / n;
+
+        // Compute variance
+        let varSum = 0;
+        for (let i = 0; i < n; i++) {
+            const d = vec[i] - mean;
+            varSum += d * d;
+        }
+        const std = Math.sqrt(varSum / n + this.ARCH.LAYER_NORM_EPS);
+
+        // Normalize
+        const out = new Float32Array(n);
+        for (let i = 0; i < n; i++) {
+            out[i] = (vec[i] - mean) / std;
+            // Soft clamp to prevent extreme values feeding into D
+            if (out[i] > 2) out[i] = 2;
+            else if (out[i] < -2) out[i] = -2;
         }
         return out;
     }
@@ -2058,7 +2044,7 @@ class Cortex2Brain {
     _getMPred(M) { return M.subarray(this.DIM.M_PRED_START, this.DIM.M_PRED_END); }
 
     // ========================================================================
-    // PRIVATE — LAYER INPUT BUILDERS (FIX-23: no console.assert in production)
+    // PRIVATE — LAYER INPUT BUILDERS
     // ========================================================================
 
     _buildPInput(sensorInput, cPrev, sPrev, mPermPrev, ratio) {
@@ -2076,7 +2062,6 @@ class Cortex2Brain {
         let idx = 0;
         for (let i = 0; i < this.DIM.DIM_P; i++) input[idx++] = pPrev[i] * ratio;
         for (let i = 0; i < this.ARCH.M_BLOCK_SIZE; i++) input[idx++] = mWork[i];
-        // FIX-26: named constant for head slice size
         const cStart = headIdx * this.ARCH.A_HEAD_C_SLICE;
         for (let i = 0; i < this.ARCH.A_HEAD_C_SLICE; i++) {
             const ci = cStart + i;
@@ -2091,7 +2076,6 @@ class Cortex2Brain {
         let idx = 0;
         for (let i = 0; i < this.DIM.DIM_P; i++) input[idx++] = pPrev[i] * ratio;
         for (let i = 0; i < this.DIM.DIM_A; i++) input[idx++] = aPrev[i] * ratio;
-        // FIX-26: named constant
         for (let i = 0; i < this.ARCH.M_WORK_C_SLICE; i++) {
             input[idx++] = i < this.DIM.DIM_C ? cPrev[i] : 0;
         }
@@ -2110,7 +2094,6 @@ class Cortex2Brain {
         const input = new Float32Array(this.ARCH.M_PRED_INPUT);
         let idx = 0;
         for (let i = 0; i < this.DIM.DIM_A; i++) input[idx++] = aPrev[i] * ratio;
-        // FIX-12/26: named offset
         for (let i = 0; i < this.ARCH.A_HEAD_C_SLICE; i++) {
             const ci = this.ARCH.C_PRED_OFFSET + i;
             input[idx++] = ci < this.DIM.DIM_C ? cPrev[ci] : 0;
@@ -2137,7 +2120,6 @@ class Cortex2Brain {
         let idx = 0;
         for (let i = 0; i < this.DIM.DIM_P; i++) input[idx++] = pPrev[i] * ratio;
         for (let i = 0; i < this.ARCH.M_BLOCK_SIZE; i++) input[idx++] = mPerm[i];
-        // FIX-26: named offset
         for (let i = 0; i < this.ARCH.C_STATE_SLICE; i++) {
             const ci = this.ARCH.C_STATE_OFFSET + i;
             input[idx++] = ci < this.DIM.DIM_C ? cPrev[ci] : 0;
@@ -2159,15 +2141,11 @@ class Cortex2Brain {
     // PRIVATE — LEARNING INTERNALS
     // ========================================================================
 
-    /**
-     * FIX-18: Now uses full DIM_SENSOR for prediction errors.
-     */
     _updatePrediction(mPred, sensorInput) {
         const xPred = this._matrixMultiply(mPred, this.W_pred);
         for (let i = 0; i < this.DIM.DIM_SENSOR; i++) {
             xPred[i] += this.b_pred[i];
         }
-        // FIX-18: iterate over full sensor dimension
         for (let i = 0; i < this.DIM.DIM_SENSOR; i++) {
             const error = Math.abs(xPred[i] - sensorInput[i]);
             this.predictionErrors[i] = Math.min(1, Math.max(0, error));
@@ -2195,22 +2173,10 @@ class Cortex2Brain {
         this.b_V += alpha * tdErr;
     }
 
-    /**
-     * FIX-15: Now receives the actual C_input vector (stored during forward())
-     *         so trace_C is computed from the correct 289-dim input, not the
-     *         64-dim raw sensor vector.
-     * FIX-05: trace_C is updated every call (was dead in v2.1).
-     *
-     * @param {Float32Array} inputs  - sensor inputs (used for trace_P)
-     * @param {number[]}     outputs - action outputs (unused currently, reserved)
-     * @param {number}       tdErr   - TD error
-     * @param {Float32Array|null} cInput - the actual cortex input vector from forward()
-     */
     _updateEligibilityTraces(inputs, outputs, tdErr, cInput) {
         const decay = this.config.gamma * this.config.lambda;
         const maxTrace = this.ARCH.MAX_TRACE_VAL;
 
-        // trace_P: uses sensor inputs (correct: P layer receives sensor input)
         const pInputLen = Math.min(inputs.length, this.ARCH.P_INPUT);
         const dimP = this.DIM.DIM_P;
         const traceP = this.traceP;
@@ -2225,7 +2191,6 @@ class Cortex2Brain {
             }
         }
 
-        // FIX-15: trace_C: uses actual C_input (289-dim), not raw sensors
         if (cInput && cInput.length > 0) {
             const cInputLen = cInput.length;
             const dimC = this.DIM.DIM_C;
@@ -2243,11 +2208,6 @@ class Cortex2Brain {
         }
     }
 
-    /**
-     * FIX-16: Now updates ALL cortex columns (0..DIM_C), not just 64..127.
-     * FIX-21: gradientClips counter incremented when clipping occurs.
-     * @param {number} tdErr
-     */
     _applyTDError(tdErr) {
         const alpha = this.config.lr * Math.sign(tdErr) * 0.1;
         const maxGrad = this.ARCH.MAX_GRADIENT;
@@ -2255,13 +2215,11 @@ class Cortex2Brain {
         const dimC = this.DIM.DIM_C;
         const traceC = this.traceC;
 
-        // FIX-16: iterate over ALL cortex columns
         for (let i = 0; i < dimC; i++) {
             for (let j = 0; j < this.ARCH.C_INPUT; j++) {
                 const row = this.W_C[j];
                 if (row) {
                     const rawDelta = alpha * 0.01 * traceC[j * dimC + i];
-                    // FIX-21: track gradient clipping
                     let delta = rawDelta;
                     if (delta > maxGrad) { delta = maxGrad; this._stats.gradientClips++; }
                     else if (delta < -maxGrad) { delta = -maxGrad; this._stats.gradientClips++; }
@@ -2271,13 +2229,6 @@ class Cortex2Brain {
         }
     }
 
-    /**
-     * FIX-04: Proper bounds checking for W_A access.
-     * @param {Float32Array} pre
-     * @param {Float32Array} post
-     * @param {number} correlation
-     * @param {string} label
-     */
     _hebbianUpdate(pre, post, correlation, label) {
         if (!pre?.length || !post?.length) return;
         const eta = this.config.hebbianRate * correlation * 0.5;
@@ -2312,7 +2263,6 @@ class Cortex2Brain {
 // CROSS-PLATFORM EXPORT (FIX-13: single ESM export, guarded CJS)
 // ============================================================================
 
-// CJS compat — only if not in ESM mode
 if (typeof module !== 'undefined' && module.exports && typeof exports !== 'undefined') {
     try {
         module.exports = { Cortex2Brain, SeededRNG, EmotionSystem, MemorySystem, SchemaManager };
@@ -2321,13 +2271,11 @@ if (typeof module !== 'undefined' && module.exports && typeof exports !== 'undef
     }
 }
 
-// Browser globals
 if (typeof window !== 'undefined') {
     window.Cortex2Brain = Cortex2Brain;
     window.SeededRNG = SeededRNG;
 }
 
-// Worker globals
 if (typeof self !== 'undefined' && typeof self.postMessage === 'function') {
     self.Cortex2Brain = Cortex2Brain;
     self.SeededRNG = SeededRNG;
