@@ -2170,7 +2170,7 @@ class Cortex2Brain {
         // FIX-18: iterate over full sensor dimension
         for (let i = 0; i < this.DIM.DIM_SENSOR; i++) {
             const error = Math.abs(xPred[i] - sensorInput[i]);
-            this.predictionErrors[i] = lerp(this.predictionErrors[i], error, 0.1);
+            this.predictionErrors[i] = Math.min(1, Math.max(0, error));
         }
     }
 
