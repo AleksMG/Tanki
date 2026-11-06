@@ -2,1398 +2,2704 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>NEURO HUNTER v7 — Production Combat Core</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>NEURO HUNTER PRO v8.3 — Fully Expanded Rigorous Core</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#06080d;color:#d1d5db;font-family:-apple-system,'Segoe UI',sans-serif;overflow:hidden}
-#app{display:grid;grid-template-columns:1fr 340px;grid-template-rows:52px 1fr;height:100vh;gap:1px;background:#1a2332}
-header{grid-column:1/3;background:#0d1421;display:flex;align-items:center;padding:0 18px;gap:18px;border-bottom:1px solid #1a2332}
-h1{font-size:15px;color:#60a5fa;letter-spacing:1.5px;font-weight:700}
-.stat{font-size:12px;color:#6b7280}.stat b{color:#e5e7eb;font-family:'SF Mono',monospace}
-.spacer{flex:1}
-button,select{background:#111827;border:1px solid #1f2937;color:#d1d5db;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;transition:.15s}
-button:hover{border-color:#60a5fa;color:#60a5fa}
-button.primary{background:#2563eb;border-color:#2563eb;color:#fff;font-weight:600}
-button.primary:hover{background:#1d4ed8}
-#arena-wrap{position:relative;background:#030608;overflow:hidden}
-canvas{display:block;width:100%;height:100%}
-#side{background:#0d1421;padding:14px;overflow-y:auto;font-size:11px}
-.ptitle{font-size:10px;text-transform:uppercase;letter-spacing:1.8px;color:#6b7280;font-weight:700;margin:14px 0 8px}
-.tank-card{background:#030608;border:1px solid #1f2937;border-radius:6px;padding:10px;margin-bottom:8px;cursor:pointer;transition:.15s}
-.tank-card:hover{border-color:#374151}
-.tank-card.sel{border-color:#60a5fa;box-shadow:0 0 0 1px #60a5fa44}
-.tc-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.tc-name{font-weight:700;font-size:13px;flex:1}
-.mode-tag{font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px;font-family:monospace;letter-spacing:.5px;text-transform:uppercase}
-.hp-bar{height:5px;background:#1f2937;border-radius:3px;overflow:hidden;margin:5px 0}
-.hp-fill{height:100%;border-radius:3px;transition:width .2s}
-.tc-row{display:flex;justify-content:space-between;color:#6b7280;font-size:10px;line-height:1.7}
-.tc-row b{color:#d1d5db;font-family:monospace;font-size:10px}
-#brain-panel{background:#030608;border:1px solid #1f2937;border-radius:6px;padding:10px;font-family:'SF Mono',monospace;font-size:10px}
-.bp-section{margin-bottom:10px}
-.bp-title{color:#6b7280;font-size:9px;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-weight:700}
-.policy-row{display:flex;align-items:center;gap:6px;margin:2px 0}
-.policy-label{width:72px;color:#9ca3af;font-size:9px;flex-shrink:0}
-.policy-bar{flex:1;height:10px;background:#1f2937;border-radius:2px;overflow:hidden;position:relative}
-.policy-fill{height:100%;border-radius:2px;transition:width .1s}
-.policy-val{width:36px;text-align:right;font-size:9px;color:#6b7280}
-.policy-row.top .policy-fill{background:#22c55e}
-.policy-row.top .policy-label{color:#22c55e;font-weight:700}
-#log{font-family:monospace;font-size:10px;color:#6b7280;max-height:140px;overflow-y:auto;line-height:1.6}
-.log-k{color:#ef4444}.log-w{color:#eab308}.log-s{color:#06b6d4}.log-l{color:#8b5cf6}
-#legend{position:absolute;top:10px;left:10px;font-size:9px;color:#6b7280;font-family:monospace;background:rgba(3,6,8,.85);padding:8px 10px;border-radius:4px;pointer-events:none;border:1px solid #1f2937}
-.legend-item{display:flex;align-items:center;gap:6px;margin:2px 0}
-.legend-color{width:14px;height:2px}
-#metrics{background:#030608;border:1px solid #1f2937;border-radius:6px;padding:8px;font-size:10px;color:#9ca3af}
+:root {
+    --bg-deep: #050508;
+    --bg-panel: #0a0a12;
+    --border: #1a1a2e;
+    --text-main: #e0e0e0;
+    --text-dim: #6b7280;
+    --accent-blue: #00f0ff;
+    --accent-red: #ff2a2a;
+    --accent-green: #00ff9d;
+    --accent-purple: #a855f7;
+    --font-mono: 'SF Mono', 'Fira Code', monospace;
+    --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: var(--bg-deep);
+    color: var(--text-main);
+    font-family: var(--font-ui);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+}
+
+#app {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    grid-template-rows: 56px 1fr;
+    height: 100%;
+    background: var(--bg-deep);
+}
+
+header {
+    grid-column: 1 / 3;
+    background: var(--bg-panel);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    gap: 20px;
+    border-bottom: 1px solid var(--border);
+    z-index: 10;
+}
+
+h1 {
+    font-size: 14px;
+    color: var(--accent-blue);
+    letter-spacing: 2px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.stat {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.stat b {
+    color: var(--text-main);
+    font-family: var(--font-mono);
+    font-weight: 600;
+}
+
+.stat-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #333;
+}
+
+.stat-indicator.active {
+    background: var(--accent-purple);
+    box-shadow: 0 0 8px var(--accent-purple);
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.4; }
+    100% { opacity: 1; }
+}
+
+.spacer {
+    flex: 1;
+}
+
+.controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+button, select {
+    background: #11111a;
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: all 0.2s ease;
+    font-family: var(--font-ui);
+}
+
+button:hover:not(:disabled) {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+}
+
+button.primary {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: #000;
+}
+
+button.primary:hover:not(:disabled) {
+    background: #33f3ff;
+    box-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
+}
+
+button.danger {
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+}
+
+button.danger:hover:not(:disabled) {
+    background: rgba(255, 42, 42, 0.1);
+}
+
+button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    border-color: #333;
+    color: #666;
+}
+
+#arena-wrap {
+    position: relative;
+    background: radial-gradient(circle at center, #0a0a14 0%, #050508 100%);
+    overflow: hidden;
+    border-right: 1px solid var(--border);
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    image-rendering: high-quality;
+}
+
+#side {
+    background: var(--bg-panel);
+    padding: 16px;
+    overflow-y: auto;
+    font-size: 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.ptitle {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    font-weight: 700;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+}
+
+.tank-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.tank-card:hover {
+    border-color: #333;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.tank-card.sel {
+    border-color: var(--accent-blue);
+    background: rgba(0, 240, 255, 0.05);
+    box-shadow: 0 0 0 1px rgba(0, 240, 255, 0.2);
+}
+
+.tank-card.enemy.sel {
+    border-color: var(--accent-red);
+    background: rgba(255, 42, 42, 0.05);
+    box-shadow: 0 0 0 1px rgba(255, 42, 42, 0.2);
+}
+
+.tc-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 8px currentColor;
+}
+
+.tc-name {
+    font-weight: 700;
+    font-size: 12px;
+    flex: 1;
+    letter-spacing: 0.5px;
+}
+
+.team-tag {
+    font-size: 9px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 3px;
+    letter-spacing: 1px;
+}
+
+.team-tag.blue {
+    background: rgba(0, 240, 255, 0.15);
+    color: var(--accent-blue);
+}
+
+.team-tag.red {
+    background: rgba(255, 42, 42, 0.15);
+    color: var(--accent-red);
+}
+
+.hp-bar {
+    height: 4px;
+    background: #1a1a2e;
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 6px 0;
+}
+
+.hp-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tc-row {
+    display: flex;
+    justify-content: space-between;
+    color: var(--text-dim);
+    font-size: 10px;
+    line-height: 1.8;
+}
+
+.tc-row b {
+    color: var(--text-main);
+    font-family: var(--font-mono);
+    font-size: 10px;
+}
+
+#brain-panel {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+}
+
+.bp-section {
+    margin-bottom: 12px;
+}
+
+.bp-section:last-child {
+    margin-bottom: 0;
+}
+
+.bp-title {
+    color: var(--text-dim);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    font-weight: 700;
+}
+
+.policy-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 3px 0;
+}
+
+.policy-label {
+    width: 80px;
+    color: #9ca3af;
+    font-size: 9px;
+    flex-shrink: 0;
+}
+
+.policy-bar {
+    flex: 1;
+    height: 6px;
+    background: #1a1a2e;
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+}
+
+.policy-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.15s ease-out;
+}
+
+.policy-val {
+    width: 40px;
+    text-align: right;
+    font-size: 9px;
+    color: var(--text-dim);
+}
+
+.policy-row.top .policy-fill {
+    background: var(--accent-green);
+    box-shadow: 0 0 6px rgba(0, 255, 157, 0.4);
+}
+
+.policy-row.top .policy-label {
+    color: var(--accent-green);
+    font-weight: 700;
+}
+
+#log {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    max-height: 160px;
+    overflow-y: auto;
+    line-height: 1.6;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+}
+
+.log-k { color: var(--accent-red); }
+.log-w { color: var(--accent-green); }
+.log-s { color: var(--accent-blue); }
+.log-l { color: var(--accent-purple); }
+
+#metrics {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 10px;
+    color: #9ca3af;
+    font-family: var(--font-mono);
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a2a3e; border-radius: 3px; }
 </style>
 </head>
 <body>
 <div id="app">
-  <header>
-    <h1>⬡ NEURO HUNTER v7</h1>
-    <div class="stat">Эпизод <b id="h-ep">1</b></div>
-    <div class="stat">Раунд <b id="h-rnd">1</b></div>
-    <div class="stat">Обучений <b id="h-train">0</b></div>
-    <div class="stat">FPS <b id="h-fps">0</b></div>
-    <div class="spacer"></div>
-    <select id="sel-spd"><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option><option value="8">8×</option></select>
-    <button class="primary" id="btn-go">▶ БОЙ</button>
-    <button id="btn-train">🧠 Обучение ×10</button>
-    <button id="btn-rst">↻ Сброс</button>
-  </header>
-  <div id="arena-wrap">
-    <canvas id="c"></canvas>
-    <div id="legend">
-      <div class="legend-item"><span class="legend-color" style="background:#60a5fa"></span>Выбранная цель</div>
-      <div class="legend-item"><span class="legend-color" style="background:#f59e0b"></span>Упреждённое прицеливание</div>
-      <div class="legend-item"><span class="legend-color" style="background:#22c55e"></span>Линия выстрела</div>
+    <header>
+        <h1>⬡ Neuro Hunter Pro</h1>
+        <div class="stat">Эпизод <b id="h-ep">1</b></div>
+        <div class="stat">Раунд <b id="h-rnd">1</b></div>
+        <div class="stat">FPS <b id="h-fps" style="color:var(--accent-green)">60</b></div>
+        <div class="stat">
+            <span class="stat-indicator" id="train-indicator"></span>
+            <span>Train</span>
+            <b id="h-train">0</b>
+        </div>
+        <div class="stat">Buffer <b id="h-buf">0</b></div>
+        <div class="spacer"></div>
+        <div class="controls">
+            <select id="sel-spd">
+                <option value="1">1×</option>
+                <option value="2" selected>2×</option>
+                <option value="4">4×</option>
+                <option value="8">8×</option>
+            </select>
+            <button class="primary" id="btn-go">▶ START</button>
+            <button id="btn-train">🧠 TRAIN ×10</button>
+            <button class="danger" id="btn-rst">↻ RESET</button>
+        </div>
+    </header>
+
+    <div id="arena-wrap">
+        <canvas id="c"></canvas>
     </div>
-  </div>
-  <div id="side">
-    <div class="ptitle">Бойцы</div>
-    <div id="tank-list"></div>
-    <div class="ptitle">Мозг выбранного</div>
-    <div id="brain-panel"><div style="color:#6b7280">Выберите танк</div></div>
-    <div class="ptitle">Метрики обучения</div>
-    <div id="metrics">—</div>
-    <div class="ptitle">Журнал</div>
-    <div id="log"></div>
-  </div>
+
+    <div id="side">
+        <div>
+            <div class="ptitle">Боевые единицы</div>
+            <div id="tank-list"></div>
+        </div>
+        <div>
+            <div class="ptitle">Нейро-мозг (Выбранный)</div>
+            <div id="brain-panel">
+                <div style="color:var(--text-dim); text-align:center; padding: 10px;">Выберите юнит для телеметрии</div>
+            </div>
+        </div>
+        <div>
+            <div class="ptitle">Метрики PPO</div>
+            <div id="metrics">Ожидание данных...</div>
+        </div>
+        <div>
+            <div class="ptitle">Тактический журнал</div>
+            <div id="log"></div>
+        </div>
+    </div>
 </div>
 
 <script>
 'use strict';
 
 /* ═══════════════════════════════════════════════════════════════════════
-   MATH UTILITIES
-═══════════════════════════════════════════════════════════════════════ */
-const clamp=(v,a,b)=>v<a?a:v>b?b:v;
-const lerp=(a,b,t)=>a+(b-a)*t;
-const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
-const normAng=a=>{a%=Math.PI*2;if(a>Math.PI)a-=Math.PI*2;if(a<-Math.PI)a+=Math.PI*2;return a};
-const angDiff=(a,b)=>normAng(a-b);
-const TAU=Math.PI*2;
-const EPS=1e-8;
-
-class SeededRNG{
-  constructor(seed){this.state=(seed>>>0)||1;}
-  fork(extraSeed){return new SeededRNG((this.state*0x9E3779B1)^(extraSeed>>>0));}
-  next(){
-    let t=this.state+=0x6D2B79F5;
-    t=Math.imul(t^t>>>15,t|1);
-    t^=t+Math.imul(t^t>>>7,t|61);
-    this.state=(t^t>>>14)>>>0;
-    return this.state/4294967296;
-  }
-  range(a,b){return a+this.next()*(b-a);}
-  gaussian(mean=0,std=1){
-    const u1=Math.max(this.next(),EPS);
-    const u2=this.next();
-    return Math.sqrt(-2*Math.log(u1))*Math.cos(TAU*u2)*std+mean;
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
-   NEURAL NETWORK LAYERS
+   1. CORE MATH & PHYSICS ENGINE (FULLY EXPANDED)
 ═══════════════════════════════════════════════════════════════════════ */
 
-class Linear{
-  constructor(inF,outF,rng,scale=null){
-    this.inF=inF;this.outF=outF;
-    this.W=new Float32Array(outF*inF);
-    this.b=new Float32Array(outF);
-    this.velW=new Float32Array(outF*inF);
-    this.velB=new Float32Array(outF);
-    const s=scale??Math.sqrt(2/inF);
-    for(let i=0;i<this.W.length;i++)this.W[i]=(rng.next()*2-1)*s;
-    this.dW=new Float32Array(outF*inF);
-    this.db=new Float32Array(outF);
-    this.lastIn=null;
-    this.lastPreAct=null;
-  }
-  forward(x){
-    this.lastIn=x;
-    const out=new Float32Array(this.outF);
-    const W=this.W,b=this.b,inF=this.inF,outF=this.outF;
-    for(let o=0;o<outF;o++){
-      let s=b[o];const row=o*inF;
-      for(let i=0;i<inF;i++)s+=W[row+i]*x[i];
-      out[o]=s;
+function clamp(value, min, max) {
+    if (value < min) {
+        return min;
     }
-    this.lastPreAct=out.slice();
-    return out;
-  }
-  backward(dOut){
-    const x=this.lastIn,inF=this.inF,outF=this.outF;
-    const W=this.W,dW=this.dW,db=this.db;
-    const dIn=new Float32Array(inF);
-    for(let o=0;o<outF;o++){
-      const dout=dOut[o];
-      db[o]+=dout;
-      const row=o*inF;
-      for(let i=0;i<inF;i++){
-        dW[row+i]+=dout*x[i];
-        dIn[i]+=dout*W[row+i];
-      }
+    if (value > max) {
+        return max;
     }
-    return dIn;
-  }
-  apply(lr,momentum=0.9,clipVal=5){
-    const W=this.W,b=this.b,dW=this.dW,db=this.db;
-    const velW=this.velW,velB=this.velB;
-    let gn=0;
-    for(let i=0;i<dW.length;i++)gn+=dW[i]*dW[i];
-    for(let i=0;i<db.length;i++)gn+=db[i]*db[i];
-    gn=Math.sqrt(gn);
-    const scale=gn>clipVal?clipVal/gn:1;
-    for(let i=0;i<W.length;i++){
-      velW[i]=momentum*velW[i]+dW[i]*scale;
-      W[i]+=lr*velW[i];
-      dW[i]=0;
-    }
-    for(let i=0;i<b.length;i++){
-      velB[i]=momentum*velB[i]+db[i]*scale;
-      b[i]+=lr*velB[i];
-      db[i]=0;
-    }
-  }
-  zeroGrad(){this.dW.fill(0);this.db.fill(0);}
+    return value;
 }
 
-function reluForward(x){const o=new Float32Array(x.length);for(let i=0;i<x.length;i++)o[i]=x[i]>0?x[i]:0;return o}
-function reluBackward(preAct,dOut){const o=new Float32Array(preAct.length);for(let i=0;i<preAct.length;i++)o[i]=preAct[i]>0?dOut[i]:0;return o}
-function softmax(x){
-  let max=-Infinity;for(let i=0;i<x.length;i++)if(x[i]>max)max=x[i];
-  const o=new Float32Array(x.length);let s=0;
-  for(let i=0;i<x.length;i++){o[i]=Math.exp(x[i]-max);s+=o[i];}
-  for(let i=0;i<x.length;i++)o[i]/=s;
-  return o;
+function dist(a, b) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
-   SENSOR BUILDING
-═══════════════════════════════════════════════════════════════════════ */
-
-const MAX_ENEMIES=4;
-const MAX_ENEMY_FEATURES=8;
-const N_LIDAR=8;
-const SENSOR_DIM=52;
-const SELF_OFF=0;
-const ENEMY_OFF=6;
-const LIDAR_OFF=ENEMY_OFF+MAX_ENEMIES*MAX_ENEMY_FEATURES;
-const BULLET_OFF=LIDAR_OFF+N_LIDAR;
-const META_OFF=BULLET_OFF+3;
-
-function buildSensors(tank,tanks,bullets,walls,AW,AH){
-  const s=new Float32Array(SENSOR_DIM);
-  s[SELF_OFF+0]=tank.pos.x/AW*2-1;
-  s[SELF_OFF+1]=tank.pos.y/AH*2-1;
-  s[SELF_OFF+2]=tank.hp/tank.maxHp;
-  s[SELF_OFF+3]=tank.reload<=0?1:tank.reload/tank.reloadTime;
-  s[SELF_OFF+4]=Math.cos(tank.angle);
-  s[SELF_OFF+5]=Math.sin(tank.angle);
-  
-  // Профессиональная доработка: фильтрация по команде для предотвращения обучения friendly fire
-  const enemies=tanks.filter(t=>t.alive&&t.id!==tank.id&&t.team!==tank.team);
-  const sorted=enemies.map(e=>({e,d:dist(tank.pos,e.pos)})).sort((a,b)=>a.d-b.d);
-  const maxD=Math.hypot(AW,AH);
-  
-  for(let k=0;k<MAX_ENEMIES;k++){
-    const off=ENEMY_OFF+k*MAX_ENEMY_FEATURES;
-    const rec=sorted[k];
-    if(rec){
-      const e=rec.e;
-      s[off+0]=(e.pos.x-tank.pos.x)/maxD;
-      s[off+1]=(e.pos.y-tank.pos.y)/maxD;
-      s[off+2]=clamp(rec.d/maxD,0,1);
-      s[off+3]=clamp(e.vel.x/3,-1,1);
-      s[off+4]=clamp(e.vel.y/3,-1,1);
-      s[off+5]=e.hp/e.maxHp;
-      const aimAtMe=Math.atan2(tank.pos.y-e.pos.y,tank.pos.x-e.pos.x);
-      const aimErr=Math.abs(angDiff(e.turret,aimAtMe));
-      s[off+6]=clamp(1-aimErr/(Math.PI/2),0,1);
-      s[off+7]=e.hp<tank.hp?1:0;
+function normAng(a) {
+    a = a % (Math.PI * 2);
+    if (a > Math.PI) {
+        a = a - (Math.PI * 2);
     }
-  }
-  
-  for(let i=0;i<N_LIDAR;i++){
-    const a=tank.angle+(i/N_LIDAR)*TAU;
-    const hit=raycastWalls(tank.pos,a,160,walls,AW,AH);
-    s[LIDAR_OFF+i]=clamp(hit/160,0,1);
-  }
-  
-  let threat=0,dodgeX=0,dodgeY=0;
-  for(const b of bullets){
-    if(b.owner===tank.id)continue;
-    const d=dist(b.pos,tank.pos);
-    if(d>180)continue;
-    const toMe={x:tank.pos.x-b.pos.x,y:tank.pos.y-b.pos.y};
-    const dot=toMe.x*b.vel.x+toMe.y*b.vel.y;
-    if(dot>0){
-      const t=clamp(1-d/180,0,1);
-      if(t>threat){
-        threat=t;
-        const bl=Math.hypot(b.vel.x,b.vel.y)||1;
-        let dx=-b.vel.y/bl,dy=b.vel.x/bl;
-        const side=toMe.x*dx+toMe.y*dy;
-        if(side<0){dx=-dx;dy=-dy;}
-        dodgeX=dx;dodgeY=dy;
-      }
+    if (a < -Math.PI) {
+        a = a + (Math.PI * 2);
     }
-  }
-  s[BULLET_OFF+0]=threat;
-  s[BULLET_OFF+1]=dodgeX;
-  s[BULLET_OFF+2]=dodgeY;
-  
-  s[META_OFF+0]=clamp(nearestWallDist(tank.pos,walls)/80,0,1);
-  s[META_OFF+1]=clamp(enemies.length/6,0,1);
-  s[META_OFF+2]=tank.recentDamage>0?clamp(tank.recentDamage/30,0,1):0;
-  
-  return s;
+    return a;
 }
 
-function extractEnemyFeatures(sensors,k){
-  const off=ENEMY_OFF+k*MAX_ENEMY_FEATURES;
-  const features=new Float32Array(MAX_ENEMY_FEATURES);
-  for(let i=0;i<MAX_ENEMY_FEATURES;i++)features[i]=sensors[off+i];
-  return features;
+function angDiff(a, b) {
+    return normAng(a - b);
 }
 
-function raycastWalls(pos,ang,maxD,walls,AW,AH){
-  const step=6,dx=Math.cos(ang),dy=Math.sin(ang);
-  for(let d=step;d<=maxD;d+=step){
-    const x=pos.x+dx*d,y=pos.y+dy*d;
-    if(x<0||x>AW||y<0||y>AH)return d;
-    for(const w of walls)if(x>=w.x&&x<=w.x+w.w&&y>=w.y&&y<=w.y+w.h)return d;
-  }
-  return maxD;
-}
-function nearestWallDist(pos,walls){
-  let best=1e9;
-  for(const w of walls){
-    const cx=clamp(pos.x,w.x,w.x+w.w),cy=clamp(pos.y,w.y,w.y+w.h);
-    best=Math.min(best,Math.hypot(pos.x-cx,pos.y-cy));
-  }
-  return best;
-}
-function pointInWall(x,y,walls){
-  for(const w of walls)if(x>=w.x&&x<=w.x+w.w&&y>=w.y&&y<=w.y+w.h)return true;
-  return false;
-}
+const TAU = Math.PI * 2;
+const EPS = 1e-8;
 
-/* ═══════════════════════════════════════════════════════════════════════
-   ENCODER (shared trunk)
-═══════════════════════════════════════════════════════════════════════ */
-
-const EMBED_DIM=64;
-class Encoder{
-  constructor(rng){
-    this.fc1=new Linear(SENSOR_DIM,96,rng);
-    this.fc2=new Linear(96,EMBED_DIM,rng);
-    this.lastPreAct1=null;
-    this.lastPreAct2=null;
-  }
-  forward(x){
-    const h1_pre=this.fc1.forward(x);
-    this.lastPreAct1=h1_pre;
-    const h1=reluForward(h1_pre);
-    const h2_pre=this.fc2.forward(h1);
-    this.lastPreAct2=h2_pre;
-    return reluForward(h2_pre);
-  }
-  backward(dOut){
-    const dh2=reluBackward(this.lastPreAct2,dOut);
-    const dh1=this.fc2.backward(dh2);
-    const dh1_act=reluBackward(this.lastPreAct1,dh1);
-    return this.fc1.backward(dh1_act);
-  }
-  getLayers(){return[this.fc1,this.fc2];}
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
-   POLICY NETWORK
-═══════════════════════════════════════════════════════════════════════ */
-
-const TACTICS_NAMES=['АТАКА','ФЛАНГ-Л','ФЛАНГ-П','ДИСТАНЦИЯ','УКЛОН','ОТСТУП','УКРЫТИЕ','ПАТРУЛЬ'];
-const N_TACTICS=8;
-const LOW_DIM=5;
-
-class PolicyNet{
-  constructor(rng){
-    this.encoder=new Encoder(rng);
-    this.policyFC=new Linear(EMBED_DIM,96,rng);
-    this.tacticsHead=new Linear(96,N_TACTICS,rng,0.01);
-    this.targetHead=new Linear(96+MAX_ENEMY_FEATURES,1,rng,0.01);
-    this.lowMeanHead=new Linear(96,LOW_DIM,rng,0.01);
-    this.lowLogStdHead=new Linear(96,LOW_DIM,rng,0.01);
-    for(let i=0;i<LOW_DIM;i++)this.lowLogStdHead.b[i]=0;
-    this.valueHead=new Linear(96,1,rng,0.01);
-    
-    this.lastH=null;
-    this.lastPreActPolicy=null;
-  }
-  
-  forward(sensors,rng){
-    const emb=this.encoder.forward(sensors);
-    const h_pre=this.policyFC.forward(emb);
-    this.lastPreActPolicy=h_pre;
-    const h=reluForward(h_pre);
-    this.lastH=h;
-    
-    const tacticsLogits=this.tacticsHead.forward(h);
-    const tacticsProbs=softmax(tacticsLogits);
-    let r=rng.next(),cum=0,tactic=0;
-    for(let i=0;i<N_TACTICS;i++){cum+=tacticsProbs[i];if(r<=cum){tactic=i;break;}}
-    
-    const enemyFeatures=[];
-    const targetScores=new Float32Array(MAX_ENEMIES);
-    let validCount=0;
-    for(let k=0;k<MAX_ENEMIES;k++){
-      const off=ENEMY_OFF+k*MAX_ENEMY_FEATURES;
-      const isEnemy=sensors[off+2]>0.001;
-      if(!isEnemy){
-        targetScores[k]=-100;
-        enemyFeatures.push(null);
-        continue;
-      }
-      const features=extractEnemyFeatures(sensors,k);
-      enemyFeatures.push(features);
-      const concat=new Float32Array(96+MAX_ENEMY_FEATURES);
-      for(let i=0;i<96;i++)concat[i]=h[i];
-      for(let i=0;i<MAX_ENEMY_FEATURES;i++)concat[96+i]=features[i];
-      targetScores[k]=this.targetHead.forward(concat)[0];
-      validCount++;
+class Vector2 {
+    constructor(x, y) {
+        this.x = x !== undefined ? x : 0;
+        this.y = y !== undefined ? y : 0;
     }
-    
-    const targetProbs=new Float32Array(MAX_ENEMIES);
-    if(validCount>0){
-      let maxS=-Infinity;
-      for(let k=0;k<MAX_ENEMIES;k++)if(targetScores[k]>maxS)maxS=targetScores[k];
-      let sum=0;
-      for(let k=0;k<MAX_ENEMIES;k++){
-        if(targetScores[k]>-50){targetProbs[k]=Math.exp(targetScores[k]-maxS);sum+=targetProbs[k];}
-      }
-      if(sum>EPS)for(let k=0;k<MAX_ENEMIES;k++)targetProbs[k]/=sum;
-    }
-    
-    let targetIdx=0;
-    r=rng.next();cum=0;
-    for(let k=0;k<MAX_ENEMIES;k++){cum+=targetProbs[k];if(r<=cum){targetIdx=k;break;}}
-    
-    const lowMean=this.lowMeanHead.forward(h);
-    const lowLogStd=this.lowLogStdHead.forward(h);
-    const action=new Float32Array(LOW_DIM);
-    const actionSamples=new Float32Array(LOW_DIM);
-    let lowLogProb=0;
-    for(let i=0;i<LOW_DIM;i++){
-      const std=Math.exp(clamp(lowLogStd[i],-5,2));
-      const sample=rng.gaussian(lowMean[i],std);
-      actionSamples[i]=sample;
-      action[i]=Math.tanh(sample);
-      const logP=-0.5*Math.log(2*Math.PI)-lowLogStd[i]-0.5*((sample-lowMean[i])/std)**2;
-      const correction=Math.log(1-action[i]*action[i]+EPS);
-      lowLogProb+=logP-correction;
-    }
-    
-    const value=this.valueHead.forward(h)[0];
-    
-    return{
-      tactic,action,value,tacticsProbs,
-      targetIdx,targetScores,targetProbs,enemyFeatures,validCount,
-      lowLogProb,lowMean,lowLogStd,actionSamples
-    };
-  }
-  
-  forwardValue(sensors){
-    const emb=this.encoder.forward(sensors);
-    const h=reluForward(this.policyFC.forward(emb));
-    return this.valueHead.forward(h)[0];
-  }
-  
-  getLayers(){
-    return[...this.encoder.getLayers(),this.policyFC,this.tacticsHead,
-           this.targetHead,this.lowMeanHead,this.lowLogStdHead,this.valueHead];
-  }
-}
 
-/* ═══════════════════════════════════════════════════════════════════════
-   TRAJECTORY BUFFER
-═══════════════════════════════════════════════════════════════════════ */
-
-class TrajectoryBuffer{
-  constructor(maxEpisodes=40){this.maxEpisodes=maxEpisodes;this.episodes=[];}
-  addEpisode(transitions,bootstrapValue=0){
-    if(transitions.length===0)return;
-    this.episodes.push({transitions,bootstrapValue});
-    while(this.episodes.length>this.maxEpisodes)this.episodes.shift();
-  }
-  sample(n){
-    if(this.episodes.length===0)return[];
-    const out=[];
-    for(let i=0;i<n;i++)out.push(this.episodes[(Math.random()*this.episodes.length)|0]);
-    return out;
-  }
-  size(){return this.episodes.reduce((s,e)=>s+e.transitions.length,0);}
-  clear(){this.episodes=[];}
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
-   PPO TRAINER
-═══════════════════════════════════════════════════════════════════════ */
-
-class PPOTrainer{
-  constructor(policy,lr=0.0004){
-    this.policy=policy;
-    this.lr=lr;
-    this.gamma=0.995;
-    this.lambda=0.95;
-    this.clipEps=0.2;
-    this.entropyCoef=0.015;
-    this.valueCoef=0.5;
-    this.epochs=4;
-    this.batchSize=64;
-    this.trainSteps=0;
-    this.lastMetrics={policyLoss:0,valueLoss:0,entropy:0,targetLoss:0};
-  }
-  
-  computeGAE(transitions,bootstrapValue){
-    const T=transitions.length;
-    const advantages=new Float32Array(T);
-    const returns=new Float32Array(T);
-    let gae=0,nextV=bootstrapValue;
-    for(let t=T-1;t>=0;t--){
-      const delta=transitions[t].reward+this.gamma*nextV-transitions[t].value;
-      gae=delta+this.gamma*this.lambda*gae;
-      advantages[t]=gae;
-      returns[t]=gae+transitions[t].value;
-      nextV=transitions[t].value;
+    add(v) {
+        this.x = this.x + v.x;
+        this.y = this.y + v.y;
+        return this;
     }
-    return{advantages,returns};
-  }
-  
-  trainStep(buffer){
-    const episodes=buffer.sample(8);
-    if(episodes.length===0)return this.lastMetrics;
-    
-    const all=[];
-    for(const ep of episodes){
-      const{advantages,returns}=this.computeGAE(ep.transitions,ep.bootstrapValue);
-      for(let t=0;t<ep.transitions.length;t++){
-        all.push({...ep.transitions[t],advantage:advantages[t],return_:returns[t]});
-      }
+
+    mult(s) {
+        this.x = this.x * s;
+        this.y = this.y * s;
+        return this;
     }
-    
-    let amean=0,avar=0;
-    for(const x of all)amean+=x.advantage;
-    amean/=all.length;
-    for(const x of all){const d=x.advantage-amean;avar+=d*d;}
-    const astdev=Math.sqrt(avar/all.length+EPS);
-    for(const x of all)x.advantage=(x.advantage-amean)/astdev;
-    
-    let tPL=0,tVL=0,tEnt=0,tTL=0,count=0;
-    
-    for(let epoch=0;epoch<this.epochs;epoch++){
-      for(let i=all.length-1;i>0;i--){
-        const j=(Math.random()*(i+1))|0;
-        [all[i],all[j]]=[all[j],all[i]];
-      }
-      for(let start=0;start<all.length;start+=this.batchSize){
-        const batch=all.slice(start,start+this.batchSize);
-        if(batch.length<4)continue;
-        for(const L of this.policy.getLayers())L.zeroGrad();
-        for(const ex of batch){
-          const m=this._trainOne(ex);
-          tPL+=m.policy;tVL+=m.value;tEnt+=m.entropy;tTL+=m.target;count++;
+
+    mag() {
+        return Math.hypot(this.x, this.y);
+    }
+
+    normalize() {
+        const m = this.mag();
+        if (m > 0) {
+            this.mult(1 / m);
         }
-        for(const L of this.policy.getLayers())L.apply(this.lr,0.9,5);
-        this.trainSteps++;
-      }
+        return this;
     }
-    
-    this.lastMetrics={
-      policyLoss:count?tPL/count:0,
-      valueLoss:count?tVL/count:0,
-      entropy:count?tEnt/count:0,
-      targetLoss:count?tTL/count:0
-    };
-    return this.lastMetrics;
-  }
-  
-  _trainOne(ex){
-    const p=this.policy;
-    
-    const emb=p.encoder.forward(ex.state);
-    const h_pre=p.policyFC.forward(emb);
-    const h=reluForward(h_pre);
-    p.lastH=h;p.lastPreActPolicy=h_pre;
-    
-    const adv=ex.advantage;
-    
-    // === TACTICS ===
-    const tacticsLogits=p.tacticsHead.forward(h);
-    const newTacticsProbs=softmax(tacticsLogits);
-    const oldTacticsProbs=ex.tacticsProbs;
-    const tactic=ex.tactic;
-    const ratio=newTacticsProbs[tactic]/Math.max(oldTacticsProbs[tactic],EPS);
-    const clippedRatio=clamp(ratio,1-this.clipEps,1+this.clipEps);
-    const policyLoss=-Math.min(ratio*adv,clippedRatio*adv);
-    const isTacticsClipped=(ratio<1-this.clipEps&&adv>0)||(ratio>1+this.clipEps&&adv<0);
-    
-    const dLogits=new Float32Array(N_TACTICS);
-    if(!isTacticsClipped){
-      for(let j=0;j<N_TACTICS;j++){
-        const dp_dlogit=newTacticsProbs[tactic]*((tactic===j?1:0)-newTacticsProbs[j]);
-        const dratio_dlogit=ratio*dp_dlogit/newTacticsProbs[tactic];
-        dLogits[j]+=-adv*dratio_dlogit;
-      }
+}
+
+class SeededRNG {
+    constructor(seed) {
+        this.state = (seed >>> 0) || 1;
     }
-    
-    let entropy=0;
-    for(let i=0;i<N_TACTICS;i++)entropy-=newTacticsProbs[i]*Math.log(newTacticsProbs[i]+EPS);
-    
-    const dEntropy_dLogits=new Float32Array(N_TACTICS);
-    for(let j=0;j<N_TACTICS;j++){
-      let sum=0;
-      for(let i=0;i<N_TACTICS;i++){
-        const pi=newTacticsProbs[i];
-        const dH_dp=-(Math.log(pi+EPS)+1);
-        const dp_dlogit=pi*((i===j?1:0)-newTacticsProbs[j]);
-        sum+=dH_dp*dp_dlogit;
-      }
-      dEntropy_dLogits[j]=sum;
+
+    fork(extraSeed) {
+        const newState = (this.state * 0x9E3779B1) ^ (extraSeed >>> 0);
+        return new SeededRNG(newState);
     }
-    for(let j=0;j<N_TACTICS;j++)dLogits[j]-=this.entropyCoef*dEntropy_dLogits[j];
-    
-    const dh_tactics=p.tacticsHead.backward(dLogits);
-    
-    // === TARGET ===
-    const newScores=new Float32Array(MAX_ENEMIES);
-    const oldScores=ex.targetScores;
-    const oldTargetIdx=ex.targetIdx;
-    const validCount=ex.validCount||0;
-    
-    for(let k=0;k<MAX_ENEMIES;k++){
-      if(!ex.enemyFeatures||!ex.enemyFeatures[k]){newScores[k]=-100;continue;}
-      const concat=new Float32Array(96+MAX_ENEMY_FEATURES);
-      for(let i=0;i<96;i++)concat[i]=h[i];
-      for(let i=0;i<MAX_ENEMY_FEATURES;i++)concat[96+i]=ex.enemyFeatures[k][i];
-      newScores[k]=p.targetHead.forward(concat)[0];
+
+    next() {
+        let t = this.state + 0x6D2B79F5;
+        this.state = t;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t = t ^ (t + Math.imul(t ^ (t >>> 7), t | 61));
+        this.state = (t ^ (t >>> 14)) >>> 0;
+        return this.state / 4294967296;
     }
-    
-    const newTargetProbs=new Float32Array(MAX_ENEMIES);
-    const oldTargetProbs=new Float32Array(MAX_ENEMIES);
-    if(validCount>0){
-      let maxN=-Infinity,maxO=-Infinity;
-      for(let k=0;k<MAX_ENEMIES;k++){if(newScores[k]>maxN)maxN=newScores[k];if(oldScores[k]>maxO)maxO=oldScores[k];}
-      let sumN=0,sumO=0;
-      for(let k=0;k<MAX_ENEMIES;k++){
-        if(newScores[k]>-50){newTargetProbs[k]=Math.exp(newScores[k]-maxN);sumN+=newTargetProbs[k];}
-        if(oldScores[k]>-50){oldTargetProbs[k]=Math.exp(oldScores[k]-maxO);sumO+=oldTargetProbs[k];}
-      }
-      if(sumN>EPS)for(let k=0;k<MAX_ENEMIES;k++)newTargetProbs[k]/=sumN;
-      if(sumO>EPS)for(let k=0;k<MAX_ENEMIES;k++)oldTargetProbs[k]/=sumO;
+
+    gaussian(mean, std) {
+        const m = mean !== undefined ? mean : 0;
+        const s = std !== undefined ? std : 1;
+        const u1 = Math.max(this.next(), EPS);
+        const u2 = this.next();
+        const mag = Math.sqrt(-2 * Math.log(u1));
+        const cos = Math.cos(TAU * u2);
+        return mag * cos * s + m;
     }
-    
-    const targetRatio=newTargetProbs[oldTargetIdx]/Math.max(oldTargetProbs[oldTargetIdx],EPS);
-    const targetClippedRatio=clamp(targetRatio,1-this.clipEps,1+this.clipEps);
-    const targetLoss=-Math.min(targetRatio*adv,targetClippedRatio*adv);
-    const isTargetClipped=(targetRatio<1-this.clipEps&&adv>0)||(targetRatio>1+this.clipEps&&adv<0);
-    
-    const dTargetScores=new Float32Array(MAX_ENEMIES);
-    if(!isTargetClipped&&validCount>0&&newTargetProbs[oldTargetIdx]>0.01){
-      for(let k=0;k<MAX_ENEMIES;k++){
-        if(newTargetProbs[k]===0)continue;
-        const dp_dscore=newTargetProbs[oldTargetIdx]*((oldTargetIdx===k?1:0)-newTargetProbs[k]);
-        const dratio_dscore=targetRatio*dp_dscore/newTargetProbs[oldTargetIdx];
-        dTargetScores[k]=-adv*dratio_dscore;
-      }
-    }
-    
-    const dh_target=new Float32Array(96);
-    for(let k=0;k<MAX_ENEMIES;k++){
-      if(!ex.enemyFeatures||!ex.enemyFeatures[k])continue;
-      if(dTargetScores[k]===0)continue;
-      const concat=new Float32Array(96+MAX_ENEMY_FEATURES);
-      for(let i=0;i<96;i++)concat[i]=h[i];
-      for(let i=0;i<MAX_ENEMY_FEATURES;i++)concat[96+i]=ex.enemyFeatures[k][i];
-      p.targetHead.forward(concat);
-      const dConcat=p.targetHead.backward(new Float32Array([dTargetScores[k]]));
-      for(let i=0;i<96;i++)dh_target[i]+=dConcat[i];
-    }
-    
-    // === LOW-LEVEL ===
-    const lowMean=p.lowMeanHead.forward(h);
-    const lowLogStd=p.lowLogStdHead.forward(h);
-    const oldAction=ex.action;
-    const oldSamples=ex.actionSamples;
-    
-    if(!oldSamples){return{policy:policyLoss,value:0,entropy:0,target:targetLoss};}
-    
-    let lowLogProb=0;
-    const dMean=new Float32Array(LOW_DIM);
-    const dLogStd=new Float32Array(LOW_DIM);
-    for(let i=0;i<LOW_DIM;i++){
-      const std=Math.exp(clamp(lowLogStd[i],-5,2));
-      const sample=oldSamples[i];
-      const z=(sample-lowMean[i])/std;
-      const logP=-0.5*Math.log(2*Math.PI)-lowLogStd[i]-0.5*z*z;
-      const actionI=oldAction[i];
-      const correction=Math.log(1-actionI*actionI+EPS);
-      lowLogProb+=logP-correction;
-      dMean[i]=z/std;
-      dLogStd[i]=z*z-1;
-    }
-    
-    const oldLowLogProb=ex.lowLogProb;
-    const lowRatio=Math.exp(clamp(lowLogProb-oldLowLogProb,-10,10));
-    const lowClippedRatio=clamp(lowRatio,1-this.clipEps,1+this.clipEps);
-    const lowPolicyLoss=-Math.min(lowRatio*adv,lowClippedRatio*adv);
-    const isLowClipped=(lowRatio<1-this.clipEps&&adv>0)||(lowRatio>1+this.clipEps&&adv<0);
-    const gradScale=isLowClipped?0:-adv*lowRatio;
-    for(let i=0;i<LOW_DIM;i++){dMean[i]*=gradScale;dLogStd[i]*=gradScale;}
-    
-    const dh_lowMean=p.lowMeanHead.backward(dMean);
-    const dh_lowLogStd=p.lowLogStdHead.backward(dLogStd);
-    
-    // === VALUE ===
-    const newValue=p.valueHead.forward(h)[0];
-    const valueLoss=(newValue-ex.return_)**2;
-    const dV=2*this.valueCoef*(newValue-ex.return_);
-    const dh_value=p.valueHead.backward(new Float32Array([dV]));
-    
-    // === COMBINE ===
-    const dh=new Float32Array(96);
-    for(let i=0;i<96;i++){
-      dh[i]=dh_tactics[i]+dh_target[i]+dh_lowMean[i]+dh_lowLogStd[i]+dh_value[i];
-    }
-    const dh_pre=reluBackward(h_pre,dh);
-    const dEmb=p.policyFC.backward(dh_pre);
-    p.encoder.backward(dEmb);
-    
-    return{policy:policyLoss+lowPolicyLoss,value:valueLoss,entropy,target:targetLoss};
-  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   COMBAT AI CORE - PRODUCTION MODULES
+   2. NEURAL NETWORK LAYERS (FULLY EXPANDED)
+═══════════════════════════════════════════════════════════════════════ */
+
+class Linear {
+    constructor(inF, outF, rng, scale) {
+        this.inF = inF;
+        this.outF = outF;
+        this.W = new Float32Array(outF * inF);
+        this.b = new Float32Array(outF);
+        this.velW = new Float32Array(outF * inF);
+        this.velB = new Float32Array(outF);
+        
+        const s = scale !== null && scale !== undefined ? scale : Math.sqrt(2 / inF);
+        for (let i = 0; i < this.W.length; i++) {
+            this.W[i] = (this.nextRandom(rng) * 2 - 1) * s;
+        }
+        
+        this.dW = new Float32Array(outF * inF);
+        this.db = new Float32Array(outF);
+        this.lastIn = null;
+    }
+
+    nextRandom(rng) {
+        return rng.next();
+    }
+
+    forward(x) {
+        this.lastIn = x;
+        const out = new Float32Array(this.outF);
+        const W = this.W;
+        const b = this.b;
+        const inF = this.inF;
+        const outF = this.outF;
+        
+        for (let o = 0; o < outF; o++) {
+            let s = b[o];
+            const row = o * inF;
+            for (let i = 0; i < inF; i++) {
+                s = s + (W[row + i] * x[i]);
+            }
+            out[o] = s;
+        }
+        return out;
+    }
+
+    backward(dOut) {
+        const x = this.lastIn;
+        const inF = this.inF;
+        const outF = this.outF;
+        const W = this.W;
+        const dW = this.dW;
+        const db = this.db;
+        const dIn = new Float32Array(inF);
+        
+        for (let o = 0; o < outF; o++) {
+            const dout = dOut[o];
+            db[o] = db[o] + dout;
+            const row = o * inF;
+            for (let i = 0; i < inF; i++) {
+                dW[row + i] = dW[row + i] + (dout * x[i]);
+                dIn[i] = dIn[i] + (dout * W[row + i]);
+            }
+        }
+        return dIn;
+    }
+
+    apply(lr, momentum, clipVal) {
+        const m = momentum !== undefined ? momentum : 0.9;
+        const c = clipVal !== undefined ? clipVal : 5;
+        const W = this.W;
+        const b = this.b;
+        const dW = this.dW;
+        const db = this.db;
+        const velW = this.velW;
+        const velB = this.velB;
+        
+        let gn = 0;
+        for (let i = 0; i < dW.length; i++) {
+            gn = gn + (dW[i] * dW[i]);
+        }
+        for (let i = 0; i < db.length; i++) {
+            gn = gn + (db[i] * db[i]);
+        }
+        gn = Math.sqrt(gn);
+        
+        const scale = gn > c ? c / gn : 1;
+        
+        for (let i = 0; i < W.length; i++) {
+            velW[i] = (m * velW[i]) + (dW[i] * scale);
+            W[i] = W[i] + (lr * velW[i]);
+            dW[i] = 0;
+        }
+        for (let i = 0; i < b.length; i++) {
+            velB[i] = (m * velB[i]) + (db[i] * scale);
+            b[i] = b[i] + (lr * velB[i]);
+            db[i] = 0;
+        }
+    }
+
+    zeroGrad() {
+        this.dW.fill(0);
+        this.db.fill(0);
+    }
+}
+
+function reluForward(x) {
+    const o = new Float32Array(x.length);
+    for (let i = 0; i < x.length; i++) {
+        if (x[i] > 0) {
+            o[i] = x[i];
+        } else {
+            o[i] = 0;
+        }
+    }
+    return o;
+}
+
+function reluBackward(preAct, dOut) {
+    const o = new Float32Array(preAct.length);
+    for (let i = 0; i < preAct.length; i++) {
+        if (preAct[i] > 0) {
+            o[i] = dOut[i];
+        } else {
+            o[i] = 0;
+        }
+    }
+    return o;
+}
+
+function softmax(x) {
+    let max = -Infinity;
+    for (let i = 0; i < x.length; i++) {
+        if (x[i] > max) {
+            max = x[i];
+        }
+    }
+    const o = new Float32Array(x.length);
+    let s = 0;
+    for (let i = 0; i < x.length; i++) {
+        o[i] = Math.exp(x[i] - max);
+        s = s + o[i];
+    }
+    for (let i = 0; i < x.length; i++) {
+        o[i] = o[i] / s;
+    }
+    return o;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   3. SENSOR & ENVIRONMENT (FULLY EXPANDED)
+═══════════════════════════════════════════════════════════════════════ */
+
+const MAX_ENEMIES = 4;
+const MAX_ENEMY_FEATURES = 8;
+const N_LIDAR = 8;
+const SENSOR_DIM = 52;
+const SELF_OFF = 0;
+const ENEMY_OFF = 6;
+const LIDAR_OFF = ENEMY_OFF + (MAX_ENEMIES * MAX_ENEMY_FEATURES);
+const BULLET_OFF = LIDAR_OFF + N_LIDAR;
+const META_OFF = BULLET_OFF + 3;
+
+function buildSensors(tank, tanks, bullets, walls, AW, AH) {
+    const s = new Float32Array(SENSOR_DIM);
+    s[SELF_OFF + 0] = (tank.pos.x / AW) * 2 - 1;
+    s[SELF_OFF + 1] = (tank.pos.y / AH) * 2 - 1;
+    s[SELF_OFF + 2] = tank.hp / tank.maxHp;
+    
+    if (tank.reload <= 0) {
+        s[SELF_OFF + 3] = 1;
+    } else {
+        s[SELF_OFF + 3] = tank.reload / tank.reloadTime;
+    }
+    
+    s[SELF_OFF + 4] = Math.cos(tank.angle);
+    s[SELF_OFF + 5] = Math.sin(tank.angle);
+
+    const enemies = [];
+    for (let i = 0; i < tanks.length; i++) {
+        const t = tanks[i];
+        if (t.alive && t.team !== tank.team) {
+            enemies.push(t);
+        }
+    }
+    
+    const sorted = [];
+    for (let i = 0; i < enemies.length; i++) {
+        sorted.push({ e: enemies[i], d: dist(tank.pos, enemies[i].pos) });
+    }
+    sorted.sort(function(a, b) {
+        return a.d - b.d;
+    });
+    
+    const maxD = Math.hypot(AW, AH);
+
+    for (let k = 0; k < MAX_ENEMIES; k++) {
+        const off = ENEMY_OFF + (k * MAX_ENEMY_FEATURES);
+        const rec = sorted[k];
+        if (rec !== undefined) {
+            const e = rec.e;
+            s[off + 0] = (e.pos.x - tank.pos.x) / maxD;
+            s[off + 1] = (e.pos.y - tank.pos.y) / maxD;
+            
+            // FIX #1 (Sensor logic): Информативный признак вместо константы
+            if (e.currentTarget !== null && e.currentTarget.id === tank.id) {
+                s[off + 2] = 1.0;
+            } else {
+                s[off + 2] = 0.0;
+            }
+            
+            s[off + 3] = clamp(rec.d / maxD, 0, 1);
+            s[off + 4] = clamp(e.vel.x / 3, -1, 1);
+            s[off + 5] = clamp(e.vel.y / 3, -1, 1);
+            s[off + 6] = e.hp / e.maxHp;
+            
+            const aimAtMe = Math.atan2(tank.pos.y - e.pos.y, tank.pos.x - e.pos.x);
+            const diff = Math.abs(angDiff(e.turret, aimAtMe));
+            s[off + 7] = clamp(1 - (diff / (Math.PI / 2)), 0, 1);
+        }
+    }
+
+    for (let i = 0; i < N_LIDAR; i++) {
+        const a = tank.angle + ((i / N_LIDAR) * TAU);
+        const hit = raycastWalls(tank.pos, a, 160, walls, AW, AH);
+        s[LIDAR_OFF + i] = clamp(hit / 160, 0, 1);
+    }
+
+    let threat = 0;
+    let dodgeX = 0;
+    let dodgeY = 0;
+    
+    for (let i = 0; i < bullets.length; i++) {
+        const b = bullets[i];
+        if (b.team === tank.team) {
+            continue;
+        }
+        const d = dist(b.pos, tank.pos);
+        if (d > 180) {
+            continue;
+        }
+        const toMeX = tank.pos.x - b.pos.x;
+        const toMeY = tank.pos.y - b.pos.y;
+        const dot = (toMeX * b.vel.x) + (toMeY * b.vel.y);
+        
+        if (dot > 0) {
+            const t = clamp(1 - (d / 180), 0, 1);
+            if (t > threat) {
+                threat = t;
+                const bl = Math.hypot(b.vel.x, b.vel.y) || 1;
+                let dx = -b.vel.y / bl;
+                let dy = b.vel.x / bl;
+                const side = (toMeX * dx) + (toMeY * dy);
+                if (side < 0) {
+                    dx = -dx;
+                    dy = -dy;
+                }
+                dodgeX = dx;
+                dodgeY = dy;
+            }
+        }
+    }
+    
+    s[BULLET_OFF + 0] = threat;
+    s[BULLET_OFF + 1] = dodgeX;
+    s[BULLET_OFF + 2] = dodgeY;
+    s[META_OFF + 0] = clamp(nearestWallDist(tank.pos, walls) / 80, 0, 1);
+    s[META_OFF + 1] = clamp(enemies.length / 6, 0, 1);
+    
+    if (tank.recentDamage > 0) {
+        s[META_OFF + 2] = clamp(tank.recentDamage / 30, 0, 1);
+    } else {
+        s[META_OFF + 2] = 0;
+    }
+    
+    return s;
+}
+
+function raycastWalls(pos, ang, maxD, walls, AW, AH) {
+    const step = 6;
+    const dx = Math.cos(ang);
+    const dy = Math.sin(ang);
+    for (let d = step; d <= maxD; d = d + step) {
+        const x = pos.x + (dx * d);
+        const y = pos.y + (dy * d);
+        if (x < 0 || x > AW || y < 0 || y > AH) {
+            return d;
+        }
+        for (let i = 0; i < walls.length; i++) {
+            const w = walls[i];
+            if (x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h) {
+                return d;
+            }
+        }
+    }
+    return maxD;
+}
+
+function nearestWallDist(pos, walls) {
+    let best = 1e9;
+    for (let i = 0; i < walls.length; i++) {
+        const w = walls[i];
+        const cx = clamp(pos.x, w.x, w.x + w.w);
+        const cy = clamp(pos.y, w.y, w.y + w.h);
+        const d = Math.hypot(pos.x - cx, pos.y - cy);
+        if (d < best) {
+            best = d;
+        }
+    }
+    return best;
+}
+
+function pointInWall(x, y, walls) {
+    for (let i = 0; i < walls.length; i++) {
+        const w = walls[i];
+        if (x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   4. POLICY NETWORK (FULLY EXPANDED)
+═══════════════════════════════════════════════════════════════════════ */
+
+const EMBED_DIM = 64;
+
+class Encoder {
+    constructor(rng) {
+        this.fc1 = new Linear(SENSOR_DIM, 96, rng);
+        this.fc2 = new Linear(96, EMBED_DIM, rng);
+        this.lastPreAct1 = null;
+        this.lastPreAct2 = null;
+    }
+
+    forward(x) {
+        const h1_pre = this.fc1.forward(x);
+        this.lastPreAct1 = h1_pre;
+        const h1 = reluForward(h1_pre);
+        const h2_pre = this.fc2.forward(h1);
+        this.lastPreAct2 = h2_pre;
+        return reluForward(h2_pre);
+    }
+
+    backward(dOut) {
+        const dh2 = reluBackward(this.lastPreAct2, dOut);
+        const dh1 = this.fc2.backward(dh2);
+        const dh1_act = reluBackward(this.lastPreAct1, dh1);
+        return this.fc1.backward(dh1_act);
+    }
+
+    getLayers() {
+        return [this.fc1, this.fc2];
+    }
+}
+
+const TACTICS_NAMES = ['АТАКА', 'ФЛАНГ-Л', 'ФЛАНГ-П', 'ДИСТАНЦИЯ', 'УКЛОН', 'ОТСТУП', 'УКРЫТИЕ', 'ПАТРУЛЬ'];
+const N_TACTICS = 8;
+const LOW_DIM = 5;
+
+class PolicyNet {
+    constructor(rng) {
+        this.encoder = new Encoder(rng);
+        this.policyFC = new Linear(EMBED_DIM, 96, rng);
+        this.tacticsHead = new Linear(96, N_TACTICS, rng, 0.01);
+        this.targetHead = new Linear(96 + MAX_ENEMY_FEATURES, 1, rng, 0.01);
+        this.lowMeanHead = new Linear(96, LOW_DIM, rng, 0.01);
+        this.lowLogStdHead = new Linear(96, LOW_DIM, rng, 0.01);
+        for (let i = 0; i < LOW_DIM; i++) {
+            this.lowLogStdHead.b[i] = 0;
+        }
+        this.valueHead = new Linear(96, 1, rng, 0.01);
+        this.lastH = null;
+        this.lastPreActPolicy = null;
+    }
+
+    forward(sensors, rng) {
+        const emb = this.encoder.forward(sensors);
+        const h_pre = this.policyFC.forward(emb);
+        this.lastPreActPolicy = h_pre;
+        const h = reluForward(h_pre);
+        this.lastH = h;
+        
+        const tacticsLogits = this.tacticsHead.forward(h);
+        const tacticsProbs = softmax(tacticsLogits);
+        
+        let r = rng.next();
+        let cum = 0;
+        let tactic = 0;
+        for (let i = 0; i < N_TACTICS; i++) {
+            cum = cum + tacticsProbs[i];
+            if (r <= cum) {
+                tactic = i;
+                break;
+            }
+        }
+        
+        const enemyFeatures = [];
+        const targetScores = new Float32Array(MAX_ENEMIES);
+        let validCount = 0;
+        
+        for (let k = 0; k < MAX_ENEMIES; k++) {
+            const off = ENEMY_OFF + (k * MAX_ENEMY_FEATURES);
+            if (sensors[off + 0] === 0 && sensors[off + 1] === 0 && sensors[off + 3] === 0) {
+                targetScores[k] = -100;
+                enemyFeatures.push(null);
+                continue;
+            }
+            const features = new Float32Array(MAX_ENEMY_FEATURES);
+            for (let i = 0; i < MAX_ENEMY_FEATURES; i++) {
+                features[i] = sensors[off + i];
+            }
+            enemyFeatures.push(features);
+            
+            const concat = new Float32Array(96 + MAX_ENEMY_FEATURES);
+            for (let i = 0; i < 96; i++) {
+                concat[i] = h[i];
+            }
+            for (let i = 0; i < MAX_ENEMY_FEATURES; i++) {
+                concat[96 + i] = features[i];
+            }
+            targetScores[k] = this.targetHead.forward(concat)[0];
+            validCount = validCount + 1;
+        }
+        
+        const targetProbs = new Float32Array(MAX_ENEMIES);
+        if (validCount > 0) {
+            let maxS = -Infinity;
+            for (let k = 0; k < MAX_ENEMIES; k++) {
+                if (targetScores[k] > maxS) {
+                    maxS = targetScores[k];
+                }
+            }
+            let sum = 0;
+            for (let k = 0; k < MAX_ENEMIES; k++) {
+                if (targetScores[k] > -50) {
+                    targetProbs[k] = Math.exp(targetScores[k] - maxS);
+                    sum = sum + targetProbs[k];
+                }
+            }
+            if (sum > EPS) {
+                for (let k = 0; k < MAX_ENEMIES; k++) {
+                    targetProbs[k] = targetProbs[k] / sum;
+                }
+            }
+        }
+        
+        let targetIdx = 0;
+        r = rng.next();
+        cum = 0;
+        for (let k = 0; k < MAX_ENEMIES; k++) {
+            cum = cum + targetProbs[k];
+            if (r <= cum) {
+                targetIdx = k;
+                break;
+            }
+        }
+        
+        const lowMean = this.lowMeanHead.forward(h);
+        const lowLogStd = this.lowLogStdHead.forward(h);
+        const action = new Float32Array(LOW_DIM);
+        const actionSamples = new Float32Array(LOW_DIM);
+        let lowLogProb = 0;
+        
+        for (let i = 0; i < LOW_DIM; i++) {
+            const std = Math.exp(clamp(lowLogStd[i], -5, 2));
+            const sample = rng.gaussian(lowMean[i], std);
+            actionSamples[i] = sample;
+            action[i] = Math.tanh(sample);
+            const z = (sample - lowMean[i]) / std;
+            const logP = -0.5 * Math.log(2 * Math.PI) - lowLogStd[i] - 0.5 * (z * z);
+            const correction = Math.log(1 - (action[i] * action[i]) + EPS);
+            lowLogProb = lowLogProb + logP - correction;
+        }
+        
+        const value = this.valueHead.forward(h)[0];
+        
+        return {
+            tactic: tactic,
+            action: action,
+            value: value,
+            tacticsProbs: tacticsProbs,
+            targetIdx: targetIdx,
+            targetScores: targetScores,
+            targetProbs: targetProbs,
+            enemyFeatures: enemyFeatures,
+            validCount: validCount,
+            lowLogProb: lowLogProb,
+            lowMean: lowMean,
+            lowLogStd: lowLogStd,
+            actionSamples: actionSamples
+        };
+    }
+
+    forwardValue(sensors) {
+        const layers = [this.encoder.fc1, this.encoder.fc2, this.policyFC, this.valueHead];
+        const saved = [];
+        for (let i = 0; i < layers.length; i++) {
+            saved.push(layers[i].lastIn);
+        }
+        
+        let x = reluForward(this.encoder.fc1.forward(sensors));
+        x = reluForward(this.encoder.fc2.forward(x));
+        x = reluForward(this.policyFC.forward(x));
+        const v = this.valueHead.forward(x)[0];
+        
+        for (let i = 0; i < layers.length; i++) {
+            layers[i].lastIn = saved[i];
+        }
+        return v;
+    }
+
+    getLayers() {
+        const encLayers = this.encoder.getLayers();
+        return [
+            encLayers[0],
+            encLayers[1],
+            this.policyFC,
+            this.tacticsHead,
+            this.targetHead,
+            this.lowMeanHead,
+            this.lowLogStdHead,
+            this.valueHead
+        ];
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   5. TRAJECTORY BUFFER & PPO TRAINER (FULLY EXPANDED)
+═══════════════════════════════════════════════════════════════════════ */
+
+class TrajectoryBuffer {
+    constructor(maxEpisodes) {
+        this.maxEpisodes = maxEpisodes !== undefined ? maxEpisodes : 40;
+        this.episodes = [];
+    }
+
+    addEpisode(transitions, bootstrapValue) {
+        const bv = bootstrapValue !== undefined ? bootstrapValue : 0;
+        if (transitions.length === 0) {
+            return;
+        }
+        this.episodes.push({ transitions: transitions, bootstrapValue: bv });
+        while (this.episodes.length > this.maxEpisodes) {
+            this.episodes.shift();
+        }
+    }
+
+    sample(n) {
+        if (this.episodes.length === 0) {
+            return [];
+        }
+        const out = [];
+        for (let i = 0; i < n; i++) {
+            const idx = (Math.random() * this.episodes.length) | 0;
+            out.push(this.episodes[idx]);
+        }
+        return out;
+    }
+
+    size() {
+        let s = 0;
+        for (let i = 0; i < this.episodes.length; i++) {
+            s = s + this.episodes[i].transitions.length;
+        }
+        return s;
+    }
+
+    clear() {
+        this.episodes = [];
+    }
+}
+
+class PPOTrainer {
+    constructor(policy, lr) {
+        this.policy = policy;
+        this.lr = lr !== undefined ? lr : 0.0004;
+        this.gamma = 0.995;
+        this.lambda = 0.95;
+        this.clipEps = 0.2;
+        this.entropyCoef = 0.015;
+        this.valueCoef = 0.5;
+        this.epochs = 4;
+        this.batchSize = 64;
+        this.trainSteps = 0;
+        this.lastMetrics = { policyLoss: 0, valueLoss: 0, entropy: 0, targetLoss: 0 };
+    }
+
+    computeGAE(transitions, bootstrapValue) {
+        const T = transitions.length;
+        const advantages = new Float32Array(T);
+        const returns = new Float32Array(T);
+        let gae = 0;
+        let nextV = bootstrapValue;
+        
+        for (let t = T - 1; t >= 0; t--) {
+            const delta = transitions[t].reward + (this.gamma * nextV) - transitions[t].value;
+            gae = delta + (this.gamma * this.lambda * gae);
+            advantages[t] = gae;
+            returns[t] = gae + transitions[t].value;
+            nextV = transitions[t].value;
+        }
+        return { advantages: advantages, returns: returns };
+    }
+
+    trainStepAsync(buffer, maxTimeMs) {
+        const mTime = maxTimeMs !== undefined ? maxTimeMs : 16;
+        const self = this;
+        
+        return new Promise(function(resolve) {
+            const startTime = performance.now();
+            const sampled = buffer.sample(8);
+            
+            // FIX: Deep copy to prevent race conditions with buffer shifts
+            const episodes = [];
+            for (let i = 0; i < sampled.length; i++) {
+                episodes.push({
+                    transitions: sampled[i].transitions,
+                    bootstrapValue: sampled[i].bootstrapValue
+                });
+            }
+            
+            if (episodes.length === 0) {
+                resolve(self.lastMetrics);
+                return;
+            }
+            
+            const all = [];
+            for (let i = 0; i < episodes.length; i++) {
+                const ep = episodes[i];
+                const gaeRes = self.computeGAE(ep.transitions, ep.bootstrapValue);
+                const advantages = gaeRes.advantages;
+                const returns = gaeRes.returns;
+                for (let t = 0; t < ep.transitions.length; t++) {
+                    all.push({
+                        state: ep.transitions[t].state,
+                        tactic: ep.transitions[t].tactic,
+                        value: ep.transitions[t].value,
+                        tacticsProbs: ep.transitions[t].tacticsProbs,
+                        action: ep.transitions[t].action,
+                        actionSamples: ep.transitions[t].actionSamples,
+                        lowLogProb: ep.transitions[t].lowLogProb,
+                        targetIdx: ep.transitions[t].targetIdx,
+                        targetScores: ep.transitions[t].targetScores,
+                        targetProbs: ep.transitions[t].targetProbs,
+                        validCount: ep.transitions[t].validCount,
+                        enemyFeatures: ep.transitions[t].enemyFeatures,
+                        reward: ep.transitions[t].reward,
+                        tick: ep.transitions[t].tick,
+                        advantage: advantages[t],
+                        return_: returns[t]
+                    });
+                }
+            }
+            
+            let amean = 0;
+            for (let i = 0; i < all.length; i++) {
+                amean = amean + all[i].advantage;
+            }
+            amean = amean / all.length;
+            
+            let avar = 0;
+            for (let i = 0; i < all.length; i++) {
+                const d = all[i].advantage - amean;
+                avar = avar + (d * d);
+            }
+            const astdev = Math.sqrt((avar / all.length) + EPS);
+            
+            for (let i = 0; i < all.length; i++) {
+                all[i].advantage = (all[i].advantage - amean) / astdev;
+            }
+            
+            let tPL = 0;
+            let tVL = 0;
+            let tEnt = 0;
+            let tTL = 0;
+            let count = 0;
+            let epoch = 0;
+            let start = 0;
+            
+            function processBatch() {
+                if (performance.now() - startTime > mTime || epoch >= self.epochs) {
+                    self.lastMetrics = {
+                        policyLoss: count > 0 ? tPL / count : 0,
+                        valueLoss: count > 0 ? tVL / count : 0,
+                        entropy: count > 0 ? tEnt / count : 0,
+                        targetLoss: count > 0 ? tTL / count : 0
+                    };
+                    resolve(self.lastMetrics);
+                    return;
+                }
+                
+                if (start >= all.length) {
+                    epoch = epoch + 1;
+                    start = 0;
+                    for (let i = all.length - 1; i > 0; i--) {
+                        const j = (Math.random() * (i + 1)) | 0;
+                        const temp = all[i];
+                        all[i] = all[j];
+                        all[j] = temp;
+                    }
+                }
+                
+                const end = Math.min(start + self.batchSize, all.length);
+                const batch = all.slice(start, end);
+                start = end;
+                
+                if (batch.length >= 4) {
+                    const layers = self.policy.getLayers();
+                    for (let i = 0; i < layers.length; i++) {
+                        layers[i].zeroGrad();
+                    }
+                    
+                    for (let i = 0; i < batch.length; i++) {
+                        const m = self._trainOne(batch[i]);
+                        tPL = tPL + m.policy;
+                        tVL = tVL + m.value;
+                        tEnt = tEnt + m.entropy;
+                        tTL = tTL + m.target;
+                        count = count + 1;
+                    }
+                    
+                    for (let i = 0; i < layers.length; i++) {
+                        layers[i].apply(self.lr, 0.9, 5);
+                    }
+                    self.trainSteps = self.trainSteps + 1;
+                }
+                
+                setTimeout(processBatch, 0);
+            }
+            
+            processBatch();
+        });
+    }
+
+    _trainOne(ex) {
+        const p = this.policy;
+        const emb = p.encoder.forward(ex.state);
+        const h_pre = p.policyFC.forward(emb);
+        const h = reluForward(h_pre);
+        p.lastH = h;
+        p.lastPreActPolicy = h_pre;
+        const adv = ex.advantage;
+        
+        // TACTICS
+        const tacticsLogits = p.tacticsHead.forward(h);
+        const newTacticsProbs = softmax(tacticsLogits);
+        const oldProb = ex.tacticsProbs[ex.tactic];
+        const ratio = newTacticsProbs[ex.tactic] / Math.max(oldProb, EPS);
+        const clippedRatio = clamp(ratio, 1 - this.clipEps, 1 + this.clipEps);
+        const policyLoss = -Math.min(ratio * adv, clippedRatio * adv);
+        const isTacticsClipped = (ratio < 1 - this.clipEps && adv > 0) || (ratio > 1 + this.clipEps && adv < 0);
+        
+        const dLogits = new Float32Array(N_TACTICS);
+        if (!isTacticsClipped) {
+            for (let j = 0; j < N_TACTICS; j++) {
+                const indicator = (ex.tactic === j) ? 1 : 0;
+                const dp_dlogit = newTacticsProbs[ex.tactic] * (indicator - newTacticsProbs[j]);
+                dLogits[j] = dLogits[j] + (-adv * (ratio * dp_dlogit / newTacticsProbs[ex.tactic]));
+            }
+        }
+        
+        let entropy = 0;
+        const dEntropy_dLogits = new Float32Array(N_TACTICS);
+        for (let j = 0; j < N_TACTICS; j++) {
+            let sum = 0;
+            for (let i = 0; i < N_TACTICS; i++) {
+                const pi = newTacticsProbs[i];
+                const dH_dp = -(Math.log(pi + EPS) + 1);
+                const indicator = (i === j) ? 1 : 0;
+                const dp_dlogit = pi * (indicator - newTacticsProbs[j]);
+                sum = sum + (dH_dp * dp_dlogit);
+            }
+            dEntropy_dLogits[j] = sum;
+            entropy = entropy - (newTacticsProbs[j] * Math.log(newTacticsProbs[j] + EPS));
+            dLogits[j] = dLogits[j] - (this.entropyCoef * dEntropy_dLogits[j]);
+        }
+        const dh_tactics = p.tacticsHead.backward(dLogits);
+        
+        // TARGET
+        const newScores = new Float32Array(MAX_ENEMIES);
+        const validCount = ex.validCount || 0;
+        for (let k = 0; k < MAX_ENEMIES; k++) {
+            if (!ex.enemyFeatures || !ex.enemyFeatures[k]) {
+                newScores[k] = -100;
+                continue;
+            }
+            const concat = new Float32Array(96 + MAX_ENEMY_FEATURES);
+            for (let i = 0; i < 96; i++) {
+                concat[i] = h[i];
+            }
+            for (let i = 0; i < MAX_ENEMY_FEATURES; i++) {
+                concat[96 + i] = ex.enemyFeatures[k][i];
+            }
+            newScores[k] = p.targetHead.forward(concat)[0];
+        }
+        
+        const newTargetProbs = new Float32Array(MAX_ENEMIES);
+        const oldTargetProbs = ex.targetProbs || new Float32Array(MAX_ENEMIES).fill(1 / MAX_ENEMIES);
+        
+        if (validCount > 0) {
+            let maxN = -Infinity;
+            for (let k = 0; k < MAX_ENEMIES; k++) {
+                if (newScores[k] > maxN) {
+                    maxN = newScores[k];
+                }
+            }
+            let sumN = 0;
+            for (let k = 0; k < MAX_ENEMIES; k++) {
+                if (newScores[k] > -50) {
+                    newTargetProbs[k] = Math.exp(newScores[k] - maxN);
+                    sumN = sumN + newTargetProbs[k];
+                }
+            }
+            if (sumN > EPS) {
+                for (let k = 0; k < MAX_ENEMIES; k++) {
+                    newTargetProbs[k] = newTargetProbs[k] / sumN;
+                }
+            }
+        }
+        
+        const oldProbT = oldTargetProbs[ex.targetIdx];
+        const targetRatio = newTargetProbs[ex.targetIdx] / Math.max(oldProbT, EPS);
+        const targetClippedRatio = clamp(targetRatio, 1 - this.clipEps, 1 + this.clipEps);
+        const targetLoss = -Math.min(targetRatio * adv, targetClippedRatio * adv);
+        const isTargetClipped = (targetRatio < 1 - this.clipEps && adv > 0) || (targetRatio > 1 + this.clipEps && adv < 0);
+        
+        const dTargetScores = new Float32Array(MAX_ENEMIES);
+        if (!isTargetClipped && validCount > 0 && newTargetProbs[ex.targetIdx] > 0.01) {
+            for (let k = 0; k < MAX_ENEMIES; k++) {
+                if (newTargetProbs[k] === 0) {
+                    continue;
+                }
+                const indicator = (ex.targetIdx === k) ? 1 : 0;
+                const dp_dscore = newTargetProbs[ex.targetIdx] * (indicator - newTargetProbs[k]);
+                dTargetScores[k] = -adv * (targetRatio * dp_dscore / newTargetProbs[ex.targetIdx]);
+            }
+        }
+        
+        const dh_target = new Float32Array(96);
+        for (let k = 0; k < MAX_ENEMIES; k++) {
+            if (!ex.enemyFeatures || !ex.enemyFeatures[k] || dTargetScores[k] === 0) {
+                continue;
+            }
+            const concat = new Float32Array(96 + MAX_ENEMY_FEATURES);
+            for (let i = 0; i < 96; i++) {
+                concat[i] = h[i];
+            }
+            for (let i = 0; i < MAX_ENEMY_FEATURES; i++) {
+                concat[96 + i] = ex.enemyFeatures[k][i];
+            }
+            p.targetHead.forward(concat);
+            const dConcat = p.targetHead.backward(new Float32Array([dTargetScores[k]]));
+            for (let i = 0; i < 96; i++) {
+                dh_target[i] = dh_target[i] + dConcat[i];
+            }
+        }
+        
+        // LOW-LEVEL
+        const lowMean = p.lowMeanHead.forward(h);
+        const lowLogStd = p.lowLogStdHead.forward(h);
+        let lowLogProb = 0;
+        const dMean = new Float32Array(LOW_DIM);
+        const dLogStd = new Float32Array(LOW_DIM);
+        
+        for (let i = 0; i < LOW_DIM; i++) {
+            const std = Math.exp(clamp(lowLogStd[i], -5, 2));
+            const z = (ex.actionSamples[i] - lowMean[i]) / std;
+            const actionI = ex.action[i];
+            
+            dMean[i] = z / std;
+            dLogStd[i] = (z * z) - 1;
+            
+            // FIX #1 & #2: Математически строгий Якобиан для tanh squashing (chain rule)
+            // d/dμ [-log(1-a^2)] = -2 * a / std
+            // d/d(log σ) [-log(1-a^2)] = -2 * a * z
+            dMean[i] = dMean[i] + ((-2 * actionI) / std);
+            dLogStd[i] = dLogStd[i] + ((-2 * actionI) * z);
+            
+            // FIX #1: Исправлен знак (минус) перед correction, как в forward
+            const logP = -0.5 * Math.log(2 * Math.PI) - lowLogStd[i] - 0.5 * (z * z);
+            const correction = Math.log(1 - (actionI * actionI) + EPS);
+            lowLogProb = lowLogProb + logP - correction;
+        }
+        
+        const lowRatio = Math.exp(clamp(lowLogProb - ex.lowLogProb, -10, 10));
+        const lowClippedRatio = clamp(lowRatio, 1 - this.clipEps, 1 + this.clipEps);
+        const lowPolicyLoss = -Math.min(lowRatio * adv, lowClippedRatio * adv);
+        const isLowClipped = (lowRatio < 1 - this.clipEps && adv > 0) || (lowRatio > 1 + this.clipEps && adv < 0);
+        const gradScale = isLowClipped ? 0 : -adv * lowRatio;
+        
+        for (let i = 0; i < LOW_DIM; i++) {
+            dMean[i] = dMean[i] * gradScale;
+            dLogStd[i] = dLogStd[i] * gradScale;
+        }
+        
+        const dh_lowMean = p.lowMeanHead.backward(dMean);
+        const dh_lowLogStd = p.lowLogStdHead.backward(dLogStd);
+        
+        // VALUE
+        const newValue = p.valueHead.forward(h)[0];
+        const valueLoss = (newValue - ex.return_) * (newValue - ex.return_);
+        const dh_value = p.valueHead.backward(new Float32Array([2 * this.valueCoef * (newValue - ex.return_)]));
+        
+        // COMBINE
+        const dh = new Float32Array(96);
+        for (let i = 0; i < 96; i++) {
+            dh[i] = dh_tactics[i] + dh_target[i] + dh_lowMean[i] + dh_lowLogStd[i] + dh_value[i];
+        }
+        const dh_pre = reluBackward(h_pre, dh);
+        p.policyFC.backward(dh_pre);
+        p.encoder.backward(dh);
+        
+        return {
+            policy: policyLoss + lowPolicyLoss,
+            value: valueLoss,
+            entropy: entropy,
+            target: targetLoss
+        };
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   6. COMBAT AI CORE (FULLY EXPANDED)
 ═══════════════════════════════════════════════════════════════════════ */
 
 class CombatCore {
-  constructor() {
-    this.targetAssignments = new Map();
-    this.threatCache = new Map();
-  }
-  
-  calculateLeadShot(shooter, target, bulletSpeed) {
-    let t = dist(shooter.pos, target.pos) / bulletSpeed;
-    let predX = target.pos.x + target.vel.x * t;
-    let predY = target.pos.y + target.vel.y * t;
-    
-    for (let i = 0; i < 3; i++) {
-      const newDist = Math.hypot(predX - shooter.pos.x, predY - shooter.pos.y);
-      const newT = newDist / bulletSpeed;
-      predX = target.pos.x + target.vel.x * newT;
-      predY = target.pos.y + target.vel.y * newT;
+    constructor() {
+        this.targetAssignments = new Map();
     }
-    
-    return Math.atan2(predY - shooter.pos.y, predX - shooter.pos.x);
-  }
-  
-  assessThreatLevel(tank, enemy, allTanks) {
-    let threat = 0;
-    const d = dist(tank.pos, enemy.pos);
-    threat += Math.max(0, 1 - d / 500) * 30;
-    
-    const aimAtMe = Math.atan2(tank.pos.y - enemy.pos.y, tank.pos.x - enemy.pos.x);
-    const aimError = Math.abs(angDiff(enemy.turret, aimAtMe));
-    threat += Math.max(0, 1 - aimError / 0.5) * 40;
-    
-    const healthFactor = enemy.hp / enemy.maxHp;
-    threat += (1 - healthFactor) * 15;
-    
-    const assignedCount = allTanks.filter(t => t.alive && t.currentTarget === enemy).length;
-    threat -= assignedCount * 8;
-    
-    const relativeVel = { x: enemy.vel.x - tank.vel.x, y: enemy.vel.y - tank.vel.y };
-    const approachSpeed = -(relativeVel.x * Math.cos(aimAtMe) + relativeVel.y * Math.sin(aimAtMe));
-    threat += Math.max(0, approachSpeed / 3) * 15;
-    
-    return Math.max(0, threat);
-  }
-  
-  assignTargetsGlobal(tanks) {
-    const alive = tanks.filter(t => t.alive);
-    const enemies = alive.filter(t => t.team === 'enemy');
-    const allies = alive.filter(t => t.team === 'ally');
-    
-    if (enemies.length === 0 || allies.length === 0) return new Map();
-    
-    const threatMatrix = [];
-    for (const ally of allies) {
-      const threats = [];
-      for (const enemy of enemies) {
-        threats.push(this.assessThreatLevel(ally, enemy, alive));
-      }
-      threatMatrix.push(threats);
+
+    calculateLeadShot(shooter, target, bulletSpeed) {
+        let t = dist(shooter.pos, target.pos) / bulletSpeed;
+        let predX = target.pos.x + (target.vel.x * t);
+        let predY = target.pos.y + (target.vel.y * t);
+        
+        for (let i = 0; i < 3; i++) {
+            const newDist = Math.hypot(predX - shooter.pos.x, predY - shooter.pos.y);
+            const newT = newDist / bulletSpeed;
+            predX = target.pos.x + (target.vel.x * newT);
+            predY = target.pos.y + (target.vel.y * newT);
+        }
+        return Math.atan2(predY - shooter.pos.y, predX - shooter.pos.x);
     }
-    
-    const assignments = new Map();
-    const usedEnemies = new Set();
-    const usedAllies = new Set();
-    
-    const pairs = [];
-    for (let i = 0; i < allies.length; i++) {
-      for (let j = 0; j < enemies.length; j++) {
-        pairs.push({ threat: threatMatrix[i][j], allyId: allies[i].id, enemyId: enemies[j].id });
-      }
+
+    assessThreatLevel(tank, enemy) {
+        let threat = 0;
+        const d = dist(tank.pos, enemy.pos);
+        threat = threat + (Math.max(0, 1 - (d / 500)) * 30);
+        
+        const aimAtMe = Math.atan2(tank.pos.y - enemy.pos.y, tank.pos.x - enemy.pos.x);
+        const aimError = Math.abs(angDiff(enemy.turret, aimAtMe));
+        threat = threat + (Math.max(0, 1 - (aimError / 0.5)) * 40);
+        threat = threat + ((1 - (enemy.hp / enemy.maxHp)) * 15);
+        
+        let assignedCount = 0;
+        this.targetAssignments.forEach(function(enemyId) {
+            if (enemyId === enemy.id) {
+                assignedCount = assignedCount + 1;
+            }
+        });
+        threat = threat - (assignedCount * 8);
+        
+        const relativeVelX = enemy.vel.x - tank.vel.x;
+        const relativeVelY = enemy.vel.y - tank.vel.y;
+        const approachSpeed = -((relativeVelX * Math.cos(aimAtMe)) + (relativeVelY * Math.sin(aimAtMe)));
+        threat = threat + (Math.max(0, approachSpeed / 3) * 15);
+        
+        return Math.max(0, threat);
     }
-    pairs.sort((a, b) => b.threat - a.threat);
-    
-    for (const pair of pairs) {
-      if (!usedAllies.has(pair.allyId) && !usedEnemies.has(pair.enemyId)) {
-        assignments.set(pair.allyId, pair.enemyId);
-        usedAllies.add(pair.allyId);
-        usedEnemies.add(pair.enemyId);
-      }
+
+    assignTargetsGlobal(tanks) {
+        const alive = [];
+        for (let i = 0; i < tanks.length; i++) {
+            if (tanks[i].alive) {
+                alive.push(tanks[i]);
+            }
+        }
+        
+        const enemies = [];
+        const allies = [];
+        for (let i = 0; i < alive.length; i++) {
+            if (alive[i].team === 'red') {
+                enemies.push(alive[i]);
+            } else if (alive[i].team === 'blue') {
+                allies.push(alive[i]);
+            }
+        }
+        
+        if (enemies.length === 0 || allies.length === 0) {
+            return new Map();
+        }
+        
+        const pairs = [];
+        for (let i = 0; i < allies.length; i++) {
+            for (let j = 0; j < enemies.length; j++) {
+                pairs.push({
+                    threat: this.assessThreatLevel(allies[i], enemies[j]),
+                    allyId: allies[i].id,
+                    enemyId: enemies[j].id
+                });
+            }
+        }
+        
+        pairs.sort(function(a, b) {
+            return b.threat - a.threat;
+        });
+        
+        const assignments = new Map();
+        const usedEnemies = new Set();
+        const usedAllies = new Set();
+        
+        for (let i = 0; i < pairs.length; i++) {
+            const pair = pairs[i];
+            if (!usedAllies.has(pair.allyId) && !usedEnemies.has(pair.enemyId)) {
+                assignments.set(pair.allyId, pair.enemyId);
+                usedAllies.add(pair.allyId);
+                usedEnemies.add(pair.enemyId);
+            }
+        }
+        return assignments;
     }
-    
-    return assignments;
-  }
-  
-  smartFireDecision(tank, target, bullets) {
-    if (tank.reload > 0 || !target) return 0;
-    
-    const d = dist(tank.pos, target.pos);
-    const aimAtTarget = this.calculateLeadShot(tank, target, 7);
-    const aimError = Math.abs(angDiff(tank.turret, aimAtTarget));
-    
-    if (aimError > 0.35) return 0.1;
-    if (d > 450) return 0.15;
-    
-    const incomingThreat = bullets.some(b => 
-      b.owner !== tank.id && dist(b.pos, tank.pos) < 120 && this.isBulletHeadingTowards(b, tank.pos)
-    );
-    if (incomingThreat) return 0.05;
-    
-    const threat = this.assessThreatLevel(tank, target, sim.tanks);
-    return clamp(threat / 100, 0.3, 0.95);
-  }
-  
-  isBulletHeadingTowards(bullet, pos) {
-    const toTank = {x: pos.x - bullet.pos.x, y: pos.y - bullet.pos.y};
-    const dot = toTank.x * bullet.vel.x + toTank.y * bullet.vel.y;
-    return dot > 0 && Math.hypot(toTank.x, toTank.y) < 150;
-  }
-  
-  purePursuit(tank, target) {
-    const lookaheadDist = 80;
-    const t = lookaheadDist / Math.max(dist(tank.pos, target.pos), 1);
-    const lookaheadPoint = {
-      x: target.pos.x + target.vel.x * t,
-      y: target.pos.y + target.vel.y * t
-    };
-    
-    const alpha = Math.atan2(lookaheadPoint.y - tank.pos.y, lookaheadPoint.x - tank.pos.x);
-    const d = dist(tank.pos, lookaheadPoint);
-    const curvature = 2 * Math.sin(angDiff(alpha, tank.angle)) / d;
-    
-    return {
-      steer: clamp(curvature * 50, -0.5, 0.5),
-      throttle: clamp(d / 200, 0.3, 1.0)
-    };
-  }
+
+    isLineOfSightClear(tank, target, tanks, walls) {
+        const d = dist(tank.pos, target.pos);
+        
+        // FIX #5: Защита от деления на ноль при коллизии/спавне
+        if (d < 1) {
+            return false;
+        }
+        
+        const step = 10;
+        const dx = (target.pos.x - tank.pos.x) / d;
+        const dy = (target.pos.y - tank.pos.y) / d;
+        
+        for (let s = 16; s < d - 16; s = s + step) {
+            const px = tank.pos.x + (dx * s);
+            const py = tank.pos.y + (dy * s);
+            if (pointInWall(px, py, walls)) {
+                return false;
+            }
+        }
+        
+        const angleToTarget = Math.atan2(target.pos.y - tank.pos.y, target.pos.x - tank.pos.x);
+        
+        for (let i = 0; i < tanks.length; i++) {
+            const t = tanks[i];
+            if (t.id === tank.id || !t.alive || t.team !== tank.team) {
+                continue;
+            }
+            if (dist(tank.pos, t.pos) > d) {
+                continue;
+            }
+            const angleToAlly = Math.atan2(t.pos.y - tank.pos.y, t.pos.x - tank.pos.x);
+            if (Math.abs(angDiff(angleToAlly, angleToTarget)) < 0.15) {
+                return false;
+            }
+        }
+        return true;
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   ENTITIES
+   7. ENTITIES & SIMULATION STATE (FULLY EXPANDED)
 ═══════════════════════════════════════════════════════════════════════ */
 
-class Tank{
-  constructor(id,name,color,pos,rng){
-    this.id=id;this.name=name;this.color=color;
-    this.pos={...pos};this.vel={x:0,y:0};
-    this.angle=rng.next()*TAU;this.turret=this.angle;
-    this.hp=100;this.maxHp=100;this.alive=true;
-    this.reload=0;this.reloadTime=22;
-    this.respawn=0;
-    this.kills=0;this.deaths=0;this.damage=0;this.shots=0;this.hits=0;
-    this.wins=0;
-    this.trail=[];this.wanderAng=rng.next()*TAU;
-    this.currentTarget=null;
-    this.lastTactic=0;
-    this.lastAction=new Float32Array(LOW_DIM);
-    this.lastTacticsProbs=new Float32Array(N_TACTICS);
-    this.lastTargetIdx=0;
-    this.lastTargetScores=new Float32Array(MAX_ENEMIES);
-    this.lastValue=0;
-    this.trajectory=[];
-    this.rng=rng.fork(id*7919+1);
-    this.recentDamage=0;
-    this.team = id < 3 ? 'ally' : 'enemy';
-  }
+class Tank {
+    constructor(id, name, team, pos, rng) {
+        this.id = id;
+        this.name = name;
+        this.team = team;
+        this.color = team === 'blue' ? '#00f0ff' : '#ff2a2a';
+        this.pos = new Vector2(pos.x, pos.y);
+        this.vel = new Vector2(0, 0);
+        this.acc = new Vector2(0, 0);
+        this.angle = rng.next() * TAU;
+        this.turret = this.angle;
+        this.hp = 100;
+        this.maxHp = 100;
+        this.alive = true;
+        this.reload = 0;
+        this.reloadTime = 22;
+        this.respawn = 0;
+        this.kills = 0;
+        this.deaths = 0;
+        this.damage = 0;
+        this.shots = 0;
+        this.hits = 0;
+        this.wins = 0;
+        this.trail = [];
+        this.wanderAng = rng.next() * TAU;
+        this.currentTarget = null;
+        this.lastTactic = 0;
+        this.lastAction = new Float32Array(LOW_DIM);
+        this.lastTacticsProbs = new Float32Array(N_TACTICS);
+        this.lastTargetIdx = 0;
+        this.lastTargetScores = new Float32Array(MAX_ENEMIES);
+        this.lastTargetProbs = new Float32Array(MAX_ENEMIES);
+        this.lastValue = 0;
+        this.trajectory = [];
+        this.rng = rng.fork((id * 7919) + 1);
+        this.recentDamage = 0;
+        this.maxSpeed = 2.8;
+        this.maxForce = 0.15;
+        this.maxAngularVel = 0.12;
+    }
 }
-class Bullet{
-  constructor(x,y,vx,vy,owner,dmg,shotTick){
-    this.pos={x,y};this.vel={x:vx,y:vy};this.owner=owner;this.dmg=dmg;
-    this.life=110;this.shotTick=shotTick;
-  }
+
+class Bullet {
+    constructor(x, y, vx, vy, ownerId, team, dmg, shotTick) {
+        this.pos = new Vector2(x, y);
+        this.vel = new Vector2(vx, vy);
+        this.ownerId = ownerId;
+        this.team = team;
+        this.dmg = dmg;
+        this.life = 110;
+        this.shotTick = shotTick;
+    }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
-   SIMULATION
-═══════════════════════════════════════════════════════════════════════ */
-
-const NAMES=['Волк','Кобра','Рысь','Шершень','Гадюка','Барс','Филин','Тайпан'];
-const COLORS=['#60a5fa','#ef4444','#22c55e','#eab308','#a855f7','#06b6d4','#f97316','#ec4899'];
-
-const sim={
-  AW:1100,AH:760,
-  tanks:[],bullets:[],walls:[],
-  tick:0,round:1,episode:0,
-  running:false,speed:2,
-  tankCount:6,selected:0,
-  trajectoryBuffer:new TrajectoryBuffer(40),
-  log:[],rng:new SeededRNG(Date.now()),
-  combatCore: new CombatCore()
+const sim = {
+    AW: 1100,
+    AH: 760,
+    tanks: [],
+    bullets: [],
+    walls: [],
+    tick: 0,
+    round: 1,
+    episode: 0,
+    running: false,
+    speed: 2,
+    tankCount: 6,
+    selected: 0,
+    trajectoryBuffer: new TrajectoryBuffer(40),
+    log: [],
+    rng: new SeededRNG(Date.now()),
+    combatCore: new CombatCore(),
+    accumulator: 0
 };
 
-let sharedPolicy=null,trainer=null;
+let sharedPolicy = null;
+let trainer = null;
+let isTraining = false;
 
-function initBrain(){
-  const rng=new SeededRNG(Date.now());
-  sharedPolicy=new PolicyNet(rng);
-  trainer=new PPOTrainer(sharedPolicy,0.0004);
-}
-function genWalls(rng){
-  const walls=[];const n=6;
-  for(let i=0;i<n;i++){
-    const w=60+rng.next()*120,h=14+rng.next()*18;
-    const horizontal=rng.next()>0.5;
-    const ww=horizontal?w:h,hh=horizontal?h:w;
-    walls.push({x:70+rng.next()*(sim.AW-140-ww),y:70+rng.next()*(sim.AH-140-hh),w:ww,h:hh});
-  }
-  return walls;
-}
-function findSpawn(rng){
-  for(let i=0;i<80;i++){
-    const x=70+rng.next()*(sim.AW-140),y=70+rng.next()*(sim.AH-140);
-    if(!pointInWall(x,y,sim.walls)){
-      let ok=true;
-      for(const t of sim.tanks)if(t.alive&&dist(t.pos,{x,y})<100){ok=false;break;}
-      if(ok)return{x,y};
-    }
-  }
-  return{x:sim.AW/2,y:sim.AH/2};
-}
-function initRound(){
-  sim.bullets=[];
-  sim.walls=genWalls(sim.rng.fork(sim.round*31+7));
-  sim.tanks=[];
-  for(let i=0;i<sim.tankCount;i++){
-    const pos=findSpawn(sim.rng);
-    sim.tanks.push(new Tank(i,NAMES[i%8],COLORS[i%8],pos,sim.rng));
-  }
-  sim.log.unshift({t:sim.tick,msg:`Раунд ${sim.round}: ${sim.tankCount} танков`,cls:'log-s'});
-}
-function addLog(msg,cls){sim.log.unshift({t:sim.tick,msg,cls:cls||''});if(sim.log.length>50)sim.log.pop();}
+/* ═══════════════════════════════════════════════════════════════════════
+   8. CORE SIMULATION LOOP (FULLY EXPANDED)
+═══════════════════════════════════════════════════════════════════════ */
 
-const R_LIFE=0.001;
-const R_AIM=0.003;
-const R_DIST=0.002;
-const R_DODGE=0.04;
-const R_HIT=1.5;
-const R_KILL=3.0;
-const R_DAMAGE=-0.01;
-const R_DEATH=-10.0;
-const R_WIN=5.0;
-const TRAJ_MAX=1500;
-const TRAJ_CHUNK=1000;
+function initBrain() {
+    const rng = new SeededRNG(Date.now());
+    sharedPolicy = new PolicyNet(rng);
+    trainer = new PPOTrainer(sharedPolicy, 0.0004);
+}
 
-function tick(){
-  sim.tick++;
-  const alive=sim.tanks.filter(t=>t.alive);
-  
-  if(alive.length<=1){
-    if(alive.length===1){addLog(`🏆 ${alive[0].name} побеждает!`,'log-w');alive[0].wins++;}
-    endRound();
-    return;
-  }
-  
-  for(const t of sim.tanks)if(t.alive)t.recentDamage*=0.9;
-  
-  if (sim.tick % 20 === 0) {
-    sim.combatCore.targetAssignments = sim.combatCore.assignTargetsGlobal(sim.tanks);
-  }
-  
-  for(const tank of sim.tanks){
-    if(!tank.alive){if(--tank.respawn<=0)respawn(tank);continue;}
-    if(tank.reload>0)tank.reload--;
-    
-    const sensors=buildSensors(tank,sim.tanks,sim.bullets,sim.walls,sim.AW,sim.AH);
-    const decision=sharedPolicy.forward(sensors,tank.rng);
-    
-    const assignedEnemyId = sim.combatCore.targetAssignments.get(tank.id);
-    let target = null;
-    
-    if (assignedEnemyId !== undefined) {
-      target = sim.tanks.find(t => t.alive && t.id === assignedEnemyId);
+function genWalls(rng) {
+    const walls = [];
+    for (let i = 0; i < 6; i++) {
+        const w = 60 + (rng.next() * 120);
+        const h = 14 + (rng.next() * 18);
+        const horizontal = rng.next() > 0.5;
+        const ww = horizontal ? w : h;
+        const hh = horizontal ? h : w;
+        walls.push({
+            x: 70 + (rng.next() * (sim.AW - 140 - ww)),
+            y: 70 + (rng.next() * (sim.AH - 140 - hh)),
+            w: ww,
+            h: hh
+        });
     }
-    
-    if (!target) {
-      const enemies=sim.tanks.filter(t=>t.alive&&t.id!==tank.id&&t.team!==tank.team)
-        .map(e=>({e,d:dist(tank.pos,e.pos)}))
-        .sort((a,b)=>a.d-b.d);
-      if(enemies.length>0) target = enemies[0].e;
-    }
-    
-    tank.currentTarget=target;
-    tank.lastTactic=decision.tactic;
-    tank.lastAction=decision.action.slice();
-    tank.lastTacticsProbs=decision.tacticsProbs.slice();
-    tank.lastTargetIdx=decision.targetIdx;
-    tank.lastTargetScores=decision.targetScores.slice();
-    tank.lastValue=decision.value;
-    
-    // Профессиональная доработка: использование структурированного возврата executeAction
-    const exec=executeAction(tank,decision.tactic,decision.action,target,sim.AW,sim.AH,tank.rng);
-    const targetAng=Math.atan2(exec.vy,exec.vx);
-    tank.angle+=clamp(angDiff(targetAng,tank.angle),-0.1,0.1);
-    
-    const mag=Math.hypot(exec.vx,exec.vy);
-    if(mag>0.01){
-      const nx=tank.pos.x+exec.vx,ny=tank.pos.y+exec.vy;
-      let blocked=false;
-      if(pointInWall(nx,ny,sim.walls)||nx<16||nx>sim.AW-16||ny<16||ny>sim.AH-16){
-        blocked=true;tank.wanderAng=tank.rng.next()*TAU;
-      }
-      for(const other of sim.tanks){
-        if(other.id!==tank.id&&other.alive&&dist({x:nx,y:ny},other.pos)<30){blocked=true;break;}
-      }
-      if(!blocked){tank.pos.x=nx;tank.pos.y=ny;}
-      tank.vel.x=exec.vx;tank.vel.y=exec.vy;
-    }
-    
-    // Профессиональная доработка: интеграция коррекции прицела от нейросети
-    if(target){
-      const leadAim = sim.combatCore.calculateLeadShot(tank, target, 7);
-      const desiredAim = leadAim + exec.aimOffset;
-      tank.turret += clamp(angDiff(desiredAim, tank.turret), -0.14, 0.14);
-    } else {
-      tank.turret += clamp(angDiff(exec.aimAng, tank.turret), -0.14, 0.14);
-    }
-    
-    // Профессиональная доработка: смешивание эвристики и fireBias нейросети
-    const baseFireProb = sim.combatCore.smartFireDecision(tank, target, sim.bullets);
-    const fireProb = clamp(baseFireProb * 0.3 + exec.fireBias * 0.7, 0, 1);
-    
-    if(tank.reload <= 0 && tank.rng.next() < fireProb){
-      tank.reload=tank.reloadTime;tank.shots++;
-      const bx=tank.pos.x+Math.cos(tank.turret)*24;
-      const by=tank.pos.y+Math.sin(tank.turret)*24;
-      sim.bullets.push(new Bullet(bx,by,Math.cos(tank.turret)*7,Math.sin(tank.turret)*7,tank.id,12,sim.tick));
-    }
-    
-    tank.trajectory.push({
-      state:sensors,
-      tactic:decision.tactic,
-      value:decision.value,
-      tacticsProbs:decision.tacticsProbs,
-      action:decision.action,
-      actionSamples:decision.actionSamples,
-      lowLogProb:decision.lowLogProb,
-      targetIdx:decision.targetIdx,
-      targetScores:decision.targetScores,
-      targetProbs:decision.targetProbs,
-      validCount:decision.validCount,
-      enemyFeatures:decision.enemyFeatures,
-      reward:0,tick:sim.tick
-    });
-    
-    if(tank.trajectory.length>TRAJ_MAX){
-      const chunk=tank.trajectory.splice(0,TRAJ_CHUNK);
-      const bootstrap=sharedPolicy.forwardValue(chunk[chunk.length-1].state);
-      sim.trajectoryBuffer.addEpisode(chunk,bootstrap);
-    }
-    
-    tank.trail.push({x:tank.pos.x,y:tank.pos.y});
-    if(tank.trail.length>25)tank.trail.shift();
-  }
-  
-  for(let i=sim.bullets.length-1;i>=0;i--){
-    const b=sim.bullets[i];
-    b.pos.x+=b.vel.x;b.pos.y+=b.vel.y;
-    let dead=false;
-    if(--b.life<=0||b.pos.x<0||b.pos.x>sim.AW||b.pos.y<0||b.pos.y>sim.AH)dead=true;
-    if(!dead&&pointInWall(b.pos.x,b.pos.y,sim.walls))dead=true;
-    if(!dead){
-      for(const tank of sim.tanks){
-        if(!tank.alive||tank.id===b.owner)continue;
-        if(dist(tank.pos,b.pos)<16){
-          const shooter=sim.tanks[b.owner];
-          if(shooter){
-            shooter.damage+=b.dmg;shooter.hits++;
-            const shotTr=shooter.trajectory.find(t=>t.tick===b.shotTick);
-            if(shotTr)shotTr.reward+=R_HIT;
-            else if(shooter.trajectory.length>0)shooter.trajectory[shooter.trajectory.length-1].reward+=R_HIT;
-          }
-          if(tank.trajectory.length>0)tank.trajectory[tank.trajectory.length-1].reward+=R_DAMAGE*b.dmg;
-          tank.hp-=b.dmg;tank.recentDamage+=b.dmg;
-          dead=true;
-          if(tank.hp<=0)killTank(tank,b.owner);
-          break;
+    return walls;
+}
+
+function findSpawn(rng) {
+    for (let i = 0; i < 100; i++) {
+        const x = 40 + (rng.next() * (sim.AW - 80));
+        const y = 40 + (rng.next() * (sim.AH - 80));
+        
+        // FIX #6: Проверка всех 4 углов bounding box для предотвращения спавна углом в стену
+        if (!pointInWall(x, y, sim.walls) &&
+            !pointInWall(x - 20, y - 20, sim.walls) &&
+            !pointInWall(x + 20, y - 20, sim.walls) &&
+            !pointInWall(x - 20, y + 20, sim.walls) &&
+            !pointInWall(x + 20, y + 20, sim.walls)) {
+            
+            let ok = true;
+            for (let j = 0; j < sim.tanks.length; j++) {
+                const t = sim.tanks[j];
+                if (t.alive && dist(t.pos, {x: x, y: y}) < 120) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (ok) {
+                return { x: x, y: y };
+            }
         }
-      }
     }
-    if(dead)sim.bullets.splice(i,1);
-  }
-  
-  for(const tank of sim.tanks){
-    if(!tank.alive||tank.trajectory.length===0)continue;
-    const tr=tank.trajectory;
-    const last=tr[tr.length-1];
-    last.reward+=R_LIFE;
-    if(tank.currentTarget){
-      const aimAtMe=Math.atan2(tank.currentTarget.pos.y-tank.pos.y,tank.currentTarget.pos.x-tank.pos.x);
-      const aimErr=Math.abs(angDiff(tank.turret,aimAtMe));
-      const d=dist(tank.pos,tank.currentTarget.pos);
-      if(aimErr<0.25)last.reward+=R_AIM;
-      if(d>200&&d<320)last.reward+=R_DIST;
-    }
-    if(tr.length>=2){
-      const bulletThreat=tr[tr.length-1].state[BULLET_OFF+0];
-      const prevThreat=tr[tr.length-2].state[BULLET_OFF+0];
-      if(prevThreat>0.3&&bulletThreat<0.1)tr[tr.length-1].reward+=R_DODGE;
-    }
-  }
-  
-  if(sim.tick%40===0&&sim.trajectoryBuffer.size()>200)trainer.trainStep(sim.trajectoryBuffer);
+    return { x: sim.AW / 2, y: sim.AH / 2 };
 }
 
-function killTank(tank,killerId){
-  if(tank.trajectory.length>0)tank.trajectory[tank.trajectory.length-1].reward+=R_DEATH;
-  sim.trajectoryBuffer.addEpisode(tank.trajectory,0);
-  tank.alive=false;tank.hp=0;tank.deaths++;tank.respawn=130;tank.trajectory=[];
-  const killer=sim.tanks[killerId];
-  if(killer){
-    killer.kills++;
-    if(killer.trajectory.length>0)killer.trajectory[killer.trajectory.length-1].reward+=R_KILL;
-    addLog(`💀 ${killer.name} → ${tank.name}`,'log-k');
-  }
-}
-
-function respawn(tank){
-  const pos=findSpawn(tank.rng);
-  tank.pos={...pos};tank.hp=tank.maxHp;tank.alive=true;
-  tank.angle=tank.rng.next()*TAU;tank.turret=tank.angle;
-  tank.reload=0;tank.trail=[];tank.trajectory=[];tank.recentDamage=0;
-  addLog(`↻ ${tank.name}`,'log-s');
-}
-
-function endRound(){
-  for(const tank of sim.tanks){
-    if(tank.trajectory.length>0){
-      let bootstrap=0;
-      if(tank.alive&&tank.trajectory.length>0){
-        bootstrap=sharedPolicy.forwardValue(tank.trajectory[tank.trajectory.length-1].state);
-        tank.trajectory[tank.trajectory.length-1].reward+=R_WIN;
-      }
-      sim.trajectoryBuffer.addEpisode(tank.trajectory,bootstrap);
-      tank.trajectory=[];
-    }
-  }
-  sim.round++;sim.episode++;
-  initRound();
-}
-
-function stepSim(){for(let s=0;s<sim.speed;s++)tick();}
-
-// Профессиональная доработка: структурированный возврат параметров исполнения
-function executeAction(tank,tactic,action,target,AW,AH,rng){
-  const throttle=clamp(action[0],-1,1);
-  const aimOffset=clamp(action[1],-1,1)*0.5; // Радианы коррекции прицела
-  const fireBias=(clamp(action[2],-1,1)+1)/2; // Нормализация в [0, 1] для вероятности выстрела
-  const dodgeX=clamp(action[3],-1,1);
-  const dodgeY=clamp(action[4],-1,1);
-  
-  let moveAng=tank.angle;
-  
-  if(!target){
-    moveAng=tank.wanderAng;
-    tank.wanderAng+=0.05;
-  }else{
-    const toTarget=Math.atan2(target.pos.y-tank.pos.y,target.pos.x-tank.pos.x);
-    const d=dist(tank.pos,target.pos);
-    const pursuit = sim.combatCore.purePursuit(tank, target);
+function initRound() {
+    sim.bullets = [];
+    sim.walls = genWalls(sim.rng.fork((sim.round * 31) + 7));
+    sim.tanks = [];
+    sim.combatCore.targetAssignments.clear();
     
-    switch(tactic){
-      case 0: moveAng=toTarget; break;
-      case 1:case 2:
-        const side=tactic===1?-1:1;
-        const perp=toTarget+Math.PI/2*side;
-        moveAng=d>250?toTarget:perp;
-        break;
-      case 3:
-        const opt=240;
-        const err=(d-opt)/opt;
-        moveAng=toTarget+clamp(err,-0.5,0.5)+Math.sin(rng.next()*TAU)*0.3;
-        break;
-      case 4: moveAng=Math.atan2(dodgeY,dodgeX); break;
-      case 5: moveAng=toTarget+Math.PI; break;
-      case 6:
-        let bestA=toTarget+Math.PI,bestS=-1e9;
-        for(let a=0;a<12;a++){
-          const ang=(a/12)*TAU;
-          const away=-Math.cos(ang-toTarget);
-          const score=away-Math.abs(angDiff(ang,toTarget+Math.PI))*0.3;
-          if(score>bestS){bestS=score;bestA=ang;}
+    const names = ['ALPHA', 'BRAVO', 'CHARLIE', 'DELTA', 'ECHO', 'FOXTROT'];
+    for (let i = 0; i < sim.tankCount; i++) {
+        // FIX #7: Fallback для имён при tankCount > 6
+        const name = names[i] !== undefined ? names[i] : 'UNIT-' + (i + 1);
+        const pos = findSpawn(sim.rng);
+        sim.tanks.push(new Tank(i, name, i < 3 ? 'blue' : 'red', pos, sim.rng));
+    }
+    
+    // FIX: Clamp selected
+    sim.selected = clamp(sim.selected, 0, sim.tanks.length - 1);
+    addLog('Раунд ' + sim.round + ' начался.', 'log-s');
+}
+
+function addLog(msg, cls) {
+    const c = cls !== undefined ? cls : '';
+    sim.log.unshift({ t: sim.tick, msg: msg, cls: c });
+    if (sim.log.length > 50) {
+        sim.log.pop();
+    }
+}
+
+const R_LIFE = 0.001;
+const R_AIM = 0.003;
+const R_DIST = 0.002;
+const R_DODGE = 0.04;
+const R_HIT = 1.5;
+const R_KILL = 3.0;
+const R_DAMAGE = -0.01;
+const R_DEATH = -10.0;
+const R_WIN = 5.0;
+
+function stepPhysics() {
+    sim.tick = sim.tick + 1;
+    
+    const alive = [];
+    for (let i = 0; i < sim.tanks.length; i++) {
+        if (sim.tanks[i].alive) {
+            alive.push(sim.tanks[i]);
         }
-        moveAng=bestA;
-        break;
-      case 7:
-        moveAng=tank.wanderAng;
-        tank.wanderAng+=0.03;
-        break;
     }
     
-    if (pursuit && tactic !== 4 && tactic !== 5) {
-      const blend = 0.6;
-      moveAng = moveAng * (1-blend) + (toTarget + pursuit.steer) * blend;
+    if (alive.length <= 1) {
+        if (alive.length === 1) {
+            addLog('🏆 ' + alive[0].name + ' ПОБЕДА', 'log-w');
+            alive[0].wins = alive[0].wins + 1;
+        }
+        endRound();
+        return;
     }
-  }
-  
-  const speed=2.4*Math.abs(throttle);
-  const vx=Math.cos(moveAng)*speed,vy=Math.sin(moveAng)*speed;
-  const aimAng = target ? tank.turret : tank.angle;
-  
-  return { vx, vy, aimAng, aimOffset, fireBias };
+    
+    for (let i = 0; i < sim.tanks.length; i++) {
+        if (sim.tanks[i].alive) {
+            sim.tanks[i].recentDamage = sim.tanks[i].recentDamage * 0.9;
+        }
+    }
+    
+    if (sim.tick % 20 === 0) {
+        sim.combatCore.targetAssignments = sim.combatCore.assignTargetsGlobal(sim.tanks);
+    }
+    
+    for (let i = 0; i < sim.tanks.length; i++) {
+        const tank = sim.tanks[i];
+        if (!tank.alive) {
+            tank.respawn = tank.respawn - 1;
+            if (tank.respawn <= 0) {
+                respawn(tank);
+            }
+            continue;
+        }
+        
+        if (tank.reload > 0) {
+            tank.reload = tank.reload - 1;
+        }
+        
+        const sensors = buildSensors(tank, sim.tanks, sim.bullets, sim.walls, sim.AW, sim.AH);
+        const decision = sharedPolicy.forward(sensors, tank.rng);
+        
+        const assignedEnemyId = sim.combatCore.targetAssignments.get(tank.id);
+        let target = null;
+        
+        if (assignedEnemyId !== undefined) {
+            for (let j = 0; j < sim.tanks.length; j++) {
+                if (sim.tanks[j].alive && sim.tanks[j].id === assignedEnemyId) {
+                    target = sim.tanks[j];
+                    break;
+                }
+            }
+        }
+        
+        // FIX #3: Приоритетное использование decision.targetIdx
+        const enemies = [];
+        for (let j = 0; j < sim.tanks.length; j++) {
+            if (sim.tanks[j].alive && sim.tanks[j].team !== tank.team) {
+                enemies.push({ e: sim.tanks[j], d: dist(tank.pos, sim.tanks[j].pos) });
+            }
+        }
+        enemies.sort(function(a, b) {
+            return a.d - b.d;
+        });
+        
+        if (decision.targetIdx >= 0 && decision.targetIdx < enemies.length && decision.targetScores[decision.targetIdx] > -50) {
+            target = enemies[decision.targetIdx].e;
+        }
+        
+        if (!target && enemies.length > 0) {
+            target = enemies[0].e;
+        }
+        
+        tank.currentTarget = target;
+        tank.lastTactic = decision.tactic;
+        tank.lastAction = decision.action.slice();
+        tank.lastTacticsProbs = decision.tacticsProbs.slice();
+        tank.lastTargetIdx = decision.targetIdx;
+        tank.lastTargetScores = decision.targetScores.slice();
+        tank.lastTargetProbs = decision.targetProbs.slice();
+        tank.lastValue = decision.value;
+        
+        let desiredAngle = tank.angle;
+        let speedMult = 0.5;
+        
+        if (target !== null) {
+            const toTarget = Math.atan2(target.pos.y - tank.pos.y, target.pos.x - tank.pos.x);
+            const d = dist(tank.pos, target.pos);
+            const interceptTime = d / 7;
+            const predX = target.pos.x + (target.vel.x * interceptTime);
+            const predY = target.pos.y + (target.vel.y * interceptTime);
+            const pursuitAng = Math.atan2(predY - tank.pos.y, predX - tank.pos.x);
+            
+            if (decision.tactic === 0) {
+                desiredAngle = toTarget;
+                speedMult = 1.0;
+            } else if (decision.tactic === 1) {
+                if (d > 250) {
+                    desiredAngle = toTarget;
+                } else {
+                    desiredAngle = normAng(toTarget + ((Math.PI / 2) * -1));
+                }
+                speedMult = 0.8;
+            } else if (decision.tactic === 2) {
+                if (d > 250) {
+                    desiredAngle = toTarget;
+                } else {
+                    desiredAngle = normAng(toTarget + ((Math.PI / 2) * 1));
+                }
+                speedMult = 0.8;
+            } else if (decision.tactic === 3) {
+                const err = (d - 240) / 240;
+                desiredAngle = normAng(toTarget + clamp(err, -0.5, 0.5));
+                speedMult = 0.7;
+            } else if (decision.tactic === 4) {
+                desiredAngle = Math.atan2(decision.action[4], decision.action[3]);
+                speedMult = 1.2;
+            } else if (decision.tactic === 5) {
+                desiredAngle = normAng(toTarget + Math.PI);
+                speedMult = 0.9;
+            } else if (decision.tactic === 6) {
+                desiredAngle = normAng(toTarget + Math.PI);
+                speedMult = 0.4;
+            } else if (decision.tactic === 7) {
+                desiredAngle = tank.wanderAng;
+                tank.wanderAng = tank.wanderAng + 0.03;
+                speedMult = 0.5;
+            }
+            
+            desiredAngle = normAng(desiredAngle + (angDiff(pursuitAng, desiredAngle) * 0.4));
+            
+            const leadAim = sim.combatCore.calculateLeadShot(tank, target, 7);
+            const desiredAim = leadAim + (clamp(decision.action[1], -1, 1) * 0.3);
+            tank.turret = tank.turret + clamp(angDiff(desiredAim, tank.turret), -tank.maxAngularVel, tank.maxAngularVel);
+            
+            const aimError = Math.abs(angDiff(tank.turret, leadAim));
+            const fireProb = clamp(((1 - (aimError / 0.3)) * 0.8) + (decision.action[2] * 0.2), 0, 1);
+            
+            if (tank.reload <= 0 && tank.rng.next() < fireProb && sim.combatCore.isLineOfSightClear(tank, target, sim.tanks, sim.walls)) {
+                tank.reload = tank.reloadTime;
+                tank.shots = tank.shots + 1;
+                const bx = tank.pos.x + (Math.cos(tank.turret) * 24);
+                const by = tank.pos.y + (Math.sin(tank.turret) * 24);
+                const vx = Math.cos(tank.turret) * 7;
+                const vy = Math.sin(tank.turret) * 7;
+                sim.bullets.push(new Bullet(bx, by, vx, vy, tank.id, tank.team, 12, sim.tick));
+            }
+        } else {
+            tank.turret = tank.turret + clamp(angDiff(tank.wanderAng, tank.turret), -tank.maxAngularVel, tank.maxAngularVel);
+        }
+        
+        const force = new Vector2(Math.cos(desiredAngle), Math.sin(desiredAngle));
+        force.mult(tank.maxForce * speedMult);
+        tank.acc.add(force);
+        tank.vel.add(tank.acc);
+        
+        if (tank.vel.mag() > tank.maxSpeed) {
+            tank.vel.normalize().mult(tank.maxSpeed);
+        }
+        tank.vel.mult(0.92);
+        tank.acc.mult(0);
+        
+        const nextX = tank.pos.x + tank.vel.x;
+        const nextY = tank.pos.y + tank.vel.y;
+        let blocked = false;
+        
+        if (pointInWall(nextX, nextY, sim.walls) || nextX < 16 || nextX > sim.AW - 16 || nextY < 16 || nextY > sim.AH - 16) {
+            blocked = true;
+        }
+        
+        for (let j = 0; j < sim.tanks.length; j++) {
+            const other = sim.tanks[j];
+            if (other.id !== tank.id && other.alive && dist({x: nextX, y: nextY}, other.pos) < 32) {
+                blocked = true;
+                break;
+            }
+        }
+        
+        if (blocked) {
+            tank.vel.mult(0.0);
+        } else {
+            tank.pos.x = nextX;
+            tank.pos.y = nextY;
+        }
+        tank.angle = normAng(tank.angle + (angDiff(desiredAngle, tank.angle) * 0.2));
+        
+        tank.trajectory.push({
+            state: sensors,
+            tactic: decision.tactic,
+            value: decision.value,
+            tacticsProbs: decision.tacticsProbs,
+            action: decision.action,
+            actionSamples: decision.actionSamples,
+            lowLogProb: decision.lowLogProb,
+            targetIdx: decision.targetIdx,
+            targetScores: decision.targetScores,
+            targetProbs: decision.targetProbs,
+            validCount: decision.validCount,
+            enemyFeatures: decision.enemyFeatures,
+            reward: 0,
+            tick: sim.tick
+        });
+        
+        if (tank.trajectory.length > 1500) {
+            const chunk = tank.trajectory.splice(0, 1000);
+            const lastState = chunk[chunk.length - 1].state;
+            const bootstrap = sharedPolicy.forwardValue(lastState);
+            sim.trajectoryBuffer.addEpisode(chunk, bootstrap);
+        }
+        
+        tank.trail.push({ x: tank.pos.x, y: tank.pos.y });
+        if (tank.trail.length > 30) {
+            tank.trail.shift();
+        }
+    }
+    
+    for (let i = sim.bullets.length - 1; i >= 0; i--) {
+        const b = sim.bullets[i];
+        b.pos.add(b.vel);
+        let dead = false;
+        
+        if (b.life <= 0 || b.pos.x < 0 || b.pos.x > sim.AW || b.pos.y < 0 || b.pos.y > sim.AH) {
+            dead = true;
+        }
+        if (!dead && pointInWall(b.pos.x, b.pos.y, sim.walls)) {
+            dead = true;
+        }
+        
+        if (!dead) {
+            for (let j = 0; j < sim.tanks.length; j++) {
+                const tank = sim.tanks[j];
+                if (!tank.alive || tank.team === b.team) {
+                    continue;
+                }
+                if (dist(tank.pos, b.pos) < 16) {
+                    const shooter = sim.tanks[b.ownerId];
+                    if (shooter !== undefined) {
+                        shooter.damage = shooter.damage + b.dmg;
+                        shooter.hits = shooter.hits + 1;
+                        
+                        let shotTr = undefined;
+                        for (let k = 0; k < shooter.trajectory.length; k++) {
+                            if (shooter.trajectory[k].tick === b.shotTick) {
+                                shotTr = shooter.trajectory[k];
+                                break;
+                            }
+                        }
+                        
+                        if (shotTr !== undefined) {
+                            shotTr.reward = shotTr.reward + R_HIT;
+                        } else if (shooter.trajectory.length > 0) {
+                            const lastTr = shooter.trajectory[shooter.trajectory.length - 1];
+                            lastTr.reward = lastTr.reward + R_HIT;
+                        }
+                    }
+                    
+                    if (tank.trajectory.length > 0) {
+                        const lastTr = tank.trajectory[tank.trajectory.length - 1];
+                        lastTr.reward = lastTr.reward + (R_DAMAGE * b.dmg);
+                    }
+                    
+                    tank.hp = tank.hp - b.dmg;
+                    tank.recentDamage = tank.recentDamage + b.dmg;
+                    dead = true;
+                    
+                    if (tank.hp <= 0) {
+                        killTank(tank, b.ownerId);
+                    }
+                    break;
+                }
+            }
+        }
+        
+        if (dead) {
+            sim.bullets.splice(i, 1);
+        }
+    }
+    
+    for (let i = 0; i < sim.tanks.length; i++) {
+        const tank = sim.tanks[i];
+        if (!tank.alive || tank.trajectory.length === 0) {
+            continue;
+        }
+        const tr = tank.trajectory;
+        const last = tr[tr.length - 1];
+        last.reward = last.reward + R_LIFE;
+        
+        if (tank.currentTarget !== null) {
+            const aimErr = Math.abs(angDiff(
+                tank.turret,
+                Math.atan2(tank.currentTarget.pos.y - tank.pos.y, tank.currentTarget.pos.x - tank.pos.x)
+            ));
+            const d = dist(tank.pos, tank.currentTarget.pos);
+            if (aimErr < 0.25) {
+                last.reward = last.reward + R_AIM;
+            }
+            if (d > 200 && d < 320) {
+                last.reward = last.reward + R_DIST;
+            }
+        }
+        
+        if (tr.length >= 2) {
+            const prevThreat = tr[tr.length - 2].state[BULLET_OFF + 0];
+            const curThreat = last.state[BULLET_OFF + 0];
+            if (prevThreat > 0.3 && curThreat < 0.1) {
+                last.reward = last.reward + R_DODGE;
+            }
+        }
+    }
+}
+
+function killTank(tank, killerId) {
+    sim.combatCore.targetAssignments.delete(tank.id);
+    if (tank.trajectory.length > 0) {
+        tank.trajectory[tank.trajectory.length - 1].reward = tank.trajectory[tank.trajectory.length - 1].reward + R_DEATH;
+    }
+    sim.trajectoryBuffer.addEpisode(tank.trajectory, 0);
+    tank.alive = false;
+    tank.hp = 0;
+    tank.deaths = tank.deaths + 1;
+    tank.respawn = 130;
+    tank.trajectory = [];
+    
+    let killer = null;
+    if (killerId >= 0 && killerId < sim.tanks.length) {
+        killer = sim.tanks[killerId];
+    }
+    
+    if (killer !== null) {
+        killer.kills = killer.kills + 1;
+        if (killer.alive && killer.trajectory.length > 0) {
+            killer.trajectory[killer.trajectory.length - 1].reward = killer.trajectory[killer.trajectory.length - 1].reward + R_KILL;
+        }
+        const posMsg = killer.alive ? '' : '(посмертно) ';
+        addLog('💀 ' + killer.name + ' ' + posMsg + 'уничтожил ' + tank.name, 'log-k');
+    }
+}
+
+function respawn(tank) {
+    sim.combatCore.targetAssignments.delete(tank.id);
+    const pos = findSpawn(tank.rng);
+    tank.pos = new Vector2(pos.x, pos.y);
+    tank.hp = tank.maxHp;
+    tank.alive = true;
+    tank.angle = tank.rng.next() * TAU;
+    tank.turret = tank.angle;
+    tank.vel = new Vector2(0, 0);
+    tank.acc = new Vector2(0, 0);
+    tank.reload = 0;
+    tank.trail = [];
+    tank.trajectory = [];
+    tank.recentDamage = 0;
+    addLog('↻ ' + tank.name + ' развернут', 'log-s');
+}
+
+function endRound() {
+    for (let i = 0; i < sim.tanks.length; i++) {
+        const tank = sim.tanks[i];
+        if (tank.trajectory.length > 0) {
+            let bootstrap = 0;
+            if (tank.alive && tank.trajectory.length > 0) {
+                const lastState = tank.trajectory[tank.trajectory.length - 1].state;
+                bootstrap = sharedPolicy.forwardValue(lastState);
+                tank.trajectory[tank.trajectory.length - 1].reward = tank.trajectory[tank.trajectory.length - 1].reward + R_WIN;
+            }
+            sim.trajectoryBuffer.addEpisode(tank.trajectory, bootstrap);
+            tank.trajectory = [];
+        }
+    }
+    sim.round = sim.round + 1;
+    sim.episode = sim.episode + 1;
+    initRound();
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   RENDER
+   9. RENDER ENGINE (FULLY EXPANDED)
 ═══════════════════════════════════════════════════════════════════════ */
-const canvas=document.getElementById('c');
-const ctx=canvas.getContext('2d');
-let dpr=window.devicePixelRatio||1;
-function resize(){const wrap=document.getElementById('arena-wrap');canvas.width=wrap.clientWidth*dpr;canvas.height=wrap.clientHeight*dpr;}
-window.addEventListener('resize',resize);resize();
 
-function render(){
-  const W=canvas.width,H=canvas.height;
-  ctx.fillStyle='#030608';ctx.fillRect(0,0,W,H);
-  const scale=Math.min(W/sim.AW,H/sim.AH)*0.95;
-  const ox=(W-sim.AW*scale)/2,oy=(H-sim.AH*scale)/2;
-  ctx.save();ctx.translate(ox,oy);ctx.scale(scale,scale);
-  ctx.strokeStyle='#0a0f18';ctx.lineWidth=1/scale;
-  for(let x=0;x<=sim.AW;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,sim.AH);ctx.stroke();}
-  for(let y=0;y<=sim.AH;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(sim.AW,y);ctx.stroke();}
-  ctx.strokeStyle='#1f2937';ctx.lineWidth=2/scale;ctx.strokeRect(0,0,sim.AW,sim.AH);
-  for(const w of sim.walls){ctx.fillStyle='#1f2937';ctx.fillRect(w.x,w.y,w.w,w.h);ctx.strokeStyle='#374151';ctx.lineWidth=1/scale;ctx.strokeRect(w.x,w.y,w.w,w.h);}
-  for(const t of sim.tanks){
-    if(!t.alive||t.trail.length<2)continue;
-    ctx.beginPath();ctx.moveTo(t.trail[0].x,t.trail[0].y);
-    for(let i=1;i<t.trail.length;i++)ctx.lineTo(t.trail[i].x,t.trail[i].y);
-    ctx.strokeStyle=t.color+'33';ctx.lineWidth=3;ctx.stroke();
-  }
-  for(const b of sim.bullets){const owner=sim.tanks[b.owner];ctx.fillStyle=owner?owner.color:'#fff';ctx.beginPath();ctx.arc(b.pos.x,b.pos.y,2.5,0,TAU);ctx.fill();}
-  const selT=sim.tanks[sim.selected];
-  for(const t of sim.tanks){
-    if(!t.alive){ctx.globalAlpha=0.25;ctx.strokeStyle=t.color;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(t.pos.x-9,t.pos.y-9);ctx.lineTo(t.pos.x+9,t.pos.y+9);ctx.moveTo(t.pos.x+9,t.pos.y-9);ctx.lineTo(t.pos.x-9,t.pos.y+9);ctx.stroke();ctx.globalAlpha=1;continue;}
-    const R=15;
-    if(t===selT&&t.currentTarget&&t.currentTarget.alive){
-      ctx.strokeStyle='#60a5fa88';ctx.lineWidth=1.5;ctx.setLineDash([6,4]);
-      ctx.beginPath();ctx.moveTo(t.pos.x,t.pos.y);ctx.lineTo(t.currentTarget.pos.x,t.currentTarget.pos.y);ctx.stroke();ctx.setLineDash([]);
+let canvas = null;
+let ctx = null;
+let dpr = 1;
+
+function initRender() {
+    canvas = document.getElementById('c');
+    ctx = canvas.getContext('2d', { alpha: false });
+    dpr = window.devicePixelRatio || 1;
+    window.addEventListener('resize', resize);
+    resize();
+}
+
+function resize() {
+    const wrap = document.getElementById('arena-wrap');
+    canvas.width = wrap.clientWidth * dpr;
+    canvas.height = wrap.clientHeight * dpr;
+    canvas.style.width = wrap.clientWidth + 'px';
+    canvas.style.height = wrap.clientHeight + 'px';
+}
+
+function render() {
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.fillStyle = '#050508';
+    ctx.fillRect(0, 0, W, H);
+    
+    const scale = Math.min(W / sim.AW, H / sim.AH) * 0.92;
+    const ox = (W - (sim.AW * scale)) / 2;
+    const oy = (H - (sim.AH * scale)) / 2;
+    
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.scale(scale, scale);
+    
+    ctx.strokeStyle = 'rgba(0, 240, 255, 0.03)';
+    ctx.lineWidth = 1 / scale;
+    for (let x = 0; x <= sim.AW; x = x + 50) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, sim.AH);
+        ctx.stroke();
     }
-    if(t===selT&&t.currentTarget){
-      const tLead=dist(t.pos,t.currentTarget.pos)/7;
-      const aimX=t.currentTarget.pos.x+t.currentTarget.vel.x*tLead*0.95;
-      const aimY=t.currentTarget.pos.y+t.currentTarget.vel.y*tLead*0.95;
-      ctx.strokeStyle='#f59e0b66';ctx.lineWidth=1;ctx.setLineDash([2,3]);
-      ctx.beginPath();ctx.moveTo(t.pos.x,t.pos.y);ctx.lineTo(aimX,aimY);ctx.stroke();ctx.setLineDash([]);
+    for (let y = 0; y <= sim.AH; y = y + 50) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(sim.AW, y);
+        ctx.stroke();
     }
-    ctx.save();ctx.translate(t.pos.x,t.pos.y);ctx.rotate(t.angle);
-    ctx.fillStyle=t.color;ctx.fillRect(-R,-R*0.72,R*2,R*1.44);
-    ctx.fillStyle='rgba(255,255,255,.2)';ctx.fillRect(-R*0.3,-R*0.72,R*1.3,R*1.44);
+    
+    ctx.strokeStyle = '#1a1a2e';
+    ctx.lineWidth = 2 / scale;
+    ctx.strokeRect(0, 0, sim.AW, sim.AH);
+    
+    for (let i = 0; i < sim.walls.length; i++) {
+        const w = sim.walls[i];
+        ctx.fillStyle = '#0f0f1a';
+        ctx.fillRect(w.x, w.y, w.w, w.h);
+        ctx.strokeStyle = '#2a2a4e';
+        ctx.lineWidth = 1 / scale;
+        ctx.strokeRect(w.x, w.y, w.w, w.h);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
+        ctx.fillRect(w.x, w.y, w.w, 2);
+    }
+    
+    for (let i = 0; i < sim.tanks.length; i++) {
+        const t = sim.tanks[i];
+        if (!t.alive || t.trail.length < 2) {
+            continue;
+        }
+        ctx.beginPath();
+        ctx.moveTo(t.trail[0].x, t.trail[0].y);
+        for (let j = 1; j < t.trail.length; j++) {
+            ctx.lineTo(t.trail[j].x, t.trail[j].y);
+        }
+        ctx.strokeStyle = t.color + '22';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+    }
+    
+    for (let i = 0; i < sim.bullets.length; i++) {
+        const b = sim.bullets[i];
+        ctx.fillStyle = b.team === 'blue' ? '#00f0ff' : '#ff2a2a';
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = ctx.fillStyle;
+        ctx.beginPath();
+        ctx.arc(b.pos.x, b.pos.y, 3, 0, TAU);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+    
+    const selT = sim.tanks[sim.selected];
+    
+    for (let i = 0; i < sim.tanks.length; i++) {
+        const t = sim.tanks[i];
+        if (!t.alive) {
+            ctx.globalAlpha = 0.3;
+            ctx.strokeStyle = t.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(t.pos.x - 8, t.pos.y - 8);
+            ctx.lineTo(t.pos.x + 8, t.pos.y + 8);
+            ctx.moveTo(t.pos.x + 8, t.pos.y - 8);
+            ctx.lineTo(t.pos.x - 8, t.pos.y + 8);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+            continue;
+        }
+        
+        const R = 16;
+        
+        if (t === selT && t.currentTarget !== null && t.currentTarget.alive) {
+            ctx.strokeStyle = t.color + '66';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(t.pos.x, t.pos.y);
+            ctx.lineTo(t.currentTarget.pos.x, t.currentTarget.pos.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            const tLead = dist(t.pos, t.currentTarget.pos) / 7;
+            const aimX = t.currentTarget.pos.x + (t.currentTarget.vel.x * tLead);
+            const aimY = t.currentTarget.pos.y + (t.currentTarget.vel.y * tLead);
+            ctx.strokeStyle = '#ffffff44';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(aimX, aimY, 6, 0, TAU);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(aimX - 8, aimY);
+            ctx.lineTo(aimX + 8, aimY);
+            ctx.moveTo(aimX, aimY - 8);
+            ctx.lineTo(aimX, aimY + 8);
+            ctx.stroke();
+        }
+        
+        if (t === selT) {
+            for (let j = 0; j < N_LIDAR; j++) {
+                const a = t.angle + ((j / N_LIDAR) * TAU);
+                const hitDist = raycastWalls(t.pos, a, 160, sim.walls, sim.AW, sim.AH);
+                const endX = t.pos.x + (Math.cos(a) * hitDist);
+                const endY = t.pos.y + (Math.sin(a) * hitDist);
+                const grad = ctx.createLinearGradient(t.pos.x, t.pos.y, endX, endY);
+                grad.addColorStop(0, t.color + '88');
+                grad.addColorStop(1, t.color + '00');
+                ctx.strokeStyle = grad;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(t.pos.x, t.pos.y);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+            }
+        }
+        
+        ctx.save();
+        ctx.translate(t.pos.x, t.pos.y);
+        ctx.rotate(t.angle);
+        ctx.fillStyle = '#0a0a12';
+        ctx.strokeStyle = t.color;
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = t.color;
+        ctx.beginPath();
+        ctx.moveTo(R, 0);
+        ctx.lineTo(-R * 0.6, -R * 0.8);
+        ctx.lineTo(-R, -R * 0.5);
+        ctx.lineTo(-R, R * 0.5);
+        ctx.lineTo(-R * 0.6, R * 0.8);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = t.color + '44';
+        ctx.fillRect(-R * 0.8, -R * 0.4, R * 0.4, R * 0.8);
+        ctx.restore();
+        
+        ctx.save();
+        ctx.translate(t.pos.x, t.pos.y);
+        ctx.rotate(t.turret);
+        ctx.fillStyle = t.color;
+        ctx.shadowBlur = 6;
+        ctx.shadowColor = t.color;
+        ctx.fillRect(0, -3, R + 8, 6);
+        ctx.beginPath();
+        ctx.arc(0, 0, 7, 0, TAU);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.restore();
+        
+        const hpw = 32;
+        const hpy = t.pos.y - R - 12;
+        ctx.fillStyle = '#00000088';
+        ctx.fillRect((t.pos.x - (hpw / 2)) - 1, hpy - 1, hpw + 2, 6);
+        const hpr = t.hp / t.maxHp;
+        
+        if (hpr > 0.6) {
+            ctx.fillStyle = '#00ff9d';
+        } else if (hpr > 0.3) {
+            ctx.fillStyle = '#fbbf24';
+        } else {
+            ctx.fillStyle = '#ff2a2a';
+        }
+        ctx.fillRect(t.pos.x - (hpw / 2), hpy, hpw * hpr, 4);
+        
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(t.name, t.pos.x, t.pos.y + R + 16);
+        
+        if (t === selT) {
+            ctx.strokeStyle = t.color;
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.arc(t.pos.x, t.pos.y, R + 8, 0, TAU);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+    }
     ctx.restore();
-    ctx.save();ctx.translate(t.pos.x,t.pos.y);ctx.rotate(t.turret);
-    ctx.fillStyle=t.color;ctx.fillRect(-3,-3,R+11,6);ctx.beginPath();ctx.arc(0,0,6.5,0,TAU);ctx.fill();ctx.restore();
-    const hpw=36;ctx.fillStyle='#000c';ctx.fillRect(t.pos.x-hpw/2,t.pos.y-R-15,hpw,5);
-    const hpr=t.hp/t.maxHp;ctx.fillStyle=hpr>0.6?'#22c55e':hpr>0.3?'#eab308':'#ef4444';
-    ctx.fillRect(t.pos.x-hpw/2,t.pos.y-R-15,hpw*hpr,5);
-    ctx.fillStyle='#e5e7eb';ctx.font='bold 10px -apple-system,sans-serif';ctx.textAlign='center';
-    ctx.fillText(t.name,t.pos.x,t.pos.y+R+14);
-    ctx.fillStyle=t.color;ctx.font='bold 9px monospace';
-    ctx.fillText(TACTICS_NAMES[t.lastTactic],t.pos.x,t.pos.y+R+24);
-    if(t===selT){ctx.strokeStyle=t.color+'aa';ctx.lineWidth=2;ctx.setLineDash([4,4]);ctx.beginPath();ctx.arc(t.pos.x,t.pos.y,R+10,0,TAU);ctx.stroke();ctx.setLineDash([]);}
-  }
-  ctx.restore();
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   UI
+   10. UI & MAIN LOOP (FULLY EXPANDED)
 ═══════════════════════════════════════════════════════════════════════ */
-function updateUI(){
-  document.getElementById('h-ep').textContent=sim.episode;
-  document.getElementById('h-rnd').textContent=sim.round;
-  document.getElementById('h-train').textContent=trainer?trainer.trainSteps:0;
-  
-  let html='';
-  for(const t of sim.tanks){
-    const hp=(t.hp/t.maxHp*100)|0;
-    const hpc=t.hp/t.maxHp>0.6?'#22c55e':t.hp/t.maxHp>0.3?'#eab308':'#ef4444';
-    html+=`<div class="tank-card ${t.id===sim.selected?'sel':''}" data-id="${t.id}">
-      <div class="tc-top"><span class="dot" style="background:${t.color}"></span>
-        <span class="tc-name">${t.name}</span>
-        <span class="mode-tag" style="background:${t.color}22;color:${t.color}">${TACTICS_NAMES[t.lastTactic]}</span></div>
-      <div class="hp-bar"><div class="hp-fill" style="width:${hp}%;background:${hpc}"></div></div>
-      <div class="tc-row"><span>K/D</span><b>${t.kills}/${t.deaths}</b></div>
-      <div class="tc-row"><span>Урон</span><b>${t.damage|0}</b></div>
-      <div class="tc-row"><span>Точность</span><b>${t.shots?((t.hits/t.shots*100)|0)+'%':'—'}</b></div>
-      <div class="tc-row"><span>Побед</span><b>${t.wins}</b></div>
-    </div>`;
-  }
-  document.getElementById('tank-list').innerHTML=html;
-  document.querySelectorAll('.tank-card').forEach(c=>c.onclick=()=>{sim.selected=+c.dataset.id;});
-  
-  const t=sim.tanks[sim.selected];
-  const panel=document.getElementById('brain-panel');
-  if(!t||!t.lastTacticsProbs||t.lastTacticsProbs.length===0){
-    panel.innerHTML='<div style="color:#6b7280">Нет данных</div>';
-  }else{
-    const probs=t.lastTacticsProbs;
-    let policyHtml='';
-    let bestIdx=0,bestV=-1;
-    for(let i=0;i<N_TACTICS;i++)if(probs[i]>bestV){bestV=probs[i];bestIdx=i;}
-    for(let i=0;i<N_TACTICS;i++){
-      const top=i===bestIdx?'top':'';
-      policyHtml+=`<div class="policy-row ${top}">
-        <span class="policy-label">${TACTICS_NAMES[i]}</span>
-        <div class="policy-bar"><div class="policy-fill" style="width:${probs[i]*100}%;background:${t.color}"></div></div>
-        <span class="policy-val">${(probs[i]*100).toFixed(1)}%</span>
-      </div>`;
+
+function updateUI() {
+    document.getElementById('h-ep').textContent = sim.episode;
+    document.getElementById('h-rnd').textContent = sim.round;
+    
+    if (trainer !== null) {
+        document.getElementById('h-train').textContent = trainer.trainSteps;
+    } else {
+        document.getElementById('h-train').textContent = 0;
     }
     
-    let targetHtml='<div style="color:#4b5563;font-size:9px">—</div>';
-    if(t.lastTargetScores){
-      const enemies=sim.tanks.filter(tt=>tt.alive&&tt.id!==t.id&&tt.team!==t.team)
-        .map(e=>({e,d:dist(t.pos,e.pos)})).sort((a,b)=>a.d-b.d);
-      let rows='';
-      for(let k=0;k<MAX_ENEMIES;k++){
-        if(k>=enemies.length)break;
-        const sc=t.lastTargetScores[k];
-        const e=enemies[k].e;
-        const sel=k===t.lastTargetIdx;
-        rows+=`<div class="policy-row ${sel?'top':''}">
-          <span class="policy-label" style="color:${e.color}">${e.name}</span>
-          <div class="policy-bar"><div class="policy-fill" style="width:${clamp(sc*30+50,0,100)}%;background:${e.color}"></div></div>
-          <span class="policy-val">${sc.toFixed(2)}</span>
-        </div>`;
-      }
-      if(rows)targetHtml=rows;
+    document.getElementById('h-buf').textContent = sim.trajectoryBuffer.size();
+    
+    const trainInd = document.getElementById('train-indicator');
+    if (trainInd !== null) {
+        if (isTraining) {
+            trainInd.className = 'stat-indicator active';
+        } else {
+            trainInd.className = 'stat-indicator';
+        }
     }
     
-    const lowLabels=['Газ','Прицел','Огонь','УклонX','УклонY'];
-    let lowHtml='';
-    for(let i=0;i<LOW_DIM;i++){
-      const v=t.lastAction[i];
-      const pos=v>0;const w=Math.abs(v)*50;
-      lowHtml+=`<div class="policy-row">
-        <span class="policy-label">${lowLabels[i]}</span>
-        <div class="policy-bar" style="position:relative">
-          <div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#374151"></div>
-          <div class="policy-fill" style="position:absolute;${pos?'left':'right'}:50%;width:${w}%;background:${pos?'#22c55e':'#ef4444'}"></div>
-        </div>
-        <span class="policy-val">${v.toFixed(2)}</span>
-      </div>`;
+    let html = '';
+    for (let i = 0; i < sim.tanks.length; i++) {
+        const t = sim.tanks[i];
+        const hp = ((t.hp / t.maxHp) * 100) | 0;
+        let hpc = '#ff2a2a';
+        if (t.hp / t.maxHp > 0.6) {
+            hpc = '#00ff9d';
+        } else if (t.hp / t.maxHp > 0.3) {
+            hpc = '#fbbf24';
+        }
+        
+        let teamClass = t.team === 'blue' ? 'blue' : 'red';
+        let teamText = t.team === 'blue' ? 'СОЮЗ' : 'ВРАГ';
+        let selClass = t.id === sim.selected ? 'sel' : '';
+        
+        let accText = '—';
+        if (t.shots > 0) {
+            accText = (((t.hits / t.shots) * 100) | 0) + '%';
+        }
+        
+        html += '<div class="tank-card ' + teamClass + ' ' + selClass + '" data-id="' + t.id + '">';
+        html += '  <div class="tc-top">';
+        html += '    <span class="dot" style="background:' + t.color + '; color:' + t.color + '"></span>';
+        html += '    <span class="tc-name">' + t.name + '</span>';
+        html += '    <span class="team-tag ' + teamClass + '">' + teamText + '</span>';
+        html += '  </div>';
+        html += '  <div class="hp-bar"><div class="hp-fill" style="width:' + hp + '%;background:' + hpc + '"></div></div>';
+        html += '  <div class="tc-row"><span>K/D</span><b>' + t.kills + '/' + t.deaths + '</b></div>';
+        html += '  <div class="tc-row"><span>Урон</span><b>' + (t.damage | 0) + '</b></div>';
+        html += '  <div class="tc-row"><span>Точность</span><b>' + accText + '</b></div>';
+        html += '</div>';
     }
     
-    panel.innerHTML=`
-      <div class="bp-section"><div class="bp-title">Тактика</div>${policyHtml}</div>
-      <div class="bp-section"><div class="bp-title">Выбор цели</div>${targetHtml}</div>
-      <div class="bp-section"><div class="bp-title">Нейро-коррекции</div>${lowHtml}</div>
-      <div class="bp-section"><div class="bp-title">V(s)</div><div style="color:#e5e7eb">${t.lastValue.toFixed(3)}</div></div>
-    `;
-  }
-  
-  if(trainer){
-    const m=trainer.lastMetrics;
-    document.getElementById('metrics').innerHTML=`
-      <div class="tc-row"><span>Policy loss</span><b>${m.policyLoss.toFixed(4)}</b></div>
-      <div class="tc-row"><span>Target loss</span><b>${m.targetLoss.toFixed(4)}</b></div>
-      <div class="tc-row"><span>Value loss</span><b>${m.valueLoss.toFixed(4)}</b></div>
-      <div class="tc-row"><span>Entropy</span><b>${m.entropy.toFixed(4)}</b></div>
-      <div class="tc-row"><span>Buffer</span><b>${sim.trajectoryBuffer.size()}</b></div>
-    `;
-  }
-  
-  document.getElementById('log').innerHTML=sim.log.slice(0,25).map(e=>`<div class="${e.cls}">[${e.t}] ${e.msg}</div>`).join('');
+    const tankList = document.getElementById('tank-list');
+    if (tankList !== null) {
+        tankList.innerHTML = html;
+        const cards = tankList.querySelectorAll('.tank-card');
+        for (let i = 0; i < cards.length; i++) {
+            cards[i].onclick = function() {
+                sim.selected = +this.dataset.id;
+            };
+        }
+    }
+    
+    const t = sim.tanks[sim.selected];
+    const panel = document.getElementById('brain-panel');
+    if (panel !== null && t !== undefined && t.lastTacticsProbs.length > 0) {
+        const probs = t.lastTacticsProbs;
+        let policyHtml = '';
+        let bestIdx = 0;
+        let bestV = -1;
+        
+        for (let i = 0; i < N_TACTICS; i++) {
+            if (probs[i] > bestV) {
+                bestV = probs[i];
+                bestIdx = i;
+            }
+        }
+        
+        for (let i = 0; i < N_TACTICS; i++) {
+            const topClass = i === bestIdx ? 'top' : '';
+            policyHtml += '<div class="policy-row ' + topClass + '">';
+            policyHtml += '  <span class="policy-label">' + TACTICS_NAMES[i] + '</span>';
+            policyHtml += '  <div class="policy-bar"><div class="policy-fill" style="width:' + (probs[i] * 100) + '%;background:' + t.color + '"></div></div>';
+            policyHtml += '  <span class="policy-val">' + (probs[i] * 100).toFixed(1) + '%</span>';
+            policyHtml += '</div>';
+        }
+        
+        let targetHtml = '<div style="color:var(--text-dim);font-size:9px">Нет целей</div>';
+        if (t.lastTargetScores !== undefined) {
+            const enemies = [];
+            for (let i = 0; i < sim.tanks.length; i++) {
+                const tt = sim.tanks[i];
+                if (tt.alive && tt.team !== t.team) {
+                    enemies.push({ e: tt, d: dist(t.pos, tt.pos) });
+                }
+            }
+            enemies.sort(function(a, b) {
+                return a.d - b.d;
+            });
+            
+            let rows = '';
+            for (let k = 0; k < MAX_ENEMIES; k++) {
+                if (k >= enemies.length) {
+                    break;
+                }
+                const sc = t.lastTargetScores[k];
+                const e = enemies[k].e;
+                const sel = k === t.lastTargetIdx ? 'top' : '';
+                
+                const width = clamp((sc * 30) + 50, 0, 100);
+                rows += '<div class="policy-row ' + sel + '">';
+                rows += '  <span class="policy-label" style="color:' + e.color + '">' + e.name + '</span>';
+                rows += '  <div class="policy-bar"><div class="policy-fill" style="width:' + width + '%;background:' + e.color + '"></div></div>';
+                rows += '  <span class="policy-val">' + sc.toFixed(2) + '</span>';
+                rows += '</div>';
+            }
+            if (rows !== '') {
+                targetHtml = rows;
+            }
+        }
+        
+        panel.innerHTML = 
+            '<div class="bp-section">' +
+            '  <div class="bp-title">Тактическое решение</div>' +
+            policyHtml +
+            '</div>' +
+            '<div class="bp-section">' +
+            '  <div class="bp-title">Приоритет целей</div>' +
+            targetHtml +
+            '</div>' +
+            '<div class="bp-section">' +
+            '  <div class="bp-title">Оценка состояния V(s)</div>' +
+            '  <div style="color:var(--accent-green); font-size:14px; font-weight:700">' + t.lastValue.toFixed(3) + '</div>' +
+            '</div>';
+    }
+    
+    if (trainer !== null) {
+        const m = trainer.lastMetrics;
+        const metricsEl = document.getElementById('metrics');
+        if (metricsEl !== null) {
+            metricsEl.innerHTML = 
+                '<div class="tc-row"><span>Policy Loss</span><b>' + m.policyLoss.toFixed(4) + '</b></div>' +
+                '<div class="tc-row"><span>Value Loss</span><b>' + m.valueLoss.toFixed(4) + '</b></div>' +
+                '<div class="tc-row"><span>Entropy</span><b>' + m.entropy.toFixed(4) + '</b></div>' +
+                '<div class="tc-row"><span>Buffer Size</span><b>' + sim.trajectoryBuffer.size() + '</b></div>';
+        }
+    }
+    
+    const logEl = document.getElementById('log');
+    if (logEl !== null) {
+        let logHtml = '';
+        const slice = sim.log.slice(0, 25);
+        for (let i = 0; i < slice.length; i++) {
+            const e = slice[i];
+            const tickStr = e.t.toString().padStart(4, '0');
+            logHtml += '<div class="' + e.cls + '">[' + tickStr + '] ' + e.msg + '</div>';
+        }
+        logEl.innerHTML = logHtml;
+    }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
-   LOOP
-═══════════════════════════════════════════════════════════════════════ */
-let fps=0,frames=0,lastFps=performance.now(),uiCounter=0;
-function loop(){
-  requestAnimationFrame(loop);
-  if(sim.running)stepSim();
-  render();
-  frames++;
-  const now=performance.now();
-  if(now-lastFps>=1000){fps=frames;frames=0;lastFps=now;document.getElementById('h-fps').textContent=fps;}
-  if(++uiCounter%6===0)updateUI();
+let fps = 0;
+let frames = 0;
+let lastFps = performance.now();
+let uiCounter = 0; // FIX #4: Счётчик для предотвращения мерцания
+
+function loop(timestamp) {
+    requestAnimationFrame(loop);
+    
+    if (sim.running) {
+        const dt = 1 / 60;
+        sim.accumulator = sim.accumulator + (dt * sim.speed);
+        while (sim.accumulator >= dt) {
+            stepPhysics();
+            sim.accumulator = sim.accumulator - dt;
+        }
+        
+        if (!isTraining && sim.trajectoryBuffer.size() > 300) {
+            isTraining = true;
+            trainer.trainStepAsync(sim.trajectoryBuffer, 12).then(function() {
+                isTraining = false;
+            });
+        }
+    }
+    
+    render();
+    frames = frames + 1;
+    
+    const now = performance.now();
+    if (now - lastFps >= 1000) {
+        fps = frames;
+        frames = 0;
+        lastFps = now;
+        const el = document.getElementById('h-fps');
+        if (el !== null) {
+            el.textContent = fps;
+            if (fps >= 55) {
+                el.style.color = 'var(--accent-green)';
+            } else if (fps >= 30) {
+                el.style.color = '#fbbf24';
+            } else {
+                el.style.color = 'var(--accent-red)';
+            }
+        }
+    }
+    
+    // FIX #4: Инкрементальный счётчик вместо Math.floor(timestamp / 100)
+    uiCounter = uiCounter + 1;
+    if (uiCounter % 6 === 0) {
+        updateUI();
+    }
 }
 
-document.getElementById('btn-go').onclick=function(){
-  sim.running=!sim.running;
-  this.textContent=sim.running?'⏸ ПАУЗА':'▶ БОЙ';
-  this.classList.toggle('primary',!sim.running);
-};
-document.getElementById('btn-train').onclick=()=>{
-  if(sim.trajectoryBuffer.size()<200){alert('Мало данных в буфере.');return;}
-  for(let i=0;i<10;i++)trainer.trainStep(sim.trajectoryBuffer);
-  addLog(`🧠 +10 train steps`,'log-l');updateUI();
-};
-document.getElementById('btn-rst').onclick=()=>{
-  sim.running=false;sim.round=1;sim.episode=0;sim.tick=0;sim.log=[];
-  sim.trajectoryBuffer.clear();initBrain();
-  document.getElementById('btn-go').textContent='▶ БОЙ';
-  document.getElementById('btn-go').classList.add('primary');
-  initRound();
-};
-document.getElementById('sel-spd').onchange=e=>{sim.speed=+e.target.value;};
+function setupControls() {
+    const btnGo = document.getElementById('btn-go');
+    if (btnGo !== null) {
+        btnGo.onclick = function() {
+            sim.running = !sim.running;
+            if (sim.running) {
+                this.textContent = '⏸ PAUSE';
+                this.classList.remove('primary');
+            } else {
+                this.textContent = '▶ START';
+                this.classList.add('primary');
+            }
+        };
+    }
+    
+    const btnTrain = document.getElementById('btn-train');
+    if (btnTrain !== null) {
+        btnTrain.onclick = async function() {
+            if (isTraining) {
+                return;
+            }
+            if (sim.trajectoryBuffer.size() < 200) {
+                alert('Недостаточно данных в буфере.');
+                return;
+            }
+            isTraining = true;
+            addLog('🧠 Запуск форсированного обучения...', 'log-l');
+            for (let i = 0; i < 10; i++) {
+                await trainer.trainStepAsync(sim.trajectoryBuffer, 50);
+            }
+            isTraining = false;
+            updateUI();
+        };
+    }
+    
+    const btnRst = document.getElementById('btn-rst');
+    if (btnRst !== null) {
+        btnRst.onclick = function() {
+            sim.running = false;
+            sim.round = 1;
+            sim.episode = 0;
+            sim.tick = 0;
+            sim.log = [];
+            sim.trajectoryBuffer.clear();
+            sim.accumulator = 0;
+            isTraining = false;
+            initBrain();
+            initRound();
+            const btn = document.getElementById('btn-go');
+            if (btn !== null) {
+                btn.textContent = '▶ START';
+                btn.classList.add('primary');
+            }
+            updateUI();
+        };
+    }
+    
+    const selSpd = document.getElementById('sel-spd');
+    if (selSpd !== null) {
+        selSpd.onchange = function(e) {
+            sim.speed = +e.target.value;
+        };
+    }
+    
+    if (canvas !== null) {
+        canvas.addEventListener('click', function(e) {
+            const r = canvas.getBoundingClientRect();
+            const scale = Math.min(canvas.width / sim.AW, canvas.height / sim.AH) * 0.92;
+            const ox = (canvas.width - (sim.AW * scale)) / 2;
+            const oy = (canvas.height - (sim.AH * scale)) / 2;
+            const x = (((e.clientX - r.left) * dpr) - ox) / scale;
+            const y = (((e.clientY - r.top) * dpr) - oy) / scale;
+            
+            let best = null;
+            let bd = 40;
+            for (let i = 0; i < sim.tanks.length; i++) {
+                const t = sim.tanks[i];
+                const d = dist(t.pos, {x: x, y: y});
+                if (d < bd) {
+                    bd = d;
+                    best = t;
+                }
+            }
+            if (best !== null) {
+                sim.selected = best.id;
+            }
+        });
+    }
+}
 
-canvas.addEventListener('click',e=>{
-  const r=canvas.getBoundingClientRect();
-  const scale=Math.min(canvas.width/sim.AW,canvas.height/sim.AH)*0.95;
-  const ox=(canvas.width-sim.AW*scale)/2,oy=(canvas.height-sim.AH*scale)/2;
-  const x=((e.clientX-r.left)*dpr-ox)/scale;
-  const y=((e.clientY-r.top)*dpr-oy)/scale;
-  let best=null,bd=40;
-  for(const t of sim.tanks){const d=dist(t.pos,{x,y});if(d<bd){bd=d;best=t;}}
-  if(best)sim.selected=best.id;
+window.addEventListener('DOMContentLoaded', function() {
+    initRender();
+    initBrain();
+    initRound();
+    setupControls();
+    updateUI();
+    requestAnimationFrame(loop);
 });
-
-initBrain();initRound();updateUI();loop();
 </script>
 </body>
 </html>
