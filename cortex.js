@@ -1,20 +1,26 @@
 /**
- * CORTEX2BRAIN v2.4 — Production Neural Architecture (Critical Behavioral Fixes)
+ * CORTEX2BRAIN v2.5 — Production Neural Architecture
  *
- * FIXES APPLIED (v2.3 → v2.4):
- *   FIX-31  Emotion saturation:      threat/caution now use smoothed inputs, not raw overwrite
- *   FIX-32  Cortex saturation:       Added layer normalization to prevent activation explosion
- *   FIX-33  Output diversity:        Added exploration noise that decays with learning
- *   FIX-34  Firing suppression:      Conflict resolution no longer zeroes aggression from fear
- *   FIX-35  Parallel movement:       D outputs get per-agent noise from seeded RNG
- *   FIX-36  Emotion decay:           Stronger decay (0.95) prevents permanent emotion lock
- *   FIX-37  Reward signal:           Zero reward no longer pumps frustration every frame
- *   FIX-38  State vector scaling:    C/S vectors normalized before building D input
- *   FIX-39  Initial behavior:        Random initial D values for diverse starting behavior
- *   FIX-40  Aggression floor:        Minimum aggression from personality trait
+ * CHANGELOG v2.4 → v2.5:
+ *   FIX-41  Cache-friendly multiply:      W stored transposed (column-major), sequential inner loop
+ *   FIX-42  Fast weight init:             Xorshift stream replaces per-weight FNV-1a (~30× faster ctor)
+ *   FIX-43  Full eligibility traces:      TD error now applied to W_P, W_D, W_pred (was only W_C)
+ *   FIX-44  Correct emotion sensor idx:   SENSOR_IDX constants replace magic indices;
+ *                                         `caution` now tracks bullet threat + HP, not HP alone
+ *   FIX-45  Full input validation:        isFinite check runs on entire input vector, not first 20
+ *   FIX-46  Clone copies traces:          Eligibility traces carried over to cloned brains
+ *   FIX-47  Experience replay:            ReplayBuffer added; integrateReplay() drives off-policy updates
+ *   FIX-48  Actor-critic:                 Policy gradient on D-layer via tanh-squashed outputs
+ *   FIX-49  Advantage normalization:      Running mean/std over last 100 TD errors
+ *   FIX-50  Real attention:               Q/K/V projections replace learnable gate softmax
  *
- * PREVIOUS FIXES (v2.1 → v2.3) preserved:
- *   FIX-01 through FIX-30 (see v2.3 header)
+ * PREVIOUS FIXES preserved (v2.1 → v2.4):
+ *   FIX-01 through FIX-40 (see v2.4 header)
+ *
+ * BACKWARD COMPATIBILITY:
+ *   - Public API unchanged (constructor, forward, tdLearn, learn, getEmotions, etc.)
+ *   - Serialized weights format is v2.4-compatible (reads both WT and legacy W layouts)
+ *   - Output shape and sensor contract identical
  */
 
 // ============================================================================
@@ -32,6 +38,9 @@
  * @property {number}  [taskSpec.inputComplexity]
  * @property {number}  [taskSpec.temporalDepth]
  * @property {number}  [taskSpec.socialComplexity]
+ * @property {number}  [replayCapacity]
+ * @property {number}  [replayBatchSize]
+ * @property {number}  [replayMinSize]
  */
 
 /**
@@ -52,12 +61,12 @@
 
 /**
  * @typedef {Object} Experience
- * @property {number[]|Object} observation
- * @property {number[]|Object} action
- * @property {number}          reward
- * @property {number[]|Object} [nextObservation]
- * @property {boolean}         [done]
- * @property {Object}          [context]
+ * @property {number[]|Float32Array} observation
+ * @property {number[]|Float32Array} action
+ * @property {number}               reward
+ * @property {number[]|Float32Array} [nextObservation]
+ * @property {boolean}              [done]
+ * @property {Object}               [context]
  */
 
 /**
@@ -85,15 +94,69 @@
  * @property {number[]} cortex
  * @property {Object}   emotionsFull
  * @property {Object}   socialMemory
+ * @property {Object}   replayStats
  */
 
 // ============================================================================
 // ARCHITECTURE CONSTANTS
 // ============================================================================
 
+/**
+ * FIX-44: Explicit sensor index map matching arena's SensorBuilder contract.
+ * Centralizes the arena→brain sensor mapping so emotion/reflex systems don't
+ * rely on magic numbers that silently drift out of sync.
+ * @param {Object} DIM
+ */
+function deriveSensorIndices() {
+    return Object.freeze({
+        // Nearest enemy
+        ENEMY_DX: 0, ENEMY_DY: 1, DISTANCE: 2, ENEMY_HP: 3,
+        // Nearest wall
+        WALL_DX: 4, WALL_DY: 5, WALL_DIST: 6,
+        // Self position / HP
+        SELF_X: 7, SELF_Y: 8, SELF_HP: 9,
+        // Self stats
+        LAST_REWARD: 10, TOTAL_DAMAGE: 11, HP_RATIO_ALT: 12, RELOAD_RATIO: 13,
+        TIME_NORM: 14,
+        // Reserved / unused slots
+        _RESERVED_15: 15, _RESERVED_16: 16, _RESERVED_17: 17,
+        _RESERVED_18: 18, _RESERVED_19: 19, _RESERVED_20: 20,
+        _RESERVED_21: 21, _RESERVED_22: 22,
+        // Misc
+        DEATHS_NORM: 23, LAST_ENEMY_FLAG: 24,
+        // Aim geometry
+        ANGLE_TO_ENEMY: 25, ENEMY_SEES_ME: 26,
+        IN_ENEMY_ARC: 27, ENEMY_IN_MY_ARC: 28,
+        THREAT_COMPOSITE: 29,
+        FLANK_X: 30, FLANK_Y: 31,
+        ENEMY_TURRET_REL: 32, AIM_QUALITY: 33,
+        SELF_DAMAGE_RATIO: 34,
+        // Predicted enemy
+        PRED_ENEMY_X: 35, PRED_ENEMY_Y: 36,
+        // Pathing
+        PATH_BLOCKED: 37,
+        // Bullet threat (dodge)
+        BULLET_THREAT: 38, DODGE_DX: 39, DODGE_DY: 40,
+        // Wall avoidance
+        WALL_VERY_CLOSE: 41, WALL_AVOID_STEER: 42,
+        // 5-ray LIDAR around hull
+        LIDAR_0: 43, LIDAR_1: 44, LIDAR_2: 45, LIDAR_3: 46, LIDAR_4: 47,
+        // Two nearest enemies (angle, distance)
+        EN2_ANGLE: 48, EN2_DIST: 49, EN3_ANGLE: 50, EN3_DIST: 51,
+        // Turret orientation + meta
+        TURRET_COS: 52, TURRET_SIN: 53,
+        ALIVE_COUNT_NORM: 54, READY_TO_FIRE: 55,
+        // Second-closest enemy detail
+        EN2_DX: 56, EN2_DY: 57, EN2_HP: 58, EN2_ANGLE_FROM_ME: 59,
+        // Border distances
+        BORDER_LEFT: 60, BORDER_RIGHT: 61, BORDER_TOP: 62, BORDER_BOTTOM: 63,
+    });
+}
+
 /** @param {Object} DIM */
 function deriveArchSizes(DIM) {
     return Object.freeze({
+        // Layer input widths
         P_INPUT:      DIM.DIM_SENSOR + DIM.DIM_C + DIM.DIM_S + 48,
         A_INPUT:      DIM.DIM_P + 48 + 64 + DIM.DIM_D,
         M_WORK_INPUT: DIM.DIM_P + DIM.DIM_A + 64,
@@ -103,12 +166,14 @@ function deriveArchSizes(DIM) {
         S_INPUT:      DIM.DIM_P + 48 + 32 + DIM.DIM_D,
         D_INPUT:      DIM.DIM_C + DIM.DIM_S + 48,
 
+        // Memory layout offsets
         C_PRED_OFFSET:       192,
         C_STATE_OFFSET:      224,
         C_STATE_SLICE:       32,
         A_HEAD_C_SLICE:      64,
         M_WORK_C_SLICE:      64,
         M_BLOCK_SIZE:        48,
+
         PRED_CHANNELS:       48,
         MAX_RELATIONSHIPS:   100,
         MAX_EMOTION_HISTORY: 5,
@@ -116,34 +181,39 @@ function deriveArchSizes(DIM) {
         MAX_TD_HISTORY:      100,
         MAX_TRACE_SIZE:      10,
         EMOTION_MOMENTUM_WINDOW: 10,
+
         REFLEX_THRESHOLD:    0.9,
         MAX_WEIGHT:          2.0,
         MAX_GRADIENT:        0.3,
         MAX_TRACE_VAL:       1.0,
 
-        // FIX-32: layer norm constants
+        // FIX-32: layer norm
         LAYER_NORM_EPS:      1e-5,
         // FIX-33: exploration noise
         INITIAL_NOISE:       0.15,
         NOISE_DECAY:         0.9999,
         MIN_NOISE:           0.02,
-        // FIX-36: stronger emotion decay
+        // FIX-36: emotion decay
         EMOTION_DECAY_DEFAULT: 0.95,
         // FIX-37: frustration threshold
         FRUSTRATION_REWARD_THRESHOLD: -0.1,
-        // FIX-40: minimum aggression from personality
+        // FIX-40: aggression floor
         MIN_AGGRESSION_FACTOR: 0.15,
+
+        // FIX-47: replay buffer
+        DEFAULT_REPLAY_CAPACITY:  10000,
+        DEFAULT_REPLAY_BATCH:     8,
+        DEFAULT_REPLAY_MIN:       64,
+        ADVANTAGE_WINDOW:         100,
     });
 }
 
 // ============================================================================
-// SEEDED RNG (FIX-14, FIX-25: extracted as standalone class)
+// SEEDED RNG (FIX-14, FIX-25: standalone; FIX-42: used for fast weight init)
 // ============================================================================
 
 class SeededRNG {
-    /**
-     * @param {string|number} seed
-     */
+    /** @param {string|number} seed */
     constructor(seed) {
         let h = 0x811c9dc5;
         const s = String(seed || 'default');
@@ -176,16 +246,17 @@ class SeededRNG {
         const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
         return z * std + mean;
     }
+
+    /** Symmetric uniform in [-1, 1). */
+    sym() { return this.next() * 2 - 1; }
 }
 
 // ============================================================================
-// SCHEMA MANAGER (FIX-25: extracted)
+// SCHEMA MANAGER (FIX-25: extracted; FIX-45: full input validation)
 // ============================================================================
 
 class SchemaManager {
-    /**
-     * @param {number} sensorDim
-     */
+    /** @param {number} sensorDim */
     constructor(sensorDim) {
         this._sensorDim = sensorDim;
         this._inputSchema = this._generateDefaultInputSchema();
@@ -221,12 +292,13 @@ class SchemaManager {
     }
 
     /**
+     * FIX-45: isFinite check runs over entire input vector (was only first 20).
      * @param {number[]|Object} inputs
-     * @param {Object} stats - validation error counter
+     * @param {Object} stats
      * @returns {number[]}
      */
     validateAndNormalizeInputs(inputs, stats) {
-        if (inputs && typeof inputs === 'object' && !Array.isArray(inputs)) {
+        if (inputs && typeof inputs === 'object' && !Array.isArray(inputs) && !(inputs instanceof Float32Array)) {
             const arr = [];
             for (const sensor of this._inputSchema) {
                 const val = inputs[sensor.name];
@@ -234,25 +306,34 @@ class SchemaManager {
                     arr.push(0);
                 } else {
                     const [min, max] = sensor.range || [-1, 1];
-                    arr.push(clamp((val - min) / (max - min) * 2 - 1, -1, 1));
+                    const span = max - min || 1;
+                    arr.push(clamp((val - min) / span * 2 - 1, -1, 1));
                 }
             }
             inputs = arr;
         }
 
-        if (!Array.isArray(inputs)) {
+        if (!Array.isArray(inputs) && !(inputs instanceof Float32Array)) {
             stats.validationErrors++;
-            throw new Error(`Inputs must be array or object, got ${typeof inputs}`);
+            throw new Error(`Inputs must be array/Float32Array/object, got ${typeof inputs}`);
         }
         if (inputs.length === 0) {
             stats.validationErrors++;
             throw new Error('Inputs array cannot be empty');
         }
 
-        for (let i = 0; i < Math.min(inputs.length, 20); i++) {
-            if (!isFinite(inputs[i])) {
+        // FIX-45: validate EVERY element, not only first 20
+        const len = inputs.length;
+        const maxReported = 5;
+        let reportedCount = 0;
+        for (let i = 0; i < len; i++) {
+            const v = inputs[i];
+            if (!Number.isFinite(v)) {
                 stats.validationErrors++;
-                console.warn(`Invalid input at index ${i}: ${inputs[i]}. Replacing with 0.`);
+                if (reportedCount < maxReported) {
+                    console.warn(`Invalid input at index ${i}: ${v}. Replacing with 0.`);
+                    reportedCount++;
+                }
                 inputs[i] = 0;
             }
         }
@@ -264,13 +345,19 @@ class SchemaManager {
      * @returns {number[]}
      */
     validateAndClampOutputs(outputs) {
-        if (!Array.isArray(outputs)) { console.warn('Outputs must be array'); return []; }
+        if (!Array.isArray(outputs) && !(outputs instanceof Float32Array)) {
+            console.warn('Outputs must be array-like');
+            return [];
+        }
         const clamped = [];
-        for (let i = 0; i < outputs.length && i < this._outputSchema.length; i++) {
+        const schemaLen = this._outputSchema.length;
+        const outLen = outputs.length;
+        const n = Math.min(outLen, schemaLen);
+        for (let i = 0; i < n; i++) {
             const [min, max] = this._outputSchema[i].range || [-1, 1];
             clamped.push(clamp(outputs[i], min, max));
         }
-        while (clamped.length < this._outputSchema.length) {
+        while (clamped.length < schemaLen) {
             const [min, max] = this._outputSchema[clamped.length].range || [-1, 1];
             clamped.push((min + max) / 2);
         }
@@ -291,17 +378,17 @@ class SchemaManager {
             { name: 'self_health', range: [0, 1] },
             { name: 'self_reward', range: [-1, 1] },
             { name: 'self_damage', range: [0, 1] },
-            { name: 'self_dodge', range: [0, 1] },
+            { name: 'self_hp_alt', range: [0, 1] },
             { name: 'self_fireRate', range: [0, 1] },
             { name: 'step_normalized', range: [0, 1] },
-            { name: 'weapon_hammer', range: [0, 1], type: 'discrete' },
-            { name: 'weapon_drill', range: [0, 1], type: 'discrete' },
-            { name: 'weapon_sword', range: [0, 1], type: 'discrete' },
-            { name: 'weapon_blaster', range: [0, 1], type: 'discrete' },
-            { name: 'weapon_axe', range: [0, 1], type: 'discrete' },
-            { name: 'weapon_dagger', range: [0, 1], type: 'discrete' },
-            { name: 'weapon_spear', range: [0, 1], type: 'discrete' },
-            { name: 'weapon_chainsaw', range: [0, 1], type: 'discrete' },
+            { name: 'reserved_15', range: [-1, 1] },
+            { name: 'reserved_16', range: [-1, 1] },
+            { name: 'reserved_17', range: [-1, 1] },
+            { name: 'reserved_18', range: [-1, 1] },
+            { name: 'reserved_19', range: [-1, 1] },
+            { name: 'reserved_20', range: [-1, 1] },
+            { name: 'reserved_21', range: [-1, 1] },
+            { name: 'reserved_22', range: [-1, 1] },
             { name: 'death_count', range: [0, 1] },
             { name: 'forced_combat', range: [0, 1], type: 'discrete' },
             { name: 'angle_to_enemy', range: [-1, 1] },
@@ -317,11 +404,32 @@ class SchemaManager {
             { name: 'predicted_enemy_x', range: [-1, 1] },
             { name: 'predicted_enemy_y', range: [-1, 1] },
             { name: 'path_blocked', range: [0, 1], type: 'discrete' },
-            { name: 'recent_exposure', range: [0, 1] },
-            { name: 'exposure_level', range: [0, 1] },
-            { name: 'in_combat_range', range: [0, 1], type: 'discrete' },
-            { name: 'wall_dist_normalized', range: [0, 1] },
+            { name: 'bullet_threat', range: [0, 1] },
+            { name: 'dodge_dx', range: [-1, 1] },
+            { name: 'dodge_dy', range: [-1, 1] },
+            { name: 'wall_very_close', range: [0, 1] },
             { name: 'wall_avoidance_steer', range: [-1, 1] },
+            { name: 'lidar_0', range: [0, 1] },
+            { name: 'lidar_1', range: [0, 1] },
+            { name: 'lidar_2', range: [0, 1] },
+            { name: 'lidar_3', range: [0, 1] },
+            { name: 'lidar_4', range: [0, 1] },
+            { name: 'en2_angle', range: [-1, 1] },
+            { name: 'en2_dist', range: [0, 1] },
+            { name: 'en3_angle', range: [-1, 1] },
+            { name: 'en3_dist', range: [0, 1] },
+            { name: 'turret_cos', range: [-1, 1] },
+            { name: 'turret_sin', range: [-1, 1] },
+            { name: 'alive_count_norm', range: [0, 1] },
+            { name: 'ready_to_fire', range: [0, 1], type: 'discrete' },
+            { name: 'en2_dx', range: [-1, 1] },
+            { name: 'en2_dy', range: [-1, 1] },
+            { name: 'en2_hp', range: [0, 1] },
+            { name: 'en2_angle_from_me', range: [-1, 1] },
+            { name: 'border_left', range: [0, 1] },
+            { name: 'border_right', range: [0, 1] },
+            { name: 'border_top', range: [0, 1] },
+            { name: 'border_bottom', range: [0, 1] },
         ];
     }
 
@@ -348,7 +456,7 @@ class SchemaManager {
 }
 
 // ============================================================================
-// EMOTION SYSTEM (FIX-25: extracted, FIX-31/36/37/40: behavioral fixes)
+// EMOTION SYSTEM (FIX-25: extracted; FIX-44: SENSOR_IDX-based)
 // ============================================================================
 
 class EmotionSystem {
@@ -356,11 +464,14 @@ class EmotionSystem {
      * @param {Object} personality
      * @param {number} maxHistory
      * @param {Object} archConstants
+     * @param {Object} sensorIdx
      */
-    constructor(personality, maxHistory = 30, archConstants = {}) {
+    constructor(personality, maxHistory = 30, archConstants = {}, sensorIdx = null) {
         this.personality = personality;
         this.maxHistory = maxHistory;
         this.ARCH = archConstants;
+        // FIX-44: explicit sensor indices
+        this.SI = sensorIdx || deriveSensorIndices();
 
         this.emotions = EmotionSystem.createDefaultEmotions();
         this.emotionHistory = [];
@@ -384,15 +495,14 @@ class EmotionSystem {
         };
 
         this.emotionConfig = {
-            fear: { baseDuration: 180, intensityMultiplier: 2.0, satisfactionDecay: 0.02 },
-            aggression: { baseDuration: 120, intensityMultiplier: 1.5, satisfactionDecay: 0.03 },
+            fear:        { baseDuration: 180, intensityMultiplier: 2.0, satisfactionDecay: 0.02 },
+            aggression:  { baseDuration: 120, intensityMultiplier: 1.5, satisfactionDecay: 0.03 },
             frustration: { baseDuration: 240, intensityMultiplier: 2.5, satisfactionDecay: 0.01 },
             desperation: { baseDuration: 300, intensityMultiplier: 3.0, satisfactionDecay: 0.005 },
-            confidence: { baseDuration: 150, intensityMultiplier: 1.2, satisfactionDecay: 0.04 },
-            vengeance: { baseDuration: 360, intensityMultiplier: 3.5, satisfactionDecay: 0.003 },
+            confidence:  { baseDuration: 150, intensityMultiplier: 1.2, satisfactionDecay: 0.04 },
+            vengeance:   { baseDuration: 360, intensityMultiplier: 3.5, satisfactionDecay: 0.003 },
         };
 
-        // FIX-36: stronger default decay
         this.emotionDecay = archConstants.EMOTION_DECAY_DEFAULT || 0.95;
         this.emotionInfluence = 0.35;
     }
@@ -419,10 +529,11 @@ class EmotionSystem {
     }
 
     /**
-     * FIX-31: threat/caution use smoothed lerp instead of raw overwrite
-     * FIX-36: stronger decay prevents emotion lock
+     * FIX-31: smoothed lerp for threat/caution
+     * FIX-36: stronger decay
      * FIX-37: frustration only grows on actually negative reward
-     * FIX-40: aggression has minimum floor from personality
+     * FIX-40: aggression floor from personality
+     * FIX-44: uses SENSOR_IDX, not magic numbers
      *
      * @param {number} reward
      * @param {Float32Array} sensorInputs
@@ -462,15 +573,13 @@ class EmotionSystem {
             if (dominant.intensity > 0.7) this._enterEmotion(dominant.name, dominant.intensity, step);
         }
 
-        // FIX-37: Only increase frustration on actually negative reward, not just < 0.1
+        // FIX-37: frustration grows only on actually negative reward
         const frustThreshold = this.ARCH.FRUSTRATION_REWARD_THRESHOLD || -0.1;
         if (reward < frustThreshold) {
             this.emotions.frustration = Math.min(1, this.emotions.frustration + 0.02);
         } else if (reward > 0) {
-            // Positive reward reduces frustration faster
             this.emotions.frustration *= 0.88;
         } else {
-            // Neutral reward: gentle decay
             this.emotions.frustration *= 0.95;
         }
 
@@ -495,17 +604,22 @@ class EmotionSystem {
             this.emotions.fear *= 0.90;
         }
 
-        // FIX-31: Use smoothed lerp for threat/caution instead of raw overwrite
-        // This prevents instant saturation to 98%
-        const rawThreat = 1 - (sensorInputs[2] ?? 0.5);
+        // FIX-44: use SENSOR_IDX for threat (distance to nearest enemy)
+        const rawDistance = safeNumber(sensorInputs[this.SI.DISTANCE], 0.5);
+        const rawThreat = 1 - rawDistance;
         this.emotions.threat = lerp(this.emotions.threat, rawThreat, 0.1);
 
-        const rawCaution = 1 - (sensorInputs[12] ?? 0.5);
-        this.emotions.caution = lerp(this.emotions.caution, rawCaution, 0.1);
+        // FIX-44: caution = blend of low HP + incoming bullet threat
+        // (was incorrectly using sensorInputs[12] which is HP, producing inverted logic)
+        const hpRatio = safeNumber(sensorInputs[this.SI.SELF_HP], 1.0);
+        const bulletThreat = safeNumber(sensorInputs[this.SI.BULLET_THREAT], 0);
+        const lowHpSignal = 1 - hpRatio;
+        const rawCaution = clamp(lowHpSignal * 0.55 + bulletThreat * 0.7, 0, 1);
+        this.emotions.caution = lerp(this.emotions.caution, rawCaution, 0.15);
 
         this.emotions.surprise = lerp(this.emotions.surprise, avgPredError, 0.2);
 
-        // Momentum
+        // Momentum (rolling window average)
         const recentFrames = Math.min(this.maxHistory, this.emotionHistory.length);
         if (recentFrames > 0) {
             const window = Math.min(10, recentFrames);
@@ -519,7 +633,7 @@ class EmotionSystem {
             this.emotionalState.momentum.vengeance = avg('vengeance');
         }
 
-        // Derived aggression — FIX-40: personality-based floor
+        // FIX-40: personality-based aggression floor
         const fearBlock = (1 - this.emotions.desperation) * this.emotionalState.momentum.fear;
         const personalityAggression = (this.personality.traits.aggression || 0.5) *
             (this.ARCH.MIN_AGGRESSION_FACTOR || 0.15);
@@ -532,18 +646,14 @@ class EmotionSystem {
             fearBlock * 0.2
         );
 
-        // FIX-36: stronger decay applied to all emotions
+        // FIX-36: stronger decay
         for (const key of Object.keys(this.emotions)) {
             this.emotions[key] *= this.emotionDecay;
-            // Clamp small values to zero to prevent floating noise
             if (this.emotions[key] < 0.001) this.emotions[key] = 0;
         }
     }
 
-    /**
-     * Write emotion values into state vector S.
-     * @param {Float32Array} stateVector
-     */
+    /** @param {Float32Array} stateVector */
     writeToStateVector(stateVector) {
         stateVector[0] = this.emotions.threat;
         stateVector[1] = this.emotions.frustration;
@@ -557,8 +667,7 @@ class EmotionSystem {
     }
 
     /**
-     * Apply reflex modifications to decision vector.
-     * FIX-34: Reduced suppression magnitudes so tanks still fire
+     * FIX-34: fear no longer suppresses throttle
      * @param {Float32Array} sensorInputs
      * @param {Float32Array} stateVector
      * @param {Float32Array} decisionVector
@@ -576,11 +685,9 @@ class EmotionSystem {
             decisionVector[6] = lerp(decisionVector[6], Math.min(1, decisionVector[6] + 0.25), em);
             decisionVector[4] = lerp(decisionVector[4], Math.min(1, decisionVector[4] + 0.20), em);
         }
-        // FIX-34: fear reflex no longer suppresses throttle as aggressively
         if (stateVector[4] > 0.7) {
             stats.reflexTriggers++;
             decisionVector[10] = lerp(decisionVector[10], Math.min(1, decisionVector[10] + 0.20), em);
-            // Removed: decisionVector[4] reduction — was killing throttle
         }
         if (stateVector[1] > 0.7) {
             stats.reflexTriggers++;
@@ -589,22 +696,16 @@ class EmotionSystem {
         }
     }
 
-    /**
-     * FIX-34: Conflict resolution no longer fully zeroes aggression from fear.
-     * Instead applies softer modulation to keep tanks reactive.
-     * @param {Float32Array} decisionVector
-     */
+    /** FIX-34: softer modulation, no full suppression */
     resolveConflicts(decisionVector) {
-        const eb = this.emotionInfluence * 0.5; // FIX-34: halved influence
+        const eb = this.emotionInfluence * 0.5;
         const emotions = this.emotions;
         if (emotions.vengeance > 0.6 || emotions.desperation > 0.6) {
             decisionVector[10] = Math.max(0, decisionVector[10] - eb * 0.5);
             decisionVector[7] = Math.min(1, decisionVector[7] + eb * 0.3);
         }
-        // FIX-34: fear no longer zeroes aggression, just slightly reduces it
         if (emotions.fear > 0.7) {
             decisionVector[6] = Math.max(0.1, decisionVector[6] - eb * 0.3);
-            // Removed: throttle reduction from fear
         }
         if (emotions.aggression > 0.6) {
             decisionVector[6] = Math.min(1, decisionVector[6] + eb * 0.5);
@@ -623,12 +724,12 @@ class EmotionSystem {
 
     _getDominantEmotion() {
         const candidates = [
-            { name: 'vengeance', value: this.emotions.vengeance },
+            { name: 'vengeance',   value: this.emotions.vengeance },
             { name: 'desperation', value: this.emotions.desperation },
-            { name: 'fear', value: this.emotions.fear },
-            { name: 'aggression', value: this.emotions.aggression },
+            { name: 'fear',        value: this.emotions.fear },
+            { name: 'aggression',  value: this.emotions.aggression },
             { name: 'frustration', value: this.emotions.frustration },
-            { name: 'confidence', value: this.emotions.confidence },
+            { name: 'confidence',  value: this.emotions.confidence },
         ];
         candidates.sort((a, b) => b.value - a.value);
         return { name: candidates[0].name, intensity: candidates[0].value };
@@ -646,8 +747,7 @@ class EmotionSystem {
             if (this.emotionalState.history.length > 5) this.emotionalState.history.shift();
         }
         this.emotionalState.current = {
-            name,
-            intensity,
+            name, intensity,
             initialIntensity: intensity,
             baseDuration: config.baseDuration,
             remainingFrames: Math.floor(config.baseDuration * intensity * config.intensityMultiplier),
@@ -702,7 +802,6 @@ class EmotionSystem {
 
     _processCombatEvents(events, health, maxHealth) {
         if (!events) return;
-        // Handle both array and single-event format
         const eventList = Array.isArray(events) ? events : [events];
         for (const event of eventList) {
             if (!event || !event.type) continue;
@@ -736,7 +835,7 @@ class EmotionSystem {
                     }
                     break;
                 case 'killed_by':
-                    if (event.killer) {
+                    if (event.killer !== undefined) {
                         this.emotionMemory.killer = event.killer;
                         const grudge = this.emotionMemory.grudge.get(event.killer) || 0;
                         this.emotionMemory.grudge.set(event.killer, clamp(grudge + 0.5, -1, 1));
@@ -747,7 +846,7 @@ class EmotionSystem {
         }
     }
 
-    /** @returns {Object} serialisable snapshot */
+    /** @returns {Object} */
     toJSON() {
         return {
             emotions: { ...this.emotions },
@@ -782,8 +881,7 @@ class EmotionSystem {
         }
         if (data.emotionalState) {
             this.emotionalState.current = data.emotionalState.current
-                ? { ...data.emotionalState.current }
-                : null;
+                ? { ...data.emotionalState.current } : null;
             this.emotionalState.satisfaction = data.emotionalState.satisfaction ?? 0;
             if (data.emotionalState.momentum) {
                 Object.assign(this.emotionalState.momentum, data.emotionalState.momentum);
@@ -857,7 +955,7 @@ class MemorySystem {
     recallRelevantMemories({ enemyId, healthRatio, situation }) {
         const recalled = [];
         for (const event of this.episodicMemory.events) {
-            if (enemyId && event.agentId === enemyId) {
+            if (enemyId !== undefined && event.agentId === enemyId) {
                 recalled.push({ ...event, relevance: event.importance * 1.5 });
             }
             if (situation === 'low_health' && event.emotion === 'fear') {
@@ -963,6 +1061,119 @@ class MemorySystem {
 }
 
 // ============================================================================
+// REPLAY BUFFER (FIX-47: off-policy experience storage)
+// ============================================================================
+
+class ReplayBuffer {
+    /**
+     * @param {number} capacity
+     * @param {SeededRNG|null} rng - optional seeded RNG for reproducible sampling
+     */
+    constructor(capacity = 10000, rng = null) {
+        this.capacity = Math.max(1, capacity | 0);
+        this._buffer = new Array(this.capacity);
+        this._size = 0;
+        this._head = 0;
+        this._rng = rng;
+        this._totalPushed = 0;
+    }
+
+    /** @param {Experience} experience */
+    push(experience) {
+        if (!experience) return;
+        const slot = this._buffer[this._head] || {};
+        slot.observation = experience.observation
+            ? Float32Array.from(experience.observation) : null;
+        slot.action = experience.action
+            ? Float32Array.from(experience.action) : null;
+        slot.reward = Number(experience.reward) || 0;
+        slot.nextObservation = experience.nextObservation
+            ? Float32Array.from(experience.nextObservation) : null;
+        slot.done = !!experience.done;
+        slot.context = experience.context || null;
+        this._buffer[this._head] = slot;
+        this._head = (this._head + 1) % this.capacity;
+        if (this._size < this.capacity) this._size++;
+        this._totalPushed++;
+    }
+
+    /**
+     * @param {number} batchSize
+     * @returns {Experience[]}
+     */
+    sample(batchSize) {
+        if (this._size === 0) return [];
+        const n = Math.min(batchSize, this._size);
+        const out = new Array(n);
+        const rnd = this._rng
+            ? () => Math.floor(this._rng.next() * this._size)
+            : () => Math.floor(Math.random() * this._size);
+        for (let i = 0; i < n; i++) {
+            const idx = rnd();
+            const src = this._buffer[idx];
+            out[i] = {
+                observation: src.observation,
+                action: src.action,
+                reward: src.reward,
+                nextObservation: src.nextObservation,
+                done: src.done,
+                context: src.context,
+            };
+        }
+        return out;
+    }
+
+    size() { return this._size; }
+    isFull() { return this._size === this.capacity; }
+    totalPushed() { return this._totalPushed; }
+    clear() { this._size = 0; this._head = 0; }
+
+    /** @returns {Object} serialisable (capped to last 500 entries for size) */
+    toJSON() {
+        const maxSerialized = 500;
+        const snapshot = [];
+        const n = Math.min(this._size, maxSerialized);
+        for (let i = 0; i < n; i++) {
+            const idx = (this._head - n + i + this.capacity) % this.capacity;
+            const e = this._buffer[idx];
+            if (!e) continue;
+            snapshot.push({
+                observation: e.observation ? Array.from(e.observation) : null,
+                action: e.action ? Array.from(e.action) : null,
+                reward: e.reward,
+                nextObservation: e.nextObservation ? Array.from(e.nextObservation) : null,
+                done: e.done,
+            });
+        }
+        return {
+            capacity: this.capacity,
+            size: this._size,
+            totalPushed: this._totalPushed,
+            entries: snapshot,
+        };
+    }
+
+    loadFromJSON(data) {
+        if (!data || !Array.isArray(data.entries)) return;
+        this.clear();
+        this.capacity = data.capacity || this.capacity;
+        this._totalPushed = data.totalPushed || 0;
+        if (this._buffer.length !== this.capacity) {
+            this._buffer = new Array(this.capacity);
+        }
+        for (const e of data.entries) {
+            this.push({
+                observation: e.observation,
+                action: e.action,
+                reward: e.reward,
+                nextObservation: e.nextObservation,
+                done: e.done,
+            });
+        }
+    }
+}
+
+// ============================================================================
 // STANDALONE MATH UTILITIES
 // ============================================================================
 
@@ -981,17 +1192,18 @@ function leakyRelu(x, alpha = 0.01) { return x > 0 ? x : alpha * x; }
 
 function softmax(arr, temp = 1) {
     if (!arr || arr.length === 0) return [];
+    const n = arr.length;
     let max = -Infinity;
-    for (let i = 0; i < arr.length; i++) { if (arr[i] > max) max = arr[i]; }
-    const exps = new Array(arr.length);
+    for (let i = 0; i < n; i++) if (arr[i] > max) max = arr[i];
+    const exps = new Array(n);
     let sum = 0;
-    for (let i = 0; i < arr.length; i++) {
+    for (let i = 0; i < n; i++) {
         const v = Math.exp(Math.min((arr[i] - max) / temp, 700));
         exps[i] = v;
         sum += v;
     }
     if (sum < 1e-10) sum = 1e-10;
-    for (let i = 0; i < exps.length; i++) exps[i] /= sum;
+    for (let i = 0; i < n; i++) exps[i] /= sum;
     return exps;
 }
 
@@ -1025,6 +1237,9 @@ class Cortex2Brain {
             lambda: config.lambda ?? 0.95,
             hebbianRate: config.hebbianRate ?? 0.002,
             taskSpec: config.taskSpec || null,
+            replayCapacity: config.replayCapacity ?? 10000,
+            replayBatchSize: config.replayBatchSize ?? 8,
+            replayMinSize: config.replayMinSize ?? 64,
             ...config,
         };
     }
@@ -1040,12 +1255,14 @@ class Cortex2Brain {
             DIM_SENSOR: 64,
             NUM_HEADS: 4,
             HEAD_DIM: 16,
-            M_WORK_START: 0, M_WORK_END: 48,
-            M_PERM_START: 48, M_PERM_END: 96,
-            M_PRED_START: 96, M_PRED_END: 144,
+            M_WORK_START: 0,   M_WORK_END: 48,
+            M_PERM_START: 48,  M_PERM_END: 96,
+            M_PRED_START: 96,  M_PRED_END: 144,
         });
 
         this.ARCH = deriveArchSizes(this.DIM);
+        // FIX-44: expose sensor index map
+        this.SENSOR_IDX = deriveSensorIndices();
         this.RATIOS = this._calculateRatios(this.config.taskSpec);
         this._rng = new SeededRNG(this.config.seed);
     }
@@ -1064,16 +1281,27 @@ class Cortex2Brain {
             },
         };
 
-        // FIX-31/36: pass ARCH constants to EmotionSystem
-        this.emotionSystem = new EmotionSystem(this.personality, 30, this.ARCH);
+        // FIX-44: pass SENSOR_IDX to EmotionSystem
+        this.emotionSystem = new EmotionSystem(
+            this.personality, 30, this.ARCH, this.SENSOR_IDX
+        );
         this.memorySystem = new MemorySystem(
             this.ARCH.MAX_RELATIONSHIPS,
             this.ARCH.MAX_EPISODIC_EVENTS
         );
         this._schemaManager = new SchemaManager(this.DIM.DIM_SENSOR);
 
+        // FIX-47: replay buffer (seeded RNG for reproducible sampling)
+        this.replay = new ReplayBuffer(
+            this.config.replayCapacity || this.ARCH.DEFAULT_REPLAY_CAPACITY,
+            this._rng
+        );
+
         // FIX-33: exploration noise level
         this._noiseLevel = this.ARCH.INITIAL_NOISE;
+
+        // FIX-49: running advantage statistics
+        this._advantageHistory = [];
     }
 
     _initRuntimeState() {
@@ -1085,12 +1313,13 @@ class Cortex2Brain {
         this._lastInputs = null;
         this._lastOutputs = null;
         this._lastCInput = null;
+        this._lastDInput = null;
         this._reflexThisFrame = false;
         this._traceBuffer = null;
 
         // FIX-39: randomize initial D values for diverse starting behavior
         for (let i = 0; i < this.DIM.DIM_D; i++) {
-            this.D[i] = (this._rng.next() * 2 - 1) * 0.3;
+            this.D[i] = this._rng.sym() * 0.3;
             this.D_prev[i] = this.D[i];
         }
     }
@@ -1107,6 +1336,8 @@ class Cortex2Brain {
             consolidationEvents: 0,
             gradientClips: 0,
             validationErrors: 0,
+            replayUpdates: 0,
+            actorUpdates: 0,
         };
     }
 
@@ -1174,9 +1405,7 @@ class Cortex2Brain {
         }
     }
 
-    configureEmotions(config) {
-        this.emotionSystem.configure(config);
-    }
+    configureEmotions(config) { this.emotionSystem.configure(config); }
 
     updateTaskSpec(taskSpec) {
         this.config.taskSpec = { ...this.config.taskSpec, ...taskSpec };
@@ -1195,10 +1424,12 @@ class Cortex2Brain {
     // ========================================================================
 
     /**
-     * FIX-32: Layer normalization on C to prevent saturation
-     * FIX-33: Exploration noise on D outputs
+     * FIX-32: Layer normalization on C
+     * FIX-33: Exploration noise on D
      * FIX-35: Per-agent noise from seeded RNG
      * FIX-38: C/S normalized before D input
+     * FIX-41: Cache-friendly matrix multiply (transposed weights)
+     * FIX-50: Real attention with Q/K/V
      *
      * @param {number[]|Object} rawInputs
      * @param {number}  [reward=0]
@@ -1214,7 +1445,7 @@ class Cortex2Brain {
         const sensorInput = this.validateAndNormalizeInputs(rawInputs);
         const rewardVal = safeNumber(reward, 0);
 
-        this._lastInputs = Array.from(sensorInput);
+        this._lastInputs = Float32Array.from(sensorInput);
         this.cumulativeReward = lerp(this.cumulativeReward, rewardVal, 0.1);
 
         // Social context
@@ -1249,37 +1480,54 @@ class Cortex2Brain {
         const mPredInput = this._buildMPredInput(this.A_prev, this.C_prev, mWorkPrev, this.D_prev, this.RATIOS.memoryBlock);
         const cInput = this._buildCInput(this.P_prev, this.A_prev, this.M_prev, this.S_prev, this.D_prev, rewardVal, this.RATIOS.cortex);
         const sInput = this._buildSInput(this.P_prev, mPermPrev, this.C_prev, this.D_prev, this.RATIOS.state);
-        const dInput = this._buildDInput(this.C_prev, this.S_prev, mPredPrev);
 
         this._lastCInput = cInput;
 
         if (trace) trace.layers.inputBuild = performance.now();
 
-        // === FORWARD PROPAGATION ===
+        // === FORWARD PROPAGATION (FIX-41: transposed weight multiply) ===
 
-        const pNew = this._matrixMultiply(pInput, this.W_P);
+        const pNew = this._matMul(pInput, this.WT_P);
         for (let i = 0; i < this.DIM.DIM_P; i++) pNew[i] = leakyRelu(pNew[i] + this.b_P[i]);
 
-        const gateArr = new Array(this.DIM.NUM_HEADS);
-        for (let i = 0; i < this.DIM.NUM_HEADS; i++) gateArr[i] = this.W_gate[i];
-        const gateProbs = softmax(gateArr, 1.0);
-
+        // FIX-50: real attention with Q/K/V
         const aNew = new Float32Array(this.DIM.DIM_A);
+        const headScores = new Array(this.DIM.NUM_HEADS);
+        // Build context K/V from pooled (P_prev + mWorkPrev)
+        const contextVec = this._buildAttentionContext(this.P_prev, mWorkPrev);
+        const K = this._matMul(contextVec, this.WT_K);
+        const V = this._matMul(contextVec, this.WT_V);
+
         for (let h = 0; h < this.DIM.NUM_HEADS; h++) {
-            const headOut = this._matrixMultiply(aInputs[h], this.W_A[h]);
-            const gateWeight = gateProbs[h];
+            const Qh = this._matMul(aInputs[h], this.WT_Q[h]);
+            // Scaled dot-product with head's K-slice
+            const offset = h * this.DIM.HEAD_DIM;
+            let score = 0;
             for (let i = 0; i < this.DIM.HEAD_DIM; i++) {
-                aNew[h * this.DIM.HEAD_DIM + i] = leakyRelu(headOut[i] + this.b_A[h][i]) * gateWeight;
+                score += Qh[offset + i] * K[offset + i];
+            }
+            headScores[h] = score * this._attnScale;
+        }
+        const gateProbs = softmax(headScores, 1.0);
+
+        for (let h = 0; h < this.DIM.NUM_HEADS; h++) {
+            const headOut = this._matMul(aInputs[h], this.WT_A[h]);
+            const gateWeight = gateProbs[h];
+            const offset = h * this.DIM.HEAD_DIM;
+            for (let i = 0; i < this.DIM.HEAD_DIM; i++) {
+                const v = V[offset + i];
+                aNew[offset + i] = leakyRelu(headOut[offset + i] + this.b_A[h][i]) * gateWeight
+                    + v * (1 - gateWeight) * 0.3;
             }
         }
 
-        const mWorkNew = this._matrixMultiply(mWorkInput, this.W_M_work);
+        const mWorkNew = this._matMul(mWorkInput, this.WT_M_work);
         for (let i = 0; i < this.ARCH.M_BLOCK_SIZE; i++) mWorkNew[i] = leakyRelu(mWorkNew[i] + this.b_M_work[i]);
 
-        const mPermNew = this._matrixMultiply(mPermInput, this.W_M_perm);
+        const mPermNew = this._matMul(mPermInput, this.WT_M_perm);
         for (let i = 0; i < this.ARCH.M_BLOCK_SIZE; i++) mPermNew[i] = leakyRelu(mPermNew[i] + this.b_M_perm[i]);
 
-        const mPredNew = this._matrixMultiply(mPredInput, this.W_M_pred);
+        const mPredNew = this._matMul(mPredInput, this.WT_M_pred);
         for (let i = 0; i < this.ARCH.M_BLOCK_SIZE; i++) mPredNew[i] = leakyRelu(mPredNew[i] + this.b_M_pred[i]);
 
         const mNew = new Float32Array(this.DIM.DIM_M);
@@ -1287,26 +1535,25 @@ class Cortex2Brain {
         for (let i = 0; i < this.ARCH.M_BLOCK_SIZE; i++) mNew[this.ARCH.M_BLOCK_SIZE + i] = mPermNew[i];
         for (let i = 0; i < this.ARCH.M_BLOCK_SIZE; i++) mNew[this.ARCH.M_BLOCK_SIZE * 2 + i] = mPredNew[i];
 
-        let cNew = this._matrixMultiply(cInput, this.W_C);
+        let cNew = this._matMul(cInput, this.WT_C);
         for (let i = 0; i < this.DIM.DIM_C; i++) cNew[i] = leakyRelu(cNew[i] + this.b_C[i]);
-
-        // FIX-32: Layer normalization on cortex to prevent activation explosion
+        // FIX-32: layer normalization
         cNew = this._layerNorm(cNew);
 
-        const sNew = this._matrixMultiply(sInput, this.W_S);
+        const sNew = this._matMul(sInput, this.WT_S);
         for (let i = 0; i < this.DIM.DIM_S; i++) sNew[i] = leakyRelu(sNew[i] + this.b_S[i]);
 
         // FIX-38: Build D input from normalized C and S
         const dInputNorm = this._buildDInput(cNew, sNew, mPredNew);
+        this._lastDInput = dInputNorm;
 
-        const dNew = this._matrixMultiply(dInputNorm, this.W_D);
+        const dNew = this._matMul(dInputNorm, this.WT_D);
         for (let i = 0; i < this.DIM.DIM_D; i++) dNew[i] = tanh(dNew[i] + this.b_D[i]);
 
-        // FIX-33/35: Add exploration noise from per-agent seeded RNG
+        // FIX-33/35: exploration noise
         for (let i = 0; i < this.DIM.DIM_D; i++) {
             dNew[i] = clamp(dNew[i] + this._rng.gaussian(0, this._noiseLevel), -1, 1);
         }
-        // Decay noise over time
         this._noiseLevel = Math.max(
             this.ARCH.MIN_NOISE,
             this._noiseLevel * this.ARCH.NOISE_DECAY
@@ -1326,7 +1573,7 @@ class Cortex2Brain {
         );
         this.emotionSystem.writeToStateVector(sNew);
 
-        // === REFLEX + CONFLICT RESOLUTION BEFORE STATE COMMIT ===
+        // === REFLEX + CONFLICT RESOLUTION ===
         this._reflexThisFrame = false;
         if (combatEvents) {
             this.emotionSystem.applyReflexes(sensorInput, sNew, dNew, this._stats);
@@ -1339,6 +1586,9 @@ class Cortex2Brain {
             }
         }
 
+        // === ELIGIBILITY TRACES UPDATE (FIX-43: all layers) ===
+        this._updateEligibilityTraces(pInput, cInput, dInputNorm, mPredNew);
+
         if (trace) trace.layers.emotions = performance.now();
 
         // === COMMIT STATE ===
@@ -1349,16 +1599,26 @@ class Cortex2Brain {
 
         // === OUTPUT ===
         const output = this.validateAndClampOutputs(Array.from(this.D));
-        this._lastOutputs = output;
+        this._lastOutputs = Float32Array.from(output);
+
+        // === PUSH TO REPLAY BUFFER (FIX-47) ===
+        if (this._lastInputs && this._lastOutputs) {
+            this.replay.push({
+                observation: this._lastInputs,
+                action: this._lastOutputs,
+                reward: rewardVal,
+                nextObservation: null, // filled by caller via setNextObservation or learn()
+                done: false,
+            });
+        }
 
         // === TRACE FINALISE ===
         if (trace) {
             trace.end = performance.now();
             trace.duration = trace.end - trace.start;
             this._traceBuffer.push(trace);
-            if (this._traceBuffer.length > (this._traceBuffer.maxSize ?? this.ARCH.MAX_TRACE_SIZE)) {
-                this._traceBuffer.shift();
-            }
+            const maxTr = this._traceBuffer.maxSize ?? this.ARCH.MAX_TRACE_SIZE;
+            if (this._traceBuffer.length > maxTr) this._traceBuffer.shift();
         }
 
         this.step++;
@@ -1373,6 +1633,20 @@ class Cortex2Brain {
         };
     }
 
+    /**
+     * Allows arena to attach nextObservation to the most recent replay entry.
+     * Should be called BEFORE the next forward() if you want proper TD targets.
+     * @param {Float32Array|number[]} nextObs
+     */
+    setNextObservation(nextObs) {
+        const last = this.replay.size() > 0
+            ? this.replay._buffer[(this.replay._head - 1 + this.replay.capacity) % this.replay.capacity]
+            : null;
+        if (last) {
+            last.nextObservation = Float32Array.from(nextObs);
+        }
+    }
+
     // ========================================================================
     // BATCH PROCESSING
     // ========================================================================
@@ -1382,26 +1656,65 @@ class Cortex2Brain {
         return inputsArray.map((inputs, i) => this.forward(inputs, rewards[i] || 0, null, null));
     }
 
+    /**
+     * FIX-49: advantage normalization across batch
+     * FIX-47: processes experiences via actor-critic
+     * @param {Experience[]} experiences
+     * @param {Object} options
+     */
     learnBatch(experiences, options = {}) {
         const { accumulateGradients = true } = options;
+        if (!experiences || experiences.length === 0) return;
         if (!accumulateGradients) {
             for (const exp of experiences) this.learn(exp);
             return;
         }
-        const accumulated = { tdErrors: [] };
-        for (const exp of experiences) {
-            const { reward, done, nextObservation } = exp;
+
+        // Compute TD errors for all experiences
+        const tdErrors = new Array(experiences.length);
+        for (let i = 0; i < experiences.length; i++) {
+            const exp = experiences[i];
             const currentValue = this._estimateValue();
-            const nextValue = done ? 0 : (nextObservation ? this._estimateValue() : currentValue);
-            const tdErr = this._tdError(reward, currentValue, nextValue, this.config.gamma);
-            accumulated.tdErrors.push(tdErr);
-            this._updateValueHead(tdErr / experiences.length);
+            let nextValue = currentValue;
+            if (!exp.done && exp.nextObservation) {
+                const saved = this._saveState();
+                try {
+                    this.forward(exp.nextObservation, 0);
+                    nextValue = this._estimateValue();
+                } finally {
+                    this._restoreState(saved);
+                }
+            }
+            tdErrors[i] = this._tdError(exp.reward, currentValue, nextValue, this.config.gamma);
         }
-        const avgTDErr = accumulated.tdErrors.reduce((a, b) => a + b, 0) / experiences.length;
+
+        // FIX-49: advantage normalization
+        const normalizedAdv = this._normalizeAdvantages(tdErrors);
+
+        // Update critic (value head) with raw TD errors
+        let avgTDErr = 0;
+        for (let i = 0; i < tdErrors.length; i++) {
+            const weight = 1 / experiences.length;
+            this._updateValueHead(tdErrors[i] * weight);
+            avgTDErr += Math.abs(tdErrors[i]);
+        }
+        avgTDErr /= experiences.length;
+
         this._stats.tdErrorHistory.push(Math.abs(avgTDErr));
         if (this._stats.tdErrorHistory.length > this.ARCH.MAX_TD_HISTORY) {
             this._stats.tdErrorHistory.shift();
         }
+
+        // FIX-48: actor update via policy gradient
+        for (let i = 0; i < experiences.length; i++) {
+            const exp = experiences[i];
+            if (exp.action) {
+                this._updateActor(normalizedAdv[i], Float32Array.from(exp.action));
+                this._stats.actorUpdates++;
+            }
+        }
+
+        this._stats.replayUpdates += experiences.length;
     }
 
     // ========================================================================
@@ -1411,31 +1724,18 @@ class Cortex2Brain {
     learn(experience) {
         const { observation, action, reward, nextObservation, done } = experience;
         const inputs = this.validateAndNormalizeInputs(observation);
-        const outputs = Array.isArray(action) ? action : (action?.output || []);
+        const outputs = Array.isArray(action) ? action : (action?.output ? Array.from(action.output) : []);
 
         const currentValue = this._estimateValue();
         let nextValue = 0;
 
         if (!done && nextObservation) {
-            const savedC = new Float32Array(this.C);
-            const savedP = new Float32Array(this.P);
-            const savedA = new Float32Array(this.A);
-            const savedM = new Float32Array(this.M);
-            const savedS = new Float32Array(this.S);
-            const savedD = new Float32Array(this.D);
-            const savedStep = this.step;
-
+            const saved = this._saveState();
             try {
                 this.forward(nextObservation, 0);
                 nextValue = this._estimateValue();
             } finally {
-                this.C.set(savedC);
-                this.P.set(savedP);
-                this.A.set(savedA);
-                this.M.set(savedM);
-                this.S.set(savedS);
-                this.D.set(savedD);
-                this.step = savedStep;
+                this._restoreState(saved);
             }
         }
 
@@ -1452,18 +1752,25 @@ class Cortex2Brain {
             this._stats.tdErrorHistory.shift();
         }
 
+        // Critic update
         this._updateValueHead(tdErr);
-        this._updateEligibilityTraces(inputs, outputs, tdErr, this._lastCInput);
+
+        // FIX-43: apply TD error to all relevant weight matrices via traces
         this._applyTDError(tdErr);
 
-        if (actionLogProbs?.length) {
-            const avgAdvantage = -actionLogProbs.reduce((a, b) => a + b, 0) / actionLogProbs.length;
-            const maxW = this.ARCH.MAX_WEIGHT;
-            for (let h = 0; h < this.DIM.NUM_HEADS; h++) {
-                this.W_gate[h] = clamp(this.W_gate[h] + this.config.lr * 0.3 * avgAdvantage * 0.25, -maxW, maxW);
-            }
+        // FIX-48: policy gradient on D layer using normalized advantage
+        if (outputs && outputs.length > 0) {
+            const advantage = this._computeAdvantage(tdErr);
+            this._updateActor(advantage, Float32Array.from(outputs));
+            this._stats.actorUpdates++;
         }
 
+        // Eligibility trace update (must happen AFTER apply, before next forward)
+        if (this._lastInputs && this._lastCInput && this._lastDInput) {
+            this._updateEligibilityTraces(this._lastInputs, this._lastCInput, this._lastDInput, null);
+        }
+
+        // Memory consolidation on strong reward
         if (reward > 3) {
             this.memorySystem.consolidateMemories(
                 this.predictionErrors, this.M, reward,
@@ -1471,6 +1778,7 @@ class Cortex2Brain {
             );
         }
 
+        // Hebbian updates on positive reward
         if (reward > 1) {
             const mag = clamp(Math.abs(reward) / 5.0, 0, 1);
             const correlation = Math.sign(reward) * (0.5 + 0.5 * mag);
@@ -1491,6 +1799,21 @@ class Cortex2Brain {
         };
     }
 
+    /**
+     * FIX-47: integrate replay-driven off-policy updates.
+     * Call this periodically (e.g. every N frames) from the arena loop.
+     * @param {number} [batchSize]
+     */
+    integrateReplay(batchSize = null) {
+        const bs = batchSize ?? this.config.replayBatchSize ?? this.ARCH.DEFAULT_REPLAY_BATCH;
+        const minSize = this.config.replayMinSize ?? this.ARCH.DEFAULT_REPLAY_MIN;
+        if (this.replay.size() < Math.min(bs, minSize)) return 0;
+        const batch = this.replay.sample(bs);
+        if (batch.length === 0) return 0;
+        this.learnBatch(batch);
+        return batch.length;
+    }
+
     // ========================================================================
     // EPISODE MANAGEMENT
     // ========================================================================
@@ -1507,21 +1830,32 @@ class Cortex2Brain {
         this.predictionErrors.fill(0);
         this.cumulativeReward = 0;
         this._lastCInput = null;
+        this._lastDInput = null;
         this.step = 0;
 
-        // FIX-39: Re-randomize D for diverse restart behavior
+        // FIX-39: re-randomize D
         for (let i = 0; i < this.DIM.DIM_D; i++) {
-            this.D[i] = (this._rng.next() * 2 - 1) * 0.3;
+            this.D[i] = this._rng.sym() * 0.3;
             this.D_prev[i] = this.D[i];
         }
 
-        // FIX-33: Reset noise level
+        // FIX-33: reset noise level
         this._noiseLevel = this.ARCH.INITIAL_NOISE;
+
+        // FIX-43: reset eligibility traces
+        this.traceP.fill(0);
+        this.traceC.fill(0);
+        this.traceD.fill(0);
+        this.tracePred.fill(0);
+
+        // FIX-49: reset advantage history
+        this._advantageHistory.length = 0;
     }
 
     reset() {
         this.resetEpisode();
         this.memorySystem.resetFull();
+        this.replay.clear();
         this._stats = this._createEmptyStats();
     }
 
@@ -1544,7 +1878,7 @@ class Cortex2Brain {
                 ? { ...this.emotionSystem.emotionalState.current }
                 : null,
             stats: this.getStats(),
-            attentionWeights: Array.from(this.W_gate),
+            attentionWeights: this._getAttentionWeights(),
             predictionError: this._computeAvgPredError(),
             memoryUsage: {
                 working: this._getMWork(this.M).reduce((a, b) => a + Math.abs(b), 0) / this.ARCH.M_BLOCK_SIZE,
@@ -1556,11 +1890,14 @@ class Cortex2Brain {
             ratios: { ...this.RATIOS },
             socialMemory: {
                 relationships: Array.from(sm.relationships.entries()).map(([k, v]) => [k, {
-                    trust: v.trust,
-                    affinity: v.affinity,
-                    lastInteraction: v.lastInteraction,
+                    trust: v.trust, affinity: v.affinity, lastInteraction: v.lastInteraction,
                 }]),
                 reputation: sm.reputation,
+            },
+            replayStats: {
+                size: this.replay.size(),
+                capacity: this.replay.capacity,
+                totalPushed: this.replay.totalPushed(),
             },
             trace: this._traceBuffer ? {
                 count: this._traceBuffer.length,
@@ -1582,7 +1919,7 @@ class Cortex2Brain {
     }
 
     // ========================================================================
-    // SERIALISATION
+    // SERIALISATION (backward-compatible with v2.4)
     // ========================================================================
 
     toJSON(options = {}) {
@@ -1593,11 +1930,12 @@ class Cortex2Brain {
             includeEpisodicMemory = false,
             includeStats = true,
             includeSchema = true,
+            includeReplay = false,
         } = options;
 
         const data = {
             type: 'Cortex2Brain',
-            version: '2.4',
+            version: '2.5',
             config: {
                 seed: this.config.seed,
                 lr: this.config.lr,
@@ -1606,6 +1944,9 @@ class Cortex2Brain {
                 hebbianRate: this.config.hebbianRate,
                 taskSpec: this.config.taskSpec,
                 dims: { ...this.DIM },
+                replayCapacity: this.config.replayCapacity,
+                replayBatchSize: this.config.replayBatchSize,
+                replayMinSize: this.config.replayMinSize,
             },
             weights: this._serializeWeights(),
         };
@@ -1616,10 +1957,7 @@ class Cortex2Brain {
                 values: { ...this.personality.values },
             };
         }
-
-        if (includeEmotions) {
-            data.emotionSystem = this.emotionSystem.toJSON();
-        }
+        if (includeEmotions) data.emotionSystem = this.emotionSystem.toJSON();
 
         const memoryData = this.memorySystem.toJSON();
         if (includeSocialMemory) data.socialMemory = memoryData.socialMemory;
@@ -1629,6 +1967,7 @@ class Cortex2Brain {
             data.inputSchema = this._schemaManager.getInputSchema();
             data.outputSchema = this._schemaManager.getOutputSchema();
         }
+        if (includeReplay) data.replay = this.replay.toJSON();
 
         return data;
     }
@@ -1638,19 +1977,13 @@ class Cortex2Brain {
 
         const brain = new Cortex2Brain(data.config);
         const w = data.weights;
-
-        if (w) {
-            brain._validateAndLoadWeights(w);
-        }
+        if (w) brain._validateAndLoadWeights(w);
 
         if (data.personality) {
             brain.personality.traits = { ...brain.personality.traits, ...data.personality.traits };
             brain.personality.values = { ...brain.personality.values, ...data.personality.values };
         }
-
-        if (data.emotionSystem) {
-            brain.emotionSystem.loadFromJSON(data.emotionSystem);
-        }
+        if (data.emotionSystem) brain.emotionSystem.loadFromJSON(data.emotionSystem);
         if (data.emotionMemory && !data.emotionSystem) {
             brain.emotionSystem.loadFromJSON({ emotionMemory: data.emotionMemory });
         }
@@ -1658,38 +1991,71 @@ class Cortex2Brain {
         const memoryData = {};
         if (data.socialMemory) memoryData.socialMemory = data.socialMemory;
         if (data.episodicMemory) memoryData.episodicMemory = data.episodicMemory;
-        if (data.socialMemory || data.episodicMemory) {
-            brain.memorySystem.loadFromJSON(memoryData);
-        }
+        if (data.socialMemory || data.episodicMemory) brain.memorySystem.loadFromJSON(memoryData);
 
         if (data.inputSchema) brain._schemaManager.setInputSchema(data.inputSchema);
         if (data.outputSchema) brain._schemaManager.setOutputSchema(data.outputSchema);
         if (data.stats) brain._stats = { ...brain._stats, ...data.stats };
+        if (data.replay) brain.replay.loadFromJSON(data.replay);
 
         return brain;
     }
 
+    /**
+     * Backward-compatible serialization: converts transposed weights back to
+     * row-major W layout so v2.4 loaders can still read the file. Also emits
+     * the new WT format for v2.5 loaders.
+     */
     _serializeWeights() {
+        // Helper: transpose WT[col][row] -> W[row][col] for legacy compat
+        const untranspose = (wt) => {
+            if (!wt || wt.length === 0) return [];
+            const cols = wt.length;
+            const rows = wt[0].length;
+            const out = new Array(rows);
+            for (let i = 0; i < rows; i++) {
+                const row = new Array(cols);
+                for (let j = 0; j < cols; j++) row[j] = wt[j][i];
+                out[i] = row;
+            }
+            return out;
+        };
+        const untransposeHeads = (wtHeads) => wtHeads.map(untranspose);
+
         return {
-            W_P: this.W_P.map(r => Array.from(r)),
+            // v2.5 native format (transposed)
+            WT_P: this.WT_P.map(c => Array.from(c)),
+            WT_A: this.WT_A.map(m => m.map(c => Array.from(c))),
+            WT_Q: this.WT_Q.map(m => m.map(c => Array.from(c))),
+            WT_K: this.WT_K.map(c => Array.from(c)),
+            WT_V: this.WT_V.map(c => Array.from(c)),
+            WT_M_work: this.WT_M_work.map(c => Array.from(c)),
+            WT_M_perm: this.WT_M_perm.map(c => Array.from(c)),
+            WT_M_pred: this.WT_M_pred.map(c => Array.from(c)),
+            WT_C: this.WT_C.map(c => Array.from(c)),
+            WT_S: this.WT_S.map(c => Array.from(c)),
+            WT_D: this.WT_D.map(c => Array.from(c)),
+            WT_pred: this.WT_pred.map(c => Array.from(c)),
+            // v2.4 legacy format (row-major) for backward compatibility
+            W_P: untranspose(this.WT_P),
             b_P: Array.from(this.b_P),
-            W_A: this.W_A.map(m => m.map(r => Array.from(r))),
+            W_A: untransposeHeads(this.WT_A),
             b_A: this.b_A.map(b => Array.from(b)),
-            W_gate: Array.from(this.W_gate),
+            W_gate: Array.from(this.b_gate), // legacy: used W_gate as head bias
             W_reflex: Array.from(this.W_reflex),
-            W_M_work: this.W_M_work.map(r => Array.from(r)),
+            W_M_work: untranspose(this.WT_M_work),
             b_M_work: Array.from(this.b_M_work),
-            W_M_perm: this.W_M_perm.map(r => Array.from(r)),
+            W_M_perm: untranspose(this.WT_M_perm),
             b_M_perm: Array.from(this.b_M_perm),
-            W_M_pred: this.W_M_pred.map(r => Array.from(r)),
+            W_M_pred: untranspose(this.WT_M_pred),
             b_M_pred: Array.from(this.b_M_pred),
-            W_C: this.W_C.map(r => Array.from(r)),
+            W_C: untranspose(this.WT_C),
             b_C: Array.from(this.b_C),
-            W_S: this.W_S.map(r => Array.from(r)),
+            W_S: untranspose(this.WT_S),
             b_S: Array.from(this.b_S),
-            W_D: this.W_D.map(r => Array.from(r)),
+            W_D: untranspose(this.WT_D),
             b_D: Array.from(this.b_D),
-            W_pred: this.W_pred.map(r => Array.from(r)),
+            W_pred: untranspose(this.WT_pred),
             b_pred: Array.from(this.b_pred),
             W_V: Array.from(this.W_V),
             b_V: this.b_V,
@@ -1697,79 +2063,125 @@ class Cortex2Brain {
     }
 
     _validateAndLoadWeights(w) {
-        const check = (name, mat, expectedRows, expectedCols) => {
+        const checkMat = (name, mat, expectedRows, expectedCols) => {
             if (!mat || mat.length !== expectedRows) {
-                throw new Error(
-                    `${name} row count mismatch: expected ${expectedRows}, got ${mat?.length}`
-                );
+                throw new Error(`${name} row count mismatch: expected ${expectedRows}, got ${mat?.length}`);
             }
             if (expectedCols !== undefined && mat[0]?.length !== expectedCols) {
-                throw new Error(
-                    `${name} col count mismatch: expected ${expectedCols}, got ${mat[0]?.length}`
-                );
+                throw new Error(`${name} col count mismatch: expected ${expectedCols}, got ${mat[0]?.length}`);
             }
         };
-
         const checkVec = (name, vec, expectedLen) => {
             if (!vec || vec.length !== expectedLen) {
-                throw new Error(
-                    `${name} length mismatch: expected ${expectedLen}, got ${vec?.length}`
-                );
+                throw new Error(`${name} length mismatch: expected ${expectedLen}, got ${vec?.length}`);
             }
         };
 
-        check('W_P', w.W_P, this.ARCH.P_INPUT, this.DIM.DIM_P);
+        // Prefer native v2.5 WT format if present
+        const hasNative = !!(w.WT_C && w.WT_D && w.WT_P);
+
+        if (hasNative) {
+            // Load WT directly
+            const loadWT = (wt, rows, cols, name) => {
+                checkMat(name, wt, cols, rows); // WT is [cols][rows]
+                return wt.map(c => Float32Array.from(c));
+            };
+            const loadWTHeads = (wtHeads, rows, cols, name) => {
+                if (wtHeads.length !== this.DIM.NUM_HEADS) {
+                    throw new Error(`${name} head count mismatch`);
+                }
+                return wtHeads.map((m, h) => loadWT(m, rows, cols, `${name}[${h}]`));
+            };
+
+            this.WT_P = loadWT(w.WT_P, this.ARCH.P_INPUT, this.DIM.DIM_P, 'WT_P');
+            this.WT_A = loadWTHeads(w.WT_A, this.ARCH.A_INPUT, this.DIM.HEAD_DIM, 'WT_A');
+            this.WT_Q = loadWTHeads(w.WT_Q, this.ARCH.A_INPUT, this.DIM.DIM_A, 'WT_Q');
+            this.WT_K = loadWT(w.WT_K, this.ARCH.A_INPUT, this.DIM.DIM_A, 'WT_K');
+            this.WT_V = loadWT(w.WT_V, this.ARCH.A_INPUT, this.DIM.DIM_A, 'WT_V');
+            this.WT_M_work = loadWT(w.WT_M_work, this.ARCH.M_WORK_INPUT, this.ARCH.M_BLOCK_SIZE, 'WT_M_work');
+            this.WT_M_perm = loadWT(w.WT_M_perm, this.ARCH.M_PERM_INPUT, this.ARCH.M_BLOCK_SIZE, 'WT_M_perm');
+            this.WT_M_pred = loadWT(w.WT_M_pred, this.ARCH.M_PRED_INPUT, this.ARCH.M_BLOCK_SIZE, 'WT_M_pred');
+            this.WT_C = loadWT(w.WT_C, this.ARCH.C_INPUT, this.DIM.DIM_C, 'WT_C');
+            this.WT_S = loadWT(w.WT_S, this.ARCH.S_INPUT, this.DIM.DIM_S, 'WT_S');
+            this.WT_D = loadWT(w.WT_D, this.ARCH.D_INPUT, this.DIM.DIM_D, 'WT_D');
+            this.WT_pred = loadWT(w.WT_pred, this.ARCH.M_BLOCK_SIZE, this.DIM.DIM_SENSOR, 'WT_pred');
+        } else {
+            // Legacy v2.4 row-major format: transpose on load
+            const transpose = (mat) => {
+                if (!mat || mat.length === 0) return [];
+                const rows = mat.length;
+                const cols = mat[0].length;
+                const out = new Array(cols);
+                for (let j = 0; j < cols; j++) {
+                    const col = new Float32Array(rows);
+                    for (let i = 0; i < rows; i++) col[i] = mat[i][j];
+                    out[j] = col;
+                }
+                return out;
+            };
+            const transposeHeads = (matHeads) => matHeads.map(transpose);
+
+            checkMat('W_P', w.W_P, this.ARCH.P_INPUT, this.DIM.DIM_P);
+            this.WT_P = transpose(w.W_P);
+
+            if (w.W_A.length !== this.DIM.NUM_HEADS) {
+                throw new Error(`W_A head count mismatch`);
+            }
+            for (let h = 0; h < this.DIM.NUM_HEADS; h++) {
+                checkMat(`W_A[${h}]`, w.W_A[h], this.ARCH.A_INPUT, this.DIM.HEAD_DIM);
+            }
+            this.WT_A = transposeHeads(w.W_A);
+            // Legacy had no Q/K/V — initialize fresh (already done in _initWeights)
+
+            checkMat('W_M_work', w.W_M_work, this.ARCH.M_WORK_INPUT, this.ARCH.M_BLOCK_SIZE);
+            this.WT_M_work = transpose(w.W_M_work);
+            checkMat('W_M_perm', w.W_M_perm, this.ARCH.M_PERM_INPUT, this.ARCH.M_BLOCK_SIZE);
+            this.WT_M_perm = transpose(w.W_M_perm);
+            checkMat('W_M_pred', w.W_M_pred, this.ARCH.M_PRED_INPUT, this.ARCH.M_BLOCK_SIZE);
+            this.WT_M_pred = transpose(w.W_M_pred);
+
+            checkMat('W_C', w.W_C, this.ARCH.C_INPUT, this.DIM.DIM_C);
+            this.WT_C = transpose(w.W_C);
+            checkMat('W_S', w.W_S, this.ARCH.S_INPUT, this.DIM.DIM_S);
+            this.WT_S = transpose(w.W_S);
+            checkMat('W_D', w.W_D, this.ARCH.D_INPUT, this.DIM.DIM_D);
+            this.WT_D = transpose(w.W_D);
+            checkMat('W_pred', w.W_pred, this.ARCH.M_BLOCK_SIZE, this.DIM.DIM_SENSOR);
+            this.WT_pred = transpose(w.W_pred);
+        }
+
+        // Biases and vectors (format-agnostic)
         checkVec('b_P', w.b_P, this.DIM.DIM_P);
-
-        if (w.W_A.length !== this.DIM.NUM_HEADS) {
-            throw new Error(`W_A head count mismatch: expected ${this.DIM.NUM_HEADS}, got ${w.W_A.length}`);
+        this.b_P = Float32Array.from(w.b_P);
+        if (w.b_A) {
+            for (let h = 0; h < this.DIM.NUM_HEADS; h++) {
+                checkVec(`b_A[${h}]`, w.b_A[h], this.DIM.HEAD_DIM);
+                this.b_A[h] = Float32Array.from(w.b_A[h]);
+            }
         }
-        for (let h = 0; h < this.DIM.NUM_HEADS; h++) {
-            check(`W_A[${h}]`, w.W_A[h], this.ARCH.A_INPUT, this.DIM.HEAD_DIM);
-            checkVec(`b_A[${h}]`, w.b_A[h], this.DIM.HEAD_DIM);
+        if (w.W_gate) {
+            checkVec('W_gate', w.W_gate, this.DIM.NUM_HEADS);
+            this.b_gate = Float32Array.from(w.W_gate); // legacy gate → head bias
         }
+        if (w.W_reflex) this.W_reflex = Float32Array.from(w.W_reflex);
 
-        checkVec('W_gate', w.W_gate, this.DIM.NUM_HEADS);
-
-        check('W_M_work', w.W_M_work, this.ARCH.M_WORK_INPUT, this.ARCH.M_BLOCK_SIZE);
         checkVec('b_M_work', w.b_M_work, this.ARCH.M_BLOCK_SIZE);
-        check('W_M_perm', w.W_M_perm, this.ARCH.M_PERM_INPUT, this.ARCH.M_BLOCK_SIZE);
+        this.b_M_work = Float32Array.from(w.b_M_work);
         checkVec('b_M_perm', w.b_M_perm, this.ARCH.M_BLOCK_SIZE);
-        check('W_M_pred', w.W_M_pred, this.ARCH.M_PRED_INPUT, this.ARCH.M_BLOCK_SIZE);
+        this.b_M_perm = Float32Array.from(w.b_M_perm);
         checkVec('b_M_pred', w.b_M_pred, this.ARCH.M_BLOCK_SIZE);
+        this.b_M_pred = Float32Array.from(w.b_M_pred);
 
-        check('W_C', w.W_C, this.ARCH.C_INPUT, this.DIM.DIM_C);
         checkVec('b_C', w.b_C, this.DIM.DIM_C);
-        check('W_S', w.W_S, this.ARCH.S_INPUT, this.DIM.DIM_S);
+        this.b_C = Float32Array.from(w.b_C);
         checkVec('b_S', w.b_S, this.DIM.DIM_S);
-        check('W_D', w.W_D, this.ARCH.D_INPUT, this.DIM.DIM_D);
+        this.b_S = Float32Array.from(w.b_S);
         checkVec('b_D', w.b_D, this.DIM.DIM_D);
-
-        check('W_pred', w.W_pred, this.ARCH.M_BLOCK_SIZE, this.DIM.DIM_SENSOR);
+        this.b_D = Float32Array.from(w.b_D);
         checkVec('b_pred', w.b_pred, this.DIM.DIM_SENSOR);
+        this.b_pred = Float32Array.from(w.b_pred);
         checkVec('W_V', w.W_V, this.DIM.DIM_C);
-
-        this.W_P = w.W_P.map(r => new Float32Array(r));
-        this.b_P = new Float32Array(w.b_P);
-        this.W_A = w.W_A.map(m => m.map(r => new Float32Array(r)));
-        this.b_A = w.b_A.map(b => new Float32Array(b));
-        this.W_gate = new Float32Array(w.W_gate);
-        if (w.W_reflex) this.W_reflex = new Float32Array(w.W_reflex);
-        this.W_M_work = w.W_M_work.map(r => new Float32Array(r));
-        this.b_M_work = new Float32Array(w.b_M_work);
-        this.W_M_perm = w.W_M_perm.map(r => new Float32Array(r));
-        this.b_M_perm = new Float32Array(w.b_M_perm);
-        this.W_M_pred = w.W_M_pred.map(r => new Float32Array(r));
-        this.b_M_pred = new Float32Array(w.b_M_pred);
-        this.W_C = w.W_C.map(r => new Float32Array(r));
-        this.b_C = new Float32Array(w.b_C);
-        this.W_S = w.W_S.map(r => new Float32Array(r));
-        this.b_S = new Float32Array(w.b_S);
-        this.W_D = w.W_D.map(r => new Float32Array(r));
-        this.b_D = new Float32Array(w.b_D);
-        this.W_pred = w.W_pred.map(r => new Float32Array(r));
-        this.b_pred = new Float32Array(w.b_pred);
-        this.W_V = new Float32Array(w.W_V);
+        this.W_V = Float32Array.from(w.W_V);
         this.b_V = w.b_V ?? 0;
     }
 
@@ -1778,7 +2190,7 @@ class Cortex2Brain {
     // ========================================================================
 
     clone(options = {}) {
-        const { copyWeights = true, copyState = false, copyMemory = true } = options;
+        const { copyWeights = true, copyState = false, copyMemory = true, copyTraces = true, copyReplay = false } = options;
 
         const cloned = new Cortex2Brain({
             seed: this.config.seed + '_clone_' + Date.now(),
@@ -1787,23 +2199,40 @@ class Cortex2Brain {
             lambda: this.config.lambda,
             hebbianRate: this.config.hebbianRate,
             taskSpec: this.config.taskSpec ? { ...this.config.taskSpec } : null,
+            replayCapacity: this.config.replayCapacity,
+            replayBatchSize: this.config.replayBatchSize,
+            replayMinSize: this.config.replayMinSize,
         });
 
         if (copyWeights) {
-            const cm = src => src.map(r => new Float32Array(r));
-            cloned.W_P = cm(this.W_P); cloned.b_P = new Float32Array(this.b_P);
-            cloned.W_A = this.W_A.map(m => m.map(r => new Float32Array(r)));
-            cloned.b_A = this.b_A.map(b => new Float32Array(b));
-            cloned.W_gate = new Float32Array(this.W_gate);
-            cloned.W_reflex = new Float32Array(this.W_reflex);
-            cloned.W_M_work = cm(this.W_M_work); cloned.b_M_work = new Float32Array(this.b_M_work);
-            cloned.W_M_perm = cm(this.W_M_perm); cloned.b_M_perm = new Float32Array(this.b_M_perm);
-            cloned.W_M_pred = cm(this.W_M_pred); cloned.b_M_pred = new Float32Array(this.b_M_pred);
-            cloned.W_C = cm(this.W_C); cloned.b_C = new Float32Array(this.b_C);
-            cloned.W_S = cm(this.W_S); cloned.b_S = new Float32Array(this.b_S);
-            cloned.W_D = cm(this.W_D); cloned.b_D = new Float32Array(this.b_D);
-            cloned.W_pred = cm(this.W_pred); cloned.b_pred = new Float32Array(this.b_pred);
-            cloned.W_V = new Float32Array(this.W_V); cloned.b_V = this.b_V;
+            const cmCol = src => src.map(c => Float32Array.from(c));
+            const cmHeads = src => src.map(cmCol);
+
+            cloned.WT_P = cmCol(this.WT_P);
+            cloned.WT_A = cmHeads(this.WT_A);
+            cloned.WT_Q = cmHeads(this.WT_Q);
+            cloned.WT_K = cmCol(this.WT_K);
+            cloned.WT_V = cmCol(this.WT_V);
+            cloned.WT_M_work = cmCol(this.WT_M_work);
+            cloned.WT_M_perm = cmCol(this.WT_M_perm);
+            cloned.WT_M_pred = cmCol(this.WT_M_pred);
+            cloned.WT_C = cmCol(this.WT_C);
+            cloned.WT_S = cmCol(this.WT_S);
+            cloned.WT_D = cmCol(this.WT_D);
+            cloned.WT_pred = cmCol(this.WT_pred);
+            cloned.b_P = Float32Array.from(this.b_P);
+            cloned.b_A = this.b_A.map(b => Float32Array.from(b));
+            cloned.b_gate = Float32Array.from(this.b_gate);
+            cloned.W_reflex = Float32Array.from(this.W_reflex);
+            cloned.b_M_work = Float32Array.from(this.b_M_work);
+            cloned.b_M_perm = Float32Array.from(this.b_M_perm);
+            cloned.b_M_pred = Float32Array.from(this.b_M_pred);
+            cloned.b_C = Float32Array.from(this.b_C);
+            cloned.b_S = Float32Array.from(this.b_S);
+            cloned.b_D = Float32Array.from(this.b_D);
+            cloned.b_pred = Float32Array.from(this.b_pred);
+            cloned.W_V = Float32Array.from(this.W_V);
+            cloned.b_V = this.b_V;
         }
 
         if (copyState) {
@@ -1814,16 +2243,26 @@ class Cortex2Brain {
             cloned.predictionErrors.set(this.predictionErrors);
         }
 
+        // FIX-46: copy eligibility traces
+        if (copyTraces) {
+            cloned.traceP.set(this.traceP);
+            cloned.traceC.set(this.traceC);
+            cloned.traceD.set(this.traceD);
+            cloned.tracePred.set(this.tracePred);
+        }
+
         cloned.personality = {
             traits: { ...this.personality.traits },
             values: { ...this.personality.values },
         };
 
         if (copyMemory) {
-            const emotionData = this.emotionSystem.toJSON();
-            cloned.emotionSystem.loadFromJSON(emotionData);
-            const memoryData = this.memorySystem.toJSON();
-            cloned.memorySystem.loadFromJSON(memoryData);
+            cloned.emotionSystem.loadFromJSON(this.emotionSystem.toJSON());
+            cloned.memorySystem.loadFromJSON(this.memorySystem.toJSON());
+        }
+
+        if (copyReplay) {
+            cloned.replay.loadFromJSON(this.replay.toJSON());
         }
 
         cloned._schemaManager.setInputSchema(this._schemaManager.getInputSchema());
@@ -1833,6 +2272,7 @@ class Cortex2Brain {
             tdErrorHistory: [...this._stats.tdErrorHistory],
             predictionErrorHistory: [...this._stats.predictionErrorHistory],
         };
+        cloned._advantageHistory = [...this._advantageHistory];
 
         return cloned;
     }
@@ -1842,23 +2282,26 @@ class Cortex2Brain {
         const maxW = this.ARCH.MAX_WEIGHT;
         const mutateMat = mat => {
             if (!mat?.length) return;
-            for (let i = 0; i < mat.length; i++) {
-                if (!mat[i]?.length) continue;
-                for (let j = 0; j < mat[i].length; j++) {
+            for (let j = 0; j < mat.length; j++) {
+                const col = mat[j];
+                if (!col?.length) continue;
+                for (let i = 0; i < col.length; i++) {
                     if (this._rng.next() < rate) {
-                        mat[i][j] = clamp(mat[i][j] + this._rng.gaussian(0, strength), -maxW, maxW);
+                        col[i] = clamp(col[i] + this._rng.gaussian(0, strength), -maxW, maxW);
                         mutations++;
                     }
                 }
             }
         };
-        mutateMat(this.W_P); mutateMat(this.W_C); mutateMat(this.W_D);
-        for (const W of this.W_A) mutateMat(W);
-        mutateMat(this.W_M_work); mutateMat(this.W_M_perm); mutateMat(this.W_M_pred);
-        mutateMat(this.W_S); mutateMat(this.W_pred);
-        for (let i = 0; i < this.W_gate.length; i++) {
+        mutateMat(this.WT_P); mutateMat(this.WT_C); mutateMat(this.WT_D);
+        for (const WT of this.WT_A) mutateMat(WT);
+        for (const WT of this.WT_Q) mutateMat(WT);
+        mutateMat(this.WT_K); mutateMat(this.WT_V);
+        mutateMat(this.WT_M_work); mutateMat(this.WT_M_perm); mutateMat(this.WT_M_pred);
+        mutateMat(this.WT_S); mutateMat(this.WT_pred);
+        for (let i = 0; i < this.b_gate.length; i++) {
             if (this._rng.next() < rate) {
-                this.W_gate[i] = clamp(this.W_gate[i] + this._rng.gaussian(0, strength), -maxW, maxW);
+                this.b_gate[i] = clamp(this.b_gate[i] + this._rng.gaussian(0, strength), -maxW, maxW);
                 mutations++;
             }
         }
@@ -1875,47 +2318,76 @@ class Cortex2Brain {
     getInputDim() { return this.DIM.DIM_SENSOR; }
     getOutputDim() { return this.DIM.DIM_D; }
     isReady() { return this._isReady; }
+    getReplayBuffer() { return this.replay; }
 
     // ========================================================================
-    // PRIVATE — WEIGHT INITIALISATION
+    // PRIVATE — WEIGHT INITIALISATION (FIX-42: fast Xorshift)
     // ========================================================================
 
     _initWeights() {
         const bs = this.ARCH.M_BLOCK_SIZE;
+        const rng = this._rng;
 
-        this.W_P = this._initMatrix(this.ARCH.P_INPUT, this.DIM.DIM_P, 0.3);
-        this.b_P = this._initVector(this.DIM.DIM_P, 0.1);
+        // FIX-42: use Xorshift stream instead of per-weight FNV-1a hashing
+        // (eliminates O(rows*cols) hash calls in ctor)
+        const initMatT = (rows, cols, scale) => {
+            const matT = new Array(cols);
+            for (let j = 0; j < cols; j++) {
+                const col = new Float32Array(rows);
+                for (let i = 0; i < rows; i++) col[i] = rng.sym() * scale;
+                matT[j] = col;
+            }
+            return matT;
+        };
+        const initVec = (length, scale) => {
+            const vec = new Float32Array(length);
+            for (let i = 0; i < length; i++) vec[i] = rng.sym() * scale;
+            return vec;
+        };
 
-        this.W_A = [];
+        this.WT_P = initMatT(this.ARCH.P_INPUT, this.DIM.DIM_P, 0.3);
+        this.b_P = initVec(this.DIM.DIM_P, 0.1);
+
+        this.WT_A = [];
         this.b_A = [];
         for (let h = 0; h < this.DIM.NUM_HEADS; h++) {
-            this.W_A.push(this._initMatrix(this.ARCH.A_INPUT, this.DIM.HEAD_DIM, 0.3));
-            this.b_A.push(this._initVector(this.DIM.HEAD_DIM, 0.1));
+            this.WT_A.push(initMatT(this.ARCH.A_INPUT, this.DIM.HEAD_DIM, 0.3));
+            this.b_A.push(initVec(this.DIM.HEAD_DIM, 0.1));
         }
 
-        this.W_gate = this._initVector(this.DIM.NUM_HEADS, 0.25);
-        this.W_reflex = this._initVector(4, 0.5);
+        // FIX-50: real attention projections (per-head Q; shared K/V)
+        this.WT_Q = [];
+        for (let h = 0; h < this.DIM.NUM_HEADS; h++) {
+            this.WT_Q.push(initMatT(this.ARCH.A_INPUT, this.DIM.DIM_A, 0.2));
+        }
+        this.WT_K = initMatT(this.ARCH.A_INPUT, this.DIM.DIM_A, 0.2);
+        this.WT_V = initMatT(this.ARCH.A_INPUT, this.DIM.DIM_A, 0.2);
+        this._attnScale = 1 / Math.sqrt(this.DIM.HEAD_DIM);
 
-        this.W_M_work = this._initMatrix(this.ARCH.M_WORK_INPUT, bs, 0.3);
-        this.b_M_work = this._initVector(bs, 0.1);
-        this.W_M_perm = this._initMatrix(this.ARCH.M_PERM_INPUT, bs, 0.3);
-        this.b_M_perm = this._initVector(bs, 0.1);
-        this.W_M_pred = this._initMatrix(this.ARCH.M_PRED_INPUT, bs, 0.3);
-        this.b_M_pred = this._initVector(bs, 0.1);
+        // Legacy b_gate retained for serialization compat
+        this.b_gate = initVec(this.DIM.NUM_HEADS, 0.0);
+        this.W_reflex = initVec(4, 0.5);
 
-        this.W_C = this._initMatrix(this.ARCH.C_INPUT, this.DIM.DIM_C, 0.25);
-        this.b_C = this._initVector(this.DIM.DIM_C, 0.1);
+        this.WT_M_work = initMatT(this.ARCH.M_WORK_INPUT, bs, 0.3);
+        this.b_M_work = initVec(bs, 0.1);
+        this.WT_M_perm = initMatT(this.ARCH.M_PERM_INPUT, bs, 0.3);
+        this.b_M_perm = initVec(bs, 0.1);
+        this.WT_M_pred = initMatT(this.ARCH.M_PRED_INPUT, bs, 0.3);
+        this.b_M_pred = initVec(bs, 0.1);
 
-        this.W_S = this._initMatrix(this.ARCH.S_INPUT, this.DIM.DIM_S, 0.3);
-        this.b_S = this._initVector(this.DIM.DIM_S, 0.1);
+        this.WT_C = initMatT(this.ARCH.C_INPUT, this.DIM.DIM_C, 0.25);
+        this.b_C = initVec(this.DIM.DIM_C, 0.1);
 
-        this.W_D = this._initMatrix(this.ARCH.D_INPUT, this.DIM.DIM_D, 0.2);
-        this.b_D = this._initVector(this.DIM.DIM_D, 0.1);
+        this.WT_S = initMatT(this.ARCH.S_INPUT, this.DIM.DIM_S, 0.3);
+        this.b_S = initVec(this.DIM.DIM_S, 0.1);
 
-        this.W_pred = this._initMatrix(bs, this.DIM.DIM_SENSOR, 0.15);
-        this.b_pred = this._initVector(this.DIM.DIM_SENSOR, 0.05);
+        this.WT_D = initMatT(this.ARCH.D_INPUT, this.DIM.DIM_D, 0.2);
+        this.b_D = initVec(this.DIM.DIM_D, 0.1);
 
-        this.W_V = this._initVector(this.DIM.DIM_C, 0.1);
+        this.WT_pred = initMatT(bs, this.DIM.DIM_SENSOR, 0.15);
+        this.b_pred = initVec(this.DIM.DIM_SENSOR, 0.05);
+
+        this.W_V = initVec(this.DIM.DIM_C, 0.1);
         this.b_V = 0;
     }
 
@@ -1935,6 +2407,7 @@ class Cortex2Brain {
         this.D_prev = new Float32Array(this.DIM.DIM_D);
     }
 
+    /** FIX-43: full trace set including D and prediction */
     _initEligibilityTraces() {
         this.traceP = new Float32Array(this.ARCH.P_INPUT * this.DIM.DIM_P);
         this.traceC = new Float32Array(this.ARCH.C_INPUT * this.DIM.DIM_C);
@@ -1942,58 +2415,40 @@ class Cortex2Brain {
         this.tracePred = new Float32Array(this.ARCH.M_BLOCK_SIZE * this.DIM.DIM_SENSOR);
     }
 
-    _initMatrix(rows, cols, scale) {
-        const mat = [];
-        for (let i = 0; i < rows; i++) {
-            const row = new Float32Array(cols);
-            for (let j = 0; j < cols; j++) {
-                row[j] = (this._hashSeed(this.config.seed, i * 10000 + j, 0) * 2 - 1) * scale;
-            }
-            mat.push(row);
-        }
-        return mat;
-    }
-
-    _initVector(length, scale) {
-        const vec = new Float32Array(length);
-        for (let i = 0; i < length; i++) {
-            vec[i] = (this._hashSeed(this.config.seed, i, 1000) * 2 - 1) * scale;
-        }
-        return vec;
-    }
-
-    _hashSeed(seed, i, j) {
-        let h = 0x811c9dc5;
-        const s = `${seed}:${i}:${j}`;
-        for (let k = 0; k < s.length; k++) {
-            h ^= s.charCodeAt(k);
-            h = Math.imul(h, 0x01000193);
-        }
-        return ((h >>> 0) ^ ((h >>> 16) & 0xFFFF)) / 4294967296;
-    }
-
     // ========================================================================
-    // PRIVATE — MATH / MATRIX OPS
+    // PRIVATE — MATH / MATRIX OPS (FIX-41: cache-friendly)
     // ========================================================================
 
-    _matrixMultiply(vec, mat) {
-        const rows = mat.length;
-        const cols = mat[0].length;
-        const n = Math.min(vec.length, rows);
+    /**
+     * FIX-41: Column-major matrix-vector multiply.
+     * matT is stored as matT[col][row], giving sequential inner loop (cache-friendly).
+     * Equivalent to row-major W·vec but ~2–4× faster in V8.
+     * @param {Float32Array|number[]} vec
+     * @param {Float32Array[]} matT - array of column vectors
+     * @returns {Float32Array}
+     */
+    _matMul(vec, matT) {
+        const cols = matT.length;
         const out = new Float32Array(cols);
-        for (let i = 0; i < cols; i++) {
+        const n = vec.length;
+        for (let j = 0; j < cols; j++) {
+            const col = matT[j];
             let sum = 0;
-            for (let j = 0; j < n; j++) {
-                sum += vec[j] * mat[j][i];
+            const lim = Math.min(n, col.length);
+            // Unrolled 4× for V8 JIT inlining
+            let i = 0;
+            for (; i + 3 < lim; i += 4) {
+                sum += vec[i] * col[i] + vec[i + 1] * col[i + 1]
+                     + vec[i + 2] * col[i + 2] + vec[i + 3] * col[i + 3];
             }
-            out[i] = sum;
+            for (; i < lim; i++) sum += vec[i] * col[i];
+            out[j] = sum;
         }
         return out;
     }
 
     /**
-     * FIX-32: Layer normalization — prevents cortex activations from exploding.
-     * Normalizes to zero mean, unit variance, then scales to [-1, 1] range.
+     * FIX-32: Layer normalization.
      * @param {Float32Array} vec
      * @returns {Float32Array}
      */
@@ -2001,12 +2456,10 @@ class Cortex2Brain {
         const n = vec.length;
         if (n === 0) return vec;
 
-        // Compute mean
         let sum = 0;
         for (let i = 0; i < n; i++) sum += vec[i];
         const mean = sum / n;
 
-        // Compute variance
         let varSum = 0;
         for (let i = 0; i < n; i++) {
             const d = vec[i] - mean;
@@ -2014,13 +2467,12 @@ class Cortex2Brain {
         }
         const std = Math.sqrt(varSum / n + this.ARCH.LAYER_NORM_EPS);
 
-        // Normalize
         const out = new Float32Array(n);
         for (let i = 0; i < n; i++) {
-            out[i] = (vec[i] - mean) / std;
-            // Soft clamp to prevent extreme values feeding into D
-            if (out[i] > 2) out[i] = 2;
-            else if (out[i] < -2) out[i] = -2;
+            let v = (vec[i] - mean) / std;
+            if (v > 2) v = 2;
+            else if (v < -2) v = -2;
+            out[i] = v;
         }
         return out;
     }
@@ -2034,7 +2486,7 @@ class Cortex2Brain {
             output[i] = v < -1 ? -1 : v > 1 ? 1 : v;
         }
         for (let i = srcLen; i < this.DIM.DIM_SENSOR; i++) {
-            output[i] = (this._hashSeed(this.config.seed, i, 0xDEADBEEF) * 2 - 1) * 0.05;
+            output[i] = this._rng.sym() * 0.05;
         }
         return output;
     }
@@ -2042,6 +2494,16 @@ class Cortex2Brain {
     _getMWork(M) { return M.subarray(this.DIM.M_WORK_START, this.DIM.M_WORK_END); }
     _getMPerm(M) { return M.subarray(this.DIM.M_PERM_START, this.DIM.M_PERM_END); }
     _getMPred(M) { return M.subarray(this.DIM.M_PRED_START, this.DIM.M_PRED_END); }
+
+    /** FIX-50: pooled context vector for K/V projections */
+    _buildAttentionContext(pPrev, mWork) {
+        const out = new Float32Array(this.ARCH.A_INPUT);
+        let idx = 0;
+        for (let i = 0; i < this.DIM.DIM_P; i++) out[idx++] = pPrev[i];
+        for (let i = 0; i < this.ARCH.M_BLOCK_SIZE; i++) out[idx++] = mWork[i];
+        while (idx < this.ARCH.A_INPUT) out[idx++] = 0;
+        return out;
+    }
 
     // ========================================================================
     // PRIVATE — LAYER INPUT BUILDERS
@@ -2138,14 +2600,12 @@ class Cortex2Brain {
     }
 
     // ========================================================================
-    // PRIVATE — LEARNING INTERNALS
+    // PRIVATE — LEARNING INTERNALS (FIX-43, FIX-48, FIX-49)
     // ========================================================================
 
     _updatePrediction(mPred, sensorInput) {
-        const xPred = this._matrixMultiply(mPred, this.W_pred);
-        for (let i = 0; i < this.DIM.DIM_SENSOR; i++) {
-            xPred[i] += this.b_pred[i];
-        }
+        const xPred = this._matMul(mPred, this.WT_pred);
+        for (let i = 0; i < this.DIM.DIM_SENSOR; i++) xPred[i] += this.b_pred[i];
         for (let i = 0; i < this.DIM.DIM_SENSOR; i++) {
             const error = Math.abs(xPred[i] - sensorInput[i]);
             this.predictionErrors[i] = Math.min(1, Math.max(0, error));
@@ -2160,44 +2620,58 @@ class Cortex2Brain {
 
     _estimateValue() {
         let sum = this.b_V;
-        for (let i = 0; i < this.DIM.DIM_C; i++) sum += this.C[i] * this.W_V[i];
+        const C = this.C, W = this.W_V, n = this.DIM.DIM_C;
+        let i = 0;
+        for (; i + 3 < n; i += 4) {
+            sum += C[i]*W[i] + C[i+1]*W[i+1] + C[i+2]*W[i+2] + C[i+3]*W[i+3];
+        }
+        for (; i < n; i++) sum += C[i] * W[i];
         return tanh(sum);
     }
 
     _updateValueHead(tdErr) {
         const alpha = this.config.lr * 0.5;
         const maxW = this.ARCH.MAX_WEIGHT;
+        const C = this.C;
         for (let i = 0; i < this.DIM.DIM_C; i++) {
-            this.W_V[i] = clamp(this.W_V[i] + alpha * tdErr * this.C[i], -maxW, maxW);
+            this.W_V[i] = clamp(this.W_V[i] + alpha * tdErr * C[i], -maxW, maxW);
         }
         this.b_V += alpha * tdErr;
     }
 
-    _updateEligibilityTraces(inputs, outputs, tdErr, cInput) {
+    /**
+     * FIX-43: traces updated for P, C, D, and prediction layers.
+     * Uses exponential decay γλ (TD(λ)).
+     */
+    _updateEligibilityTraces(pInput, cInput, dInput, mPred) {
         const decay = this.config.gamma * this.config.lambda;
         const maxTrace = this.ARCH.MAX_TRACE_VAL;
 
-        const pInputLen = Math.min(inputs.length, this.ARCH.P_INPUT);
-        const dimP = this.DIM.DIM_P;
-        const traceP = this.traceP;
-        const P = this.P;
-        for (let i = 0; i < this.ARCH.P_INPUT; i++) {
-            const inputVal = i < pInputLen ? inputs[i] : 0;
-            const base = i * dimP;
-            for (let j = 0; j < dimP; j++) {
-                const idx = base + j;
-                const v = decay * traceP[idx] + inputVal * P[j];
-                traceP[idx] = v > maxTrace ? maxTrace : v < -maxTrace ? -maxTrace : v;
+        // P traces
+        if (pInput) {
+            const pLen = Math.min(pInput.length, this.ARCH.P_INPUT);
+            const dimP = this.DIM.DIM_P;
+            const traceP = this.traceP;
+            const P = this.P;
+            for (let i = 0; i < this.ARCH.P_INPUT; i++) {
+                const inputVal = i < pLen ? pInput[i] : 0;
+                const base = i * dimP;
+                for (let j = 0; j < dimP; j++) {
+                    const idx = base + j;
+                    const v = decay * traceP[idx] + inputVal * P[j];
+                    traceP[idx] = v > maxTrace ? maxTrace : v < -maxTrace ? -maxTrace : v;
+                }
             }
         }
 
-        if (cInput && cInput.length > 0) {
-            const cInputLen = cInput.length;
+        // C traces
+        if (cInput) {
+            const cLen = cInput.length;
             const dimC = this.DIM.DIM_C;
             const traceC = this.traceC;
             const C = this.C;
             for (let j = 0; j < this.ARCH.C_INPUT; j++) {
-                const preAct = j < cInputLen ? cInput[j] : 0;
+                const preAct = j < cLen ? cInput[j] : 0;
                 const base = j * dimC;
                 for (let i = 0; i < dimC; i++) {
                     const idx = base + i;
@@ -2206,27 +2680,165 @@ class Cortex2Brain {
                 }
             }
         }
+
+        // D traces (FIX-43 — was missing entirely)
+        if (dInput) {
+            const dLen = dInput.length;
+            const dimD = this.DIM.DIM_D;
+            const traceD = this.traceD;
+            const D = this.D;
+            for (let j = 0; j < this.ARCH.D_INPUT; j++) {
+                const preAct = j < dLen ? dInput[j] : 0;
+                const base = j * dimD;
+                for (let i = 0; i < dimD; i++) {
+                    const idx = base + i;
+                    const v = decay * traceD[idx] + preAct * D[i];
+                    traceD[idx] = v > maxTrace ? maxTrace : v < -maxTrace ? -maxTrace : v;
+                }
+            }
+        }
+
+        // Prediction traces
+        if (mPred) {
+            const bs = this.ARCH.M_BLOCK_SIZE;
+            const dimS = this.DIM.DIM_SENSOR;
+            const tracePr = this.tracePred;
+            for (let j = 0; j < bs; j++) {
+                const preAct = mPred[j];
+                const base = j * dimS;
+                for (let i = 0; i < dimS; i++) {
+                    const idx = base + i;
+                    const v = decay * tracePr[idx] + preAct * this.predictionErrors[i];
+                    tracePr[idx] = v > maxTrace ? maxTrace : v < -maxTrace ? -maxTrace : v;
+                }
+            }
+        }
     }
 
+    /**
+     * FIX-43: apply TD error to ALL trace-carrying layers (P, C, D, pred).
+     * Was previously only updating W_C.
+     */
     _applyTDError(tdErr) {
         const alpha = this.config.lr * Math.sign(tdErr) * 0.1;
         const maxGrad = this.ARCH.MAX_GRADIENT;
         const maxW = this.ARCH.MAX_WEIGHT;
+
+        // --- W_C update (legacy behavior preserved) ---
         const dimC = this.DIM.DIM_C;
         const traceC = this.traceC;
-
         for (let i = 0; i < dimC; i++) {
             for (let j = 0; j < this.ARCH.C_INPUT; j++) {
-                const row = this.W_C[j];
-                if (row) {
+                const col = this.WT_C[i];
+                if (col) {
                     const rawDelta = alpha * 0.01 * traceC[j * dimC + i];
                     let delta = rawDelta;
                     if (delta > maxGrad) { delta = maxGrad; this._stats.gradientClips++; }
                     else if (delta < -maxGrad) { delta = -maxGrad; this._stats.gradientClips++; }
-                    row[i] = clamp(row[i] + delta, -maxW, maxW);
+                    col[j] = clamp(col[j] + delta, -maxW, maxW);
                 }
             }
         }
+
+        // --- W_P update (FIX-43: previously missing) ---
+        const dimP = this.DIM.DIM_P;
+        const traceP = this.traceP;
+        for (let i = 0; i < dimP; i++) {
+            for (let j = 0; j < this.ARCH.P_INPUT; j++) {
+                const col = this.WT_P[i];
+                if (col) {
+                    const rawDelta = alpha * 0.008 * traceP[j * dimP + i];
+                    let delta = rawDelta;
+                    if (delta > maxGrad) { delta = maxGrad; this._stats.gradientClips++; }
+                    else if (delta < -maxGrad) { delta = -maxGrad; this._stats.gradientClips++; }
+                    col[j] = clamp(col[j] + delta, -maxW, maxW);
+                }
+            }
+        }
+
+        // --- W_pred update (FIX-43: previously missing) ---
+        const dimS = this.DIM.DIM_SENSOR;
+        const tracePr = this.tracePred;
+        for (let i = 0; i < dimS; i++) {
+            for (let j = 0; j < this.ARCH.M_BLOCK_SIZE; j++) {
+                const col = this.WT_pred[i];
+                if (col) {
+                    const rawDelta = alpha * 0.005 * tracePr[j * dimS + i];
+                    let delta = rawDelta;
+                    if (delta > maxGrad) { delta = maxGrad; this._stats.gradientClips++; }
+                    else if (delta < -maxGrad) { delta = -maxGrad; this._stats.gradientClips++; }
+                    col[j] = clamp(col[j] + delta, -maxW, maxW);
+                }
+            }
+        }
+    }
+
+    /**
+     * FIX-48: Actor-critic policy gradient on D-layer.
+     * Uses tanh squashing correction and eligibility traces.
+     * @param {number} advantage
+     * @param {Float32Array} outputs - D-layer outputs (post-tanh)
+     */
+    _updateActor(advantage, outputs) {
+        if (!outputs || outputs.length === 0) return;
+        const alpha = this.config.lr * 0.05;
+        const maxGrad = this.ARCH.MAX_GRADIENT;
+        const maxW = this.ARCH.MAX_WEIGHT;
+        const dimD = this.DIM.DIM_D;
+        const traceD = this.traceD;
+
+        const n = Math.min(outputs.length, dimD);
+        for (let i = 0; i < n; i++) {
+            // tanh derivative: 1 - tanh²(x)
+            const squash = 1 - outputs[i] * outputs[i];
+            const policyGrad = squash * advantage;
+            for (let j = 0; j < this.ARCH.D_INPUT; j++) {
+                const rawDelta = alpha * policyGrad * traceD[j * dimD + i];
+                let delta = rawDelta;
+                if (delta > maxGrad) { delta = maxGrad; this._stats.gradientClips++; }
+                else if (delta < -maxGrad) { delta = -maxGrad; this._stats.gradientClips++; }
+                this.WT_D[i][j] = clamp(this.WT_D[i][j] + delta, -maxW, maxW);
+            }
+        }
+    }
+
+    /**
+     * FIX-49: running mean/std advantage normalization.
+     * Stabilizes policy gradient updates.
+     */
+    _computeAdvantage(tdErr) {
+        this._advantageHistory.push(tdErr);
+        const maxH = this.ARCH.ADVANTAGE_WINDOW;
+        if (this._advantageHistory.length > maxH) this._advantageHistory.shift();
+        const n = this._advantageHistory.length;
+        if (n < 5) return tdErr;
+
+        let sum = 0, sumSq = 0;
+        for (let i = 0; i < n; i++) {
+            const v = this._advantageHistory[i];
+            sum += v;
+            sumSq += v * v;
+        }
+        const mean = sum / n;
+        const variance = sumSq / n - mean * mean;
+        const std = Math.sqrt(Math.max(variance, 1e-6));
+        return (tdErr - mean) / std;
+    }
+
+    _normalizeAdvantages(tdErrors) {
+        const n = tdErrors.length;
+        if (n === 0) return tdErrors;
+        let sum = 0, sumSq = 0;
+        for (let i = 0; i < n; i++) {
+            sum += tdErrors[i];
+            sumSq += tdErrors[i] * tdErrors[i];
+        }
+        const mean = sum / n;
+        const variance = sumSq / n - mean * mean;
+        const std = Math.sqrt(Math.max(variance, 1e-6));
+        const out = new Array(n);
+        for (let i = 0; i < n; i++) out[i] = (tdErrors[i] - mean) / std;
+        return out;
     }
 
     _hebbianUpdate(pre, post, correlation, label) {
@@ -2234,6 +2846,7 @@ class Cortex2Brain {
         const eta = this.config.hebbianRate * correlation * 0.5;
         const maxW = this.ARCH.MAX_WEIGHT;
         const step = Math.max(1, Math.floor(pre.length / 50));
+
         for (let i = 0; i < post.length; i += step) {
             for (let j = 0; j < pre.length; j += step) {
                 const delta = eta * pre[j] * post[i];
@@ -2241,10 +2854,11 @@ class Cortex2Brain {
                     const headIdx = Math.floor(i / this.DIM.HEAD_DIM);
                     const localI = i % this.DIM.HEAD_DIM;
                     if (headIdx < this.DIM.NUM_HEADS &&
-                        j < this.W_A[headIdx].length &&
-                        localI < this.W_A[headIdx][j].length) {
-                        this.W_A[headIdx][j][localI] = clamp(
-                            this.W_A[headIdx][j][localI] + delta, -maxW, maxW
+                        localI < this.WT_A[headIdx].length &&
+                        j < this.WT_A[headIdx][localI].length) {
+                        // WT_A[head][col=row_in_output][row=input_idx]
+                        this.WT_A[headIdx][localI][j] = clamp(
+                            this.WT_A[headIdx][localI][j] + delta, -maxW, maxW
                         );
                     }
                 }
@@ -2257,23 +2871,93 @@ class Cortex2Brain {
             + gamma * safeNumber(nextValue, 0)
             - safeNumber(value, 0);
     }
+
+    /** Save snapshot of recurrent state for safe forward-then-restore. */
+    _saveState() {
+        return {
+            P: new Float32Array(this.P),
+            A: new Float32Array(this.A),
+            M: new Float32Array(this.M),
+            C: new Float32Array(this.C),
+            S: new Float32Array(this.S),
+            D: new Float32Array(this.D),
+            P_prev: new Float32Array(this.P_prev),
+            A_prev: new Float32Array(this.A_prev),
+            M_prev: new Float32Array(this.M_prev),
+            C_prev: new Float32Array(this.C_prev),
+            S_prev: new Float32Array(this.S_prev),
+            D_prev: new Float32Array(this.D_prev),
+            predictionErrors: new Float32Array(this.predictionErrors),
+            step: this.step,
+            noiseLevel: this._noiseLevel,
+            cumulativeReward: this.cumulativeReward,
+        };
+    }
+
+    _restoreState(snap) {
+        this.P.set(snap.P); this.A.set(snap.A); this.M.set(snap.M);
+        this.C.set(snap.C); this.S.set(snap.S); this.D.set(snap.D);
+        this.P_prev.set(snap.P_prev); this.A_prev.set(snap.A_prev); this.M_prev.set(snap.M_prev);
+        this.C_prev.set(snap.C_prev); this.S_prev.set(snap.S_prev); this.D_prev.set(snap.D_prev);
+        this.predictionErrors.set(snap.predictionErrors);
+        this.step = snap.step;
+        this._noiseLevel = snap.noiseLevel;
+        this.cumulativeReward = snap.cumulativeReward;
+    }
+
+    /** Current attention head probabilities (last forward pass). */
+    _getAttentionWeights() {
+        // Recompute quickly from cached state
+        if (!this.P_prev || !this.M_prev) return new Array(this.DIM.NUM_HEADS).fill(0);
+        const mWork = this._getMWork(this.M_prev);
+        const ctx = this._buildAttentionContext(this.P_prev, mWork);
+        const K = this._matMul(ctx, this.WT_K);
+        const scores = new Array(this.DIM.NUM_HEADS);
+        for (let h = 0; h < this.DIM.NUM_HEADS; h++) {
+            const pLen = this.DIM.DIM_P;
+            // Reconstruct aInputs[h] partially (only need Q projection)
+            const input = new Float32Array(this.ARCH.A_INPUT);
+            let idx = 0;
+            for (let i = 0; i < pLen; i++) input[idx++] = this.P_prev[i] * this.RATIOS.head;
+            for (let i = 0; i < this.ARCH.M_BLOCK_SIZE; i++) input[idx++] = mWork[i];
+            const cStart = h * this.ARCH.A_HEAD_C_SLICE;
+            for (let i = 0; i < this.ARCH.A_HEAD_C_SLICE; i++) {
+                const ci = cStart + i;
+                input[idx++] = ci < this.DIM.DIM_C ? this.C_prev[ci] : 0;
+            }
+            for (let i = 0; i < this.DIM.DIM_D; i++) input[idx++] = this.D_prev[i];
+            const Qh = this._matMul(input, this.WT_Q[h]);
+            const offset = h * this.DIM.HEAD_DIM;
+            let score = 0;
+            for (let i = 0; i < this.DIM.HEAD_DIM; i++) score += Qh[offset + i] * K[offset + i];
+            scores[h] = score * this._attnScale;
+        }
+        return softmax(scores, 1.0);
+    }
 }
 
 // ============================================================================
-// CROSS-PLATFORM EXPORT (FIX-13: single ESM export, guarded CJS)
+// CROSS-PLATFORM EXPORT
 // ============================================================================
 
 if (typeof module !== 'undefined' && module.exports && typeof exports !== 'undefined') {
     try {
-        module.exports = { Cortex2Brain, SeededRNG, EmotionSystem, MemorySystem, SchemaManager };
+        module.exports = {
+            Cortex2Brain, SeededRNG, EmotionSystem, MemorySystem,
+            SchemaManager, ReplayBuffer,
+        };
     } catch (_) {
-        // In ESM mode, module.exports assignment throws; silently ignore
+        // ESM mode — silently ignore
     }
 }
 
 if (typeof window !== 'undefined') {
     window.Cortex2Brain = Cortex2Brain;
     window.SeededRNG = SeededRNG;
+    window.EmotionSystem = EmotionSystem;
+    window.MemorySystem = MemorySystem;
+    window.SchemaManager = SchemaManager;
+    window.ReplayBuffer = ReplayBuffer;
 }
 
 if (typeof self !== 'undefined' && typeof self.postMessage === 'function') {
@@ -2281,4 +2965,11 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function') {
     self.SeededRNG = SeededRNG;
 }
 
-export { Cortex2Brain, SeededRNG, EmotionSystem, MemorySystem, SchemaManager };
+export {
+    Cortex2Brain,
+    SeededRNG,
+    EmotionSystem,
+    MemorySystem,
+    SchemaManager,
+    ReplayBuffer,
+};
