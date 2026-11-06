@@ -1,1124 +1,1399 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CORTEX ARENA v4 — Neural Tank Combat</title>
+<title>NEURO HUNTER v7 — Production Combat Core</title>
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#080b12;--panel:#0f1420;--panel2:#151c2c;--border:#1c2537;
-  --accent:#4f8eff;--green:#2ecc71;--red:#e74c3c;--yellow:#f1c40f;
-  --cyan:#00d2d3;--purple:#a55eea;--orange:#f39c12;--pink:#fd79a8;
-  --text:#c8d6e5;--muted:#576574;--dim:#222f3e;
-  --mono:'JetBrains Mono','Fira Code','Courier New',monospace;
-  --sans:Inter,system-ui,-apple-system,sans-serif;
-}
-html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px}
-#app{display:grid;grid-template-rows:44px 1fr 200px;grid-template-columns:260px 1fr 280px;height:100vh;gap:1px;background:var(--border)}
-header{grid-column:1/-1;background:var(--panel);display:flex;align-items:center;padding:0 14px;gap:12px;z-index:5}
-header h1{font-size:14px;font-weight:800;letter-spacing:1.2px;color:var(--accent);white-space:nowrap}
-.hsep{width:1px;height:22px;background:var(--border)}
-.hstat{font-size:11px;color:var(--muted);white-space:nowrap}.hstat b{color:var(--text);font-weight:600}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#06080d;color:#d1d5db;font-family:-apple-system,'Segoe UI',sans-serif;overflow:hidden}
+#app{display:grid;grid-template-columns:1fr 340px;grid-template-rows:52px 1fr;height:100vh;gap:1px;background:#1a2332}
+header{grid-column:1/3;background:#0d1421;display:flex;align-items:center;padding:0 18px;gap:18px;border-bottom:1px solid #1a2332}
+h1{font-size:15px;color:#60a5fa;letter-spacing:1.5px;font-weight:700}
+.stat{font-size:12px;color:#6b7280}.stat b{color:#e5e7eb;font-family:'SF Mono',monospace}
 .spacer{flex:1}
-select,button{font-family:var(--sans);font-size:11px;border:1px solid var(--border);border-radius:4px;background:var(--panel2);color:var(--text);padding:4px 10px;cursor:pointer;transition:.15s}
-button:hover{border-color:var(--accent);color:var(--accent)}
-button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
-button.primary:hover{opacity:.85}
-button.danger{border-color:var(--red);color:var(--red)}
-button.danger:hover{background:var(--red);color:#fff}
-#left{background:var(--panel);overflow-y:auto;padding:10px;scrollbar-width:thin}
-#arena-wrap{position:relative;background:#060910;overflow:hidden}
-canvas#c{display:block;width:100%;height:100%}
-#right{background:var(--panel);overflow-y:auto;padding:10px;scrollbar-width:thin}
-#bottom{grid-column:1/-1;background:var(--panel);display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px}
-.ptitle{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:700;margin-bottom:6px}
-.card{background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:8px 10px;margin-bottom:6px;cursor:pointer;transition:.15s}
-.card:hover,.card.sel{border-color:var(--accent)}
-.card .top{display:flex;align-items:center;gap:6px;margin-bottom:4px}
-.card .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.card .nm{font-weight:700;font-size:12px;flex:1}
-.card .st{font-size:9px;color:var(--muted);text-transform:uppercase}
-.row{display:flex;justify-content:space-between;font-size:11px;padding:1px 0;color:var(--muted)}
-.row .v{color:var(--text);font-weight:600;font-family:var(--mono);font-size:10px}
-.bar{height:3px;background:var(--dim);border-radius:2px;margin-top:1px;overflow:hidden}
-.bar .fill{height:100%;border-radius:2px;transition:width .25s}
-.egrid{display:grid;grid-template-columns:1fr 1fr;gap:1px 6px;font-size:9px;margin-top:4px}
-.egrid .ei{display:flex;justify-content:space-between;color:var(--muted)}.egrid .ev{font-family:var(--mono);font-size:9px}
-.bsec{padding:8px 12px;overflow-y:auto;border-right:1px solid var(--border)}.bsec:last-child{border:none}
-.log{font-size:10px;font-family:var(--mono);padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
-.log.kill{color:var(--red)}.log.spawn{color:var(--green)}.log.win{color:var(--yellow)}.log.sys{color:var(--cyan)}.log.error{color:var(--red);font-weight:700}
-.crow{display:flex;align-items:center;gap:4px;font-size:10px;margin-bottom:2px}
-.crow .cl{width:56px;color:var(--muted);flex-shrink:0}
-.crow .ct{flex:1;height:6px;background:var(--dim);border-radius:3px;overflow:hidden}
-.crow .cf{height:100%;border-radius:3px;transition:width .3s}
-.crow .cv{width:28px;text-align:right;font-family:var(--mono);font-size:9px;color:var(--muted)}
-table.lb{width:100%;border-collapse:collapse;font-size:10px}
-table.lb th{text-align:left;color:var(--muted);font-weight:600;padding:2px 3px;border-bottom:1px solid var(--border)}
-table.lb td{padding:2px 3px;font-family:var(--mono)}
-#overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.8);z-index:10;opacity:0;pointer-events:none;transition:opacity .3s}
-#overlay.show{opacity:1;pointer-events:auto}
-#overlay .inner{text-align:center;max-width:500px;padding:20px}
-#overlay h2{font-size:24px;margin-bottom:8px}
-#overlay p{color:var(--muted);font-size:13px;line-height:1.5}
-#overlay .err{color:var(--red);font-size:12px;margin-top:10px;text-align:left;font-family:var(--mono);background:rgba(231,76,60,.1);padding:10px;border-radius:4px;white-space:pre-wrap;word-break:break-all}
-#overlay .paths{color:var(--muted);font-size:11px;margin-top:8px;text-align:left;font-family:var(--mono)}
-#load-status{font-size:11px;color:var(--cyan);margin-top:6px}
-@media(max-width:960px){
-  #app{grid-template-columns:1fr;grid-template-rows:44px 1fr 180px}
-  #left,#right{display:none}
-  #bottom{grid-template-columns:1fr}
-}
+button,select{background:#111827;border:1px solid #1f2937;color:#d1d5db;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;transition:.15s}
+button:hover{border-color:#60a5fa;color:#60a5fa}
+button.primary{background:#2563eb;border-color:#2563eb;color:#fff;font-weight:600}
+button.primary:hover{background:#1d4ed8}
+#arena-wrap{position:relative;background:#030608;overflow:hidden}
+canvas{display:block;width:100%;height:100%}
+#side{background:#0d1421;padding:14px;overflow-y:auto;font-size:11px}
+.ptitle{font-size:10px;text-transform:uppercase;letter-spacing:1.8px;color:#6b7280;font-weight:700;margin:14px 0 8px}
+.tank-card{background:#030608;border:1px solid #1f2937;border-radius:6px;padding:10px;margin-bottom:8px;cursor:pointer;transition:.15s}
+.tank-card:hover{border-color:#374151}
+.tank-card.sel{border-color:#60a5fa;box-shadow:0 0 0 1px #60a5fa44}
+.tc-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.tc-name{font-weight:700;font-size:13px;flex:1}
+.mode-tag{font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px;font-family:monospace;letter-spacing:.5px;text-transform:uppercase}
+.hp-bar{height:5px;background:#1f2937;border-radius:3px;overflow:hidden;margin:5px 0}
+.hp-fill{height:100%;border-radius:3px;transition:width .2s}
+.tc-row{display:flex;justify-content:space-between;color:#6b7280;font-size:10px;line-height:1.7}
+.tc-row b{color:#d1d5db;font-family:monospace;font-size:10px}
+#brain-panel{background:#030608;border:1px solid #1f2937;border-radius:6px;padding:10px;font-family:'SF Mono',monospace;font-size:10px}
+.bp-section{margin-bottom:10px}
+.bp-title{color:#6b7280;font-size:9px;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-weight:700}
+.policy-row{display:flex;align-items:center;gap:6px;margin:2px 0}
+.policy-label{width:72px;color:#9ca3af;font-size:9px;flex-shrink:0}
+.policy-bar{flex:1;height:10px;background:#1f2937;border-radius:2px;overflow:hidden;position:relative}
+.policy-fill{height:100%;border-radius:2px;transition:width .1s}
+.policy-val{width:36px;text-align:right;font-size:9px;color:#6b7280}
+.policy-row.top .policy-fill{background:#22c55e}
+.policy-row.top .policy-label{color:#22c55e;font-weight:700}
+#log{font-family:monospace;font-size:10px;color:#6b7280;max-height:140px;overflow-y:auto;line-height:1.6}
+.log-k{color:#ef4444}.log-w{color:#eab308}.log-s{color:#06b6d4}.log-l{color:#8b5cf6}
+#legend{position:absolute;top:10px;left:10px;font-size:9px;color:#6b7280;font-family:monospace;background:rgba(3,6,8,.85);padding:8px 10px;border-radius:4px;pointer-events:none;border:1px solid #1f2937}
+.legend-item{display:flex;align-items:center;gap:6px;margin:2px 0}
+.legend-color{width:14px;height:2px}
+#metrics{background:#030608;border:1px solid #1f2937;border-radius:6px;padding:8px;font-size:10px;color:#9ca3af}
 </style>
 </head>
 <body>
 <div id="app">
   <header>
-    <h1>⬡ CORTEX ARENA</h1><div class="hsep"></div>
-    <div class="hstat">Round <b id="h-rnd">0</b></div>
-    <div class="hstat">Tick <b id="h-tick">0</b></div>
-    <div class="hstat">Alive <b id="h-alive">0</b></div>
-    <div class="hstat">FPS <b id="h-fps">0</b></div>
-    <div class="hstat" id="h-cortex-status" style="color:var(--yellow)">⏳ Loading…</div>
+    <h1>⬡ NEURO HUNTER v7</h1>
+    <div class="stat">Эпизод <b id="h-ep">1</b></div>
+    <div class="stat">Раунд <b id="h-rnd">1</b></div>
+    <div class="stat">Обучений <b id="h-train">0</b></div>
+    <div class="stat">FPS <b id="h-fps">0</b></div>
     <div class="spacer"></div>
-    <select id="sel-spd"><option value="0">Paused</option><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option><option value="8">8×</option></select>
-    <select id="sel-cnt"><option value="4">4 Tanks</option><option value="6" selected>6</option><option value="8">8</option><option value="12">12</option></select>
-    <button class="primary" id="btn-go" disabled>▶ START</button>
-    <button class="danger" id="btn-rst">↻</button>
+    <select id="sel-spd"><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option><option value="8">8×</option></select>
+    <button class="primary" id="btn-go">▶ БОЙ</button>
+    <button id="btn-train">🧠 Обучение ×10</button>
+    <button id="btn-rst">↻ Сброс</button>
   </header>
-  <div id="left"><div class="ptitle">Combatants</div><div id="tank-list"></div></div>
   <div id="arena-wrap">
     <canvas id="c"></canvas>
-    <div id="overlay" class="show">
-      <div class="inner">
-        <h2 id="ov-title">CORTEX ARENA</h2>
-        <p id="ov-text">Loading neural engine…</p>
-        <div id="load-status"></div>
-        <div id="load-error"></div>
-      </div>
+    <div id="legend">
+      <div class="legend-item"><span class="legend-color" style="background:#60a5fa"></span>Выбранная цель</div>
+      <div class="legend-item"><span class="legend-color" style="background:#f59e0b"></span>Упреждённое прицеливание</div>
+      <div class="legend-item"><span class="legend-color" style="background:#22c55e"></span>Линия выстрела</div>
     </div>
   </div>
-  <div id="right"><div class="ptitle">Inspector</div><div id="detail"><p style="color:var(--muted);font-size:11px">Click a tank to inspect</p></div></div>
-  <div id="bottom">
-    <div class="bsec"><div class="ptitle">Battle Log</div><div id="blog"></div></div>
-    <div class="bsec"><div class="ptitle">Global Emotions</div><div id="gstats"></div></div>
-    <div class="bsec"><div class="ptitle">Leaderboard</div><table class="lb"><thead><tr><th>#</th><th>Name</th><th>K</th><th>D</th><th>Dmg</th><th>W</th></tr></thead><tbody id="lb-body"></tbody></table></div>
+  <div id="side">
+    <div class="ptitle">Бойцы</div>
+    <div id="tank-list"></div>
+    <div class="ptitle">Мозг выбранного</div>
+    <div id="brain-panel"><div style="color:#6b7280">Выберите танк</div></div>
+    <div class="ptitle">Метрики обучения</div>
+    <div id="metrics">—</div>
+    <div class="ptitle">Журнал</div>
+    <div id="log"></div>
   </div>
 </div>
 
-<script type="module">
+<script>
+'use strict';
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 1. LOGGER — Structured logging with levels and UI integration
-// ═══════════════════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════════
+   MATH UTILITIES
+═══════════════════════════════════════════════════════════════════════ */
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const normAng=a=>{a%=Math.PI*2;if(a>Math.PI)a-=Math.PI*2;if(a<-Math.PI)a+=Math.PI*2;return a};
+const angDiff=(a,b)=>normAng(a-b);
+const TAU=Math.PI*2;
+const EPS=1e-8;
 
-class Logger {
-  static Level = Object.freeze({ DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 });
-
-  constructor(minLevel = Logger.Level.INFO) {
-    this._level = minLevel;
-    this._entries = [];
-    this._maxEntries = 200;
-    this._listeners = [];
+class SeededRNG{
+  constructor(seed){this.state=(seed>>>0)||1;}
+  fork(extraSeed){return new SeededRNG((this.state*0x9E3779B1)^(extraSeed>>>0));}
+  next(){
+    let t=this.state+=0x6D2B79F5;
+    t=Math.imul(t^t>>>15,t|1);
+    t^=t+Math.imul(t^t>>>7,t|61);
+    this.state=(t^t>>>14)>>>0;
+    return this.state/4294967296;
   }
+  range(a,b){return a+this.next()*(b-a);}
+  gaussian(mean=0,std=1){
+    const u1=Math.max(this.next(),EPS);
+    const u2=this.next();
+    return Math.sqrt(-2*Math.log(u1))*Math.cos(TAU*u2)*std+mean;
+  }
+}
 
-  debug(ctx, msg, data) { this._log(Logger.Level.DEBUG, ctx, msg, data); }
-  info(ctx, msg, data)  { this._log(Logger.Level.INFO, ctx, msg, data); }
-  warn(ctx, msg, data)  { this._log(Logger.Level.WARN, ctx, msg, data); }
-  error(ctx, msg, data) { this._log(Logger.Level.ERROR, ctx, msg, data); }
+/* ═══════════════════════════════════════════════════════════════════════
+   NEURAL NETWORK LAYERS
+═══════════════════════════════════════════════════════════════════════ */
 
-  onEntry(fn) { this._listeners.push(fn); }
-  getEntries(level) { return level != null ? this._entries.filter(e => e.level >= level) : [...this._entries]; }
+class Linear{
+  constructor(inF,outF,rng,scale=null){
+    this.inF=inF;this.outF=outF;
+    this.W=new Float32Array(outF*inF);
+    this.b=new Float32Array(outF);
+    this.velW=new Float32Array(outF*inF);
+    this.velB=new Float32Array(outF);
+    const s=scale??Math.sqrt(2/inF);
+    for(let i=0;i<this.W.length;i++)this.W[i]=(rng.next()*2-1)*s;
+    this.dW=new Float32Array(outF*inF);
+    this.db=new Float32Array(outF);
+    this.lastIn=null;
+    this.lastPreAct=null;
+  }
+  forward(x){
+    this.lastIn=x;
+    const out=new Float32Array(this.outF);
+    const W=this.W,b=this.b,inF=this.inF,outF=this.outF;
+    for(let o=0;o<outF;o++){
+      let s=b[o];const row=o*inF;
+      for(let i=0;i<inF;i++)s+=W[row+i]*x[i];
+      out[o]=s;
+    }
+    this.lastPreAct=out.slice();
+    return out;
+  }
+  backward(dOut){
+    const x=this.lastIn,inF=this.inF,outF=this.outF;
+    const W=this.W,dW=this.dW,db=this.db;
+    const dIn=new Float32Array(inF);
+    for(let o=0;o<outF;o++){
+      const dout=dOut[o];
+      db[o]+=dout;
+      const row=o*inF;
+      for(let i=0;i<inF;i++){
+        dW[row+i]+=dout*x[i];
+        dIn[i]+=dout*W[row+i];
+      }
+    }
+    return dIn;
+  }
+  apply(lr,momentum=0.9,clipVal=5){
+    const W=this.W,b=this.b,dW=this.dW,db=this.db;
+    const velW=this.velW,velB=this.velB;
+    let gn=0;
+    for(let i=0;i<dW.length;i++)gn+=dW[i]*dW[i];
+    for(let i=0;i<db.length;i++)gn+=db[i]*db[i];
+    gn=Math.sqrt(gn);
+    const scale=gn>clipVal?clipVal/gn:1;
+    for(let i=0;i<W.length;i++){
+      velW[i]=momentum*velW[i]+dW[i]*scale;
+      W[i]+=lr*velW[i];
+      dW[i]=0;
+    }
+    for(let i=0;i<b.length;i++){
+      velB[i]=momentum*velB[i]+db[i]*scale;
+      b[i]+=lr*velB[i];
+      db[i]=0;
+    }
+  }
+  zeroGrad(){this.dW.fill(0);this.db.fill(0);}
+}
 
-  _log(level, context, message, data) {
-    if (level < this._level) return;
-    const names = ['DBG', 'INF', 'WRN', 'ERR'];
-    const entry = {
-      level, context, message, data,
-      timestamp: performance.now(),
-      label: names[level] || '???',
+function reluForward(x){const o=new Float32Array(x.length);for(let i=0;i<x.length;i++)o[i]=x[i]>0?x[i]:0;return o}
+function reluBackward(preAct,dOut){const o=new Float32Array(preAct.length);for(let i=0;i<preAct.length;i++)o[i]=preAct[i]>0?dOut[i]:0;return o}
+function softmax(x){
+  let max=-Infinity;for(let i=0;i<x.length;i++)if(x[i]>max)max=x[i];
+  const o=new Float32Array(x.length);let s=0;
+  for(let i=0;i<x.length;i++){o[i]=Math.exp(x[i]-max);s+=o[i];}
+  for(let i=0;i<x.length;i++)o[i]/=s;
+  return o;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SENSOR BUILDING
+═══════════════════════════════════════════════════════════════════════ */
+
+const MAX_ENEMIES=4;
+const MAX_ENEMY_FEATURES=8;
+const N_LIDAR=8;
+const SENSOR_DIM=52;
+const SELF_OFF=0;
+const ENEMY_OFF=6;
+const LIDAR_OFF=ENEMY_OFF+MAX_ENEMIES*MAX_ENEMY_FEATURES;
+const BULLET_OFF=LIDAR_OFF+N_LIDAR;
+const META_OFF=BULLET_OFF+3;
+
+function buildSensors(tank,tanks,bullets,walls,AW,AH){
+  const s=new Float32Array(SENSOR_DIM);
+  s[SELF_OFF+0]=tank.pos.x/AW*2-1;
+  s[SELF_OFF+1]=tank.pos.y/AH*2-1;
+  s[SELF_OFF+2]=tank.hp/tank.maxHp;
+  s[SELF_OFF+3]=tank.reload<=0?1:tank.reload/tank.reloadTime;
+  s[SELF_OFF+4]=Math.cos(tank.angle);
+  s[SELF_OFF+5]=Math.sin(tank.angle);
+  
+  // Профессиональная доработка: фильтрация по команде для предотвращения обучения friendly fire
+  const enemies=tanks.filter(t=>t.alive&&t.id!==tank.id&&t.team!==tank.team);
+  const sorted=enemies.map(e=>({e,d:dist(tank.pos,e.pos)})).sort((a,b)=>a.d-b.d);
+  const maxD=Math.hypot(AW,AH);
+  
+  for(let k=0;k<MAX_ENEMIES;k++){
+    const off=ENEMY_OFF+k*MAX_ENEMY_FEATURES;
+    const rec=sorted[k];
+    if(rec){
+      const e=rec.e;
+      s[off+0]=(e.pos.x-tank.pos.x)/maxD;
+      s[off+1]=(e.pos.y-tank.pos.y)/maxD;
+      s[off+2]=clamp(rec.d/maxD,0,1);
+      s[off+3]=clamp(e.vel.x/3,-1,1);
+      s[off+4]=clamp(e.vel.y/3,-1,1);
+      s[off+5]=e.hp/e.maxHp;
+      const aimAtMe=Math.atan2(tank.pos.y-e.pos.y,tank.pos.x-e.pos.x);
+      const aimErr=Math.abs(angDiff(e.turret,aimAtMe));
+      s[off+6]=clamp(1-aimErr/(Math.PI/2),0,1);
+      s[off+7]=e.hp<tank.hp?1:0;
+    }
+  }
+  
+  for(let i=0;i<N_LIDAR;i++){
+    const a=tank.angle+(i/N_LIDAR)*TAU;
+    const hit=raycastWalls(tank.pos,a,160,walls,AW,AH);
+    s[LIDAR_OFF+i]=clamp(hit/160,0,1);
+  }
+  
+  let threat=0,dodgeX=0,dodgeY=0;
+  for(const b of bullets){
+    if(b.owner===tank.id)continue;
+    const d=dist(b.pos,tank.pos);
+    if(d>180)continue;
+    const toMe={x:tank.pos.x-b.pos.x,y:tank.pos.y-b.pos.y};
+    const dot=toMe.x*b.vel.x+toMe.y*b.vel.y;
+    if(dot>0){
+      const t=clamp(1-d/180,0,1);
+      if(t>threat){
+        threat=t;
+        const bl=Math.hypot(b.vel.x,b.vel.y)||1;
+        let dx=-b.vel.y/bl,dy=b.vel.x/bl;
+        const side=toMe.x*dx+toMe.y*dy;
+        if(side<0){dx=-dx;dy=-dy;}
+        dodgeX=dx;dodgeY=dy;
+      }
+    }
+  }
+  s[BULLET_OFF+0]=threat;
+  s[BULLET_OFF+1]=dodgeX;
+  s[BULLET_OFF+2]=dodgeY;
+  
+  s[META_OFF+0]=clamp(nearestWallDist(tank.pos,walls)/80,0,1);
+  s[META_OFF+1]=clamp(enemies.length/6,0,1);
+  s[META_OFF+2]=tank.recentDamage>0?clamp(tank.recentDamage/30,0,1):0;
+  
+  return s;
+}
+
+function extractEnemyFeatures(sensors,k){
+  const off=ENEMY_OFF+k*MAX_ENEMY_FEATURES;
+  const features=new Float32Array(MAX_ENEMY_FEATURES);
+  for(let i=0;i<MAX_ENEMY_FEATURES;i++)features[i]=sensors[off+i];
+  return features;
+}
+
+function raycastWalls(pos,ang,maxD,walls,AW,AH){
+  const step=6,dx=Math.cos(ang),dy=Math.sin(ang);
+  for(let d=step;d<=maxD;d+=step){
+    const x=pos.x+dx*d,y=pos.y+dy*d;
+    if(x<0||x>AW||y<0||y>AH)return d;
+    for(const w of walls)if(x>=w.x&&x<=w.x+w.w&&y>=w.y&&y<=w.y+w.h)return d;
+  }
+  return maxD;
+}
+function nearestWallDist(pos,walls){
+  let best=1e9;
+  for(const w of walls){
+    const cx=clamp(pos.x,w.x,w.x+w.w),cy=clamp(pos.y,w.y,w.y+w.h);
+    best=Math.min(best,Math.hypot(pos.x-cx,pos.y-cy));
+  }
+  return best;
+}
+function pointInWall(x,y,walls){
+  for(const w of walls)if(x>=w.x&&x<=w.x+w.w&&y>=w.y&&y<=w.y+w.h)return true;
+  return false;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ENCODER (shared trunk)
+═══════════════════════════════════════════════════════════════════════ */
+
+const EMBED_DIM=64;
+class Encoder{
+  constructor(rng){
+    this.fc1=new Linear(SENSOR_DIM,96,rng);
+    this.fc2=new Linear(96,EMBED_DIM,rng);
+    this.lastPreAct1=null;
+    this.lastPreAct2=null;
+  }
+  forward(x){
+    const h1_pre=this.fc1.forward(x);
+    this.lastPreAct1=h1_pre;
+    const h1=reluForward(h1_pre);
+    const h2_pre=this.fc2.forward(h1);
+    this.lastPreAct2=h2_pre;
+    return reluForward(h2_pre);
+  }
+  backward(dOut){
+    const dh2=reluBackward(this.lastPreAct2,dOut);
+    const dh1=this.fc2.backward(dh2);
+    const dh1_act=reluBackward(this.lastPreAct1,dh1);
+    return this.fc1.backward(dh1_act);
+  }
+  getLayers(){return[this.fc1,this.fc2];}
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   POLICY NETWORK
+═══════════════════════════════════════════════════════════════════════ */
+
+const TACTICS_NAMES=['АТАКА','ФЛАНГ-Л','ФЛАНГ-П','ДИСТАНЦИЯ','УКЛОН','ОТСТУП','УКРЫТИЕ','ПАТРУЛЬ'];
+const N_TACTICS=8;
+const LOW_DIM=5;
+
+class PolicyNet{
+  constructor(rng){
+    this.encoder=new Encoder(rng);
+    this.policyFC=new Linear(EMBED_DIM,96,rng);
+    this.tacticsHead=new Linear(96,N_TACTICS,rng,0.01);
+    this.targetHead=new Linear(96+MAX_ENEMY_FEATURES,1,rng,0.01);
+    this.lowMeanHead=new Linear(96,LOW_DIM,rng,0.01);
+    this.lowLogStdHead=new Linear(96,LOW_DIM,rng,0.01);
+    for(let i=0;i<LOW_DIM;i++)this.lowLogStdHead.b[i]=0;
+    this.valueHead=new Linear(96,1,rng,0.01);
+    
+    this.lastH=null;
+    this.lastPreActPolicy=null;
+  }
+  
+  forward(sensors,rng){
+    const emb=this.encoder.forward(sensors);
+    const h_pre=this.policyFC.forward(emb);
+    this.lastPreActPolicy=h_pre;
+    const h=reluForward(h_pre);
+    this.lastH=h;
+    
+    const tacticsLogits=this.tacticsHead.forward(h);
+    const tacticsProbs=softmax(tacticsLogits);
+    let r=rng.next(),cum=0,tactic=0;
+    for(let i=0;i<N_TACTICS;i++){cum+=tacticsProbs[i];if(r<=cum){tactic=i;break;}}
+    
+    const enemyFeatures=[];
+    const targetScores=new Float32Array(MAX_ENEMIES);
+    let validCount=0;
+    for(let k=0;k<MAX_ENEMIES;k++){
+      const off=ENEMY_OFF+k*MAX_ENEMY_FEATURES;
+      const isEnemy=sensors[off+2]>0.001;
+      if(!isEnemy){
+        targetScores[k]=-100;
+        enemyFeatures.push(null);
+        continue;
+      }
+      const features=extractEnemyFeatures(sensors,k);
+      enemyFeatures.push(features);
+      const concat=new Float32Array(96+MAX_ENEMY_FEATURES);
+      for(let i=0;i<96;i++)concat[i]=h[i];
+      for(let i=0;i<MAX_ENEMY_FEATURES;i++)concat[96+i]=features[i];
+      targetScores[k]=this.targetHead.forward(concat)[0];
+      validCount++;
+    }
+    
+    const targetProbs=new Float32Array(MAX_ENEMIES);
+    if(validCount>0){
+      let maxS=-Infinity;
+      for(let k=0;k<MAX_ENEMIES;k++)if(targetScores[k]>maxS)maxS=targetScores[k];
+      let sum=0;
+      for(let k=0;k<MAX_ENEMIES;k++){
+        if(targetScores[k]>-50){targetProbs[k]=Math.exp(targetScores[k]-maxS);sum+=targetProbs[k];}
+      }
+      if(sum>EPS)for(let k=0;k<MAX_ENEMIES;k++)targetProbs[k]/=sum;
+    }
+    
+    let targetIdx=0;
+    r=rng.next();cum=0;
+    for(let k=0;k<MAX_ENEMIES;k++){cum+=targetProbs[k];if(r<=cum){targetIdx=k;break;}}
+    
+    const lowMean=this.lowMeanHead.forward(h);
+    const lowLogStd=this.lowLogStdHead.forward(h);
+    const action=new Float32Array(LOW_DIM);
+    const actionSamples=new Float32Array(LOW_DIM);
+    let lowLogProb=0;
+    for(let i=0;i<LOW_DIM;i++){
+      const std=Math.exp(clamp(lowLogStd[i],-5,2));
+      const sample=rng.gaussian(lowMean[i],std);
+      actionSamples[i]=sample;
+      action[i]=Math.tanh(sample);
+      const logP=-0.5*Math.log(2*Math.PI)-lowLogStd[i]-0.5*((sample-lowMean[i])/std)**2;
+      const correction=Math.log(1-action[i]*action[i]+EPS);
+      lowLogProb+=logP-correction;
+    }
+    
+    const value=this.valueHead.forward(h)[0];
+    
+    return{
+      tactic,action,value,tacticsProbs,
+      targetIdx,targetScores,targetProbs,enemyFeatures,validCount,
+      lowLogProb,lowMean,lowLogStd,actionSamples
     };
-    this._entries.push(entry);
-    if (this._entries.length > this._maxEntries) this._entries.shift();
-
-    const consoleFn = level >= 3 ? console.error : level >= 2 ? console.warn : console.log;
-    consoleFn(`[${entry.label}][${context}] ${message}`, data ?? '');
-
-    for (const fn of this._listeners) {
-      try { fn(entry); } catch (e) { console.error('Logger listener error', e); }
-    }
+  }
+  
+  forwardValue(sensors){
+    const emb=this.encoder.forward(sensors);
+    const h=reluForward(this.policyFC.forward(emb));
+    return this.valueHead.forward(h)[0];
+  }
+  
+  getLayers(){
+    return[...this.encoder.getLayers(),this.policyFC,this.tacticsHead,
+           this.targetHead,this.lowMeanHead,this.lowLogStdHead,this.valueHead];
   }
 }
 
-const logger = new Logger(Logger.Level.DEBUG);
+/* ═══════════════════════════════════════════════════════════════════════
+   TRAJECTORY BUFFER
+═══════════════════════════════════════════════════════════════════════ */
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 2. CORTEX LOADER — Dynamic import with multiple path fallbacks
-//    Handles: GitHub Pages, local dev, subfolders, CDN
-// ═══════════════════════════════════════════════════════════════════════════
+class TrajectoryBuffer{
+  constructor(maxEpisodes=40){this.maxEpisodes=maxEpisodes;this.episodes=[];}
+  addEpisode(transitions,bootstrapValue=0){
+    if(transitions.length===0)return;
+    this.episodes.push({transitions,bootstrapValue});
+    while(this.episodes.length>this.maxEpisodes)this.episodes.shift();
+  }
+  sample(n){
+    if(this.episodes.length===0)return[];
+    const out=[];
+    for(let i=0;i<n;i++)out.push(this.episodes[(Math.random()*this.episodes.length)|0]);
+    return out;
+  }
+  size(){return this.episodes.reduce((s,e)=>s+e.transitions.length,0);}
+  clear(){this.episodes=[];}
+}
 
-class CortexLoader {
-  /**
-   * Attempts to load Cortex2Brain from multiple paths.
-   * Returns the constructor or throws with diagnostics.
-   */
-  static async load() {
-    const statusEl = document.getElementById('load-status');
-    const errorEl = document.getElementById('load-error');
+/* ═══════════════════════════════════════════════════════════════════════
+   PPO TRAINER
+═══════════════════════════════════════════════════════════════════════ */
 
-    // Build candidate paths relative to this HTML file
-    const base = new URL('.', window.location.href).href;
-    const paths = [
-      './cortex.js',
-      './core/cortex.js',
-      '../cortex.js',
-      './js/cortex.js',
-      './src/cortex.js',
-      './lib/cortex.js',
-      `${base}cortex.js`,
-    ];
-
-    // Deduplicate resolved URLs
-    const tried = new Set();
-    const errors = [];
-
-    for (const path of paths) {
-      let resolved;
-      try {
-        resolved = new URL(path, base).href;
-      } catch {
-        resolved = path;
-      }
-      if (tried.has(resolved)) continue;
-      tried.add(resolved);
-
-      if (statusEl) statusEl.textContent = `Trying: ${path}`;
-      logger.info('Loader', `Attempting import: ${resolved}`);
-
-      try {
-        const module = await import(resolved);
-
-        // Validate: must export Cortex2Brain as a constructor
-        const Ctor = module.Cortex2Brain || module.default?.Cortex2Brain || module.default;
-        if (typeof Ctor !== 'function') {
-          throw new Error(`Module loaded but Cortex2Brain is ${typeof Ctor}, not a function`);
-        }
-
-        // Smoke test: can we instantiate?
-        const test = new Ctor({ seed: '__smoke_test__' });
-        if (typeof test.forward !== 'function') {
-          throw new Error('Cortex2Brain instance missing forward() method');
-        }
-        if (typeof test.learn !== 'function' && typeof test.tdLearn !== 'function') {
-          throw new Error('Cortex2Brain instance missing learn()/tdLearn() method');
-        }
-
-        logger.info('Loader', `✓ Loaded from ${resolved}`);
-        if (statusEl) statusEl.textContent = `✓ Loaded from ${path}`;
-        return Ctor;
-      } catch (err) {
-        const msg = `✗ ${path}: ${err.message}`;
-        errors.push(msg);
-        logger.warn('Loader', msg);
+class PPOTrainer{
+  constructor(policy,lr=0.0004){
+    this.policy=policy;
+    this.lr=lr;
+    this.gamma=0.995;
+    this.lambda=0.95;
+    this.clipEps=0.2;
+    this.entropyCoef=0.015;
+    this.valueCoef=0.5;
+    this.epochs=4;
+    this.batchSize=64;
+    this.trainSteps=0;
+    this.lastMetrics={policyLoss:0,valueLoss:0,entropy:0,targetLoss:0};
+  }
+  
+  computeGAE(transitions,bootstrapValue){
+    const T=transitions.length;
+    const advantages=new Float32Array(T);
+    const returns=new Float32Array(T);
+    let gae=0,nextV=bootstrapValue;
+    for(let t=T-1;t>=0;t--){
+      const delta=transitions[t].reward+this.gamma*nextV-transitions[t].value;
+      gae=delta+this.gamma*this.lambda*gae;
+      advantages[t]=gae;
+      returns[t]=gae+transitions[t].value;
+      nextV=transitions[t].value;
+    }
+    return{advantages,returns};
+  }
+  
+  trainStep(buffer){
+    const episodes=buffer.sample(8);
+    if(episodes.length===0)return this.lastMetrics;
+    
+    const all=[];
+    for(const ep of episodes){
+      const{advantages,returns}=this.computeGAE(ep.transitions,ep.bootstrapValue);
+      for(let t=0;t<ep.transitions.length;t++){
+        all.push({...ep.transitions[t],advantage:advantages[t],return_:returns[t]});
       }
     }
-
-    // Also check if it's on window (script tag fallback)
-    if (typeof window.Cortex2Brain === 'function') {
-      logger.info('Loader', '✓ Found Cortex2Brain on window (script tag)');
-      if (statusEl) statusEl.textContent = '✓ Loaded from global scope';
-      return window.Cortex2Brain;
+    
+    let amean=0,avar=0;
+    for(const x of all)amean+=x.advantage;
+    amean/=all.length;
+    for(const x of all){const d=x.advantage-amean;avar+=d*d;}
+    const astdev=Math.sqrt(avar/all.length+EPS);
+    for(const x of all)x.advantage=(x.advantage-amean)/astdev;
+    
+    let tPL=0,tVL=0,tEnt=0,tTL=0,count=0;
+    
+    for(let epoch=0;epoch<this.epochs;epoch++){
+      for(let i=all.length-1;i>0;i--){
+        const j=(Math.random()*(i+1))|0;
+        [all[i],all[j]]=[all[j],all[i]];
+      }
+      for(let start=0;start<all.length;start+=this.batchSize){
+        const batch=all.slice(start,start+this.batchSize);
+        if(batch.length<4)continue;
+        for(const L of this.policy.getLayers())L.zeroGrad();
+        for(const ex of batch){
+          const m=this._trainOne(ex);
+          tPL+=m.policy;tVL+=m.value;tEnt+=m.entropy;tTL+=m.target;count++;
+        }
+        for(const L of this.policy.getLayers())L.apply(this.lr,0.9,5);
+        this.trainSteps++;
+      }
     }
-
-    // All paths failed
-    const fullError = `Failed to load cortex.js from any path:\n\n${errors.join('\n')}\n\nFile structure required:\n  index.html\n  cortex.js  ← place here`;
-    logger.error('Loader', fullError);
-
-    if (errorEl) {
-      errorEl.innerHTML = `<div class="err">${fullError}</div>`;
+    
+    this.lastMetrics={
+      policyLoss:count?tPL/count:0,
+      valueLoss:count?tVL/count:0,
+      entropy:count?tEnt/count:0,
+      targetLoss:count?tTL/count:0
+    };
+    return this.lastMetrics;
+  }
+  
+  _trainOne(ex){
+    const p=this.policy;
+    
+    const emb=p.encoder.forward(ex.state);
+    const h_pre=p.policyFC.forward(emb);
+    const h=reluForward(h_pre);
+    p.lastH=h;p.lastPreActPolicy=h_pre;
+    
+    const adv=ex.advantage;
+    
+    // === TACTICS ===
+    const tacticsLogits=p.tacticsHead.forward(h);
+    const newTacticsProbs=softmax(tacticsLogits);
+    const oldTacticsProbs=ex.tacticsProbs;
+    const tactic=ex.tactic;
+    const ratio=newTacticsProbs[tactic]/Math.max(oldTacticsProbs[tactic],EPS);
+    const clippedRatio=clamp(ratio,1-this.clipEps,1+this.clipEps);
+    const policyLoss=-Math.min(ratio*adv,clippedRatio*adv);
+    const isTacticsClipped=(ratio<1-this.clipEps&&adv>0)||(ratio>1+this.clipEps&&adv<0);
+    
+    const dLogits=new Float32Array(N_TACTICS);
+    if(!isTacticsClipped){
+      for(let j=0;j<N_TACTICS;j++){
+        const dp_dlogit=newTacticsProbs[tactic]*((tactic===j?1:0)-newTacticsProbs[j]);
+        const dratio_dlogit=ratio*dp_dlogit/newTacticsProbs[tactic];
+        dLogits[j]+=-adv*dratio_dlogit;
+      }
     }
-    throw new Error(fullError);
+    
+    let entropy=0;
+    for(let i=0;i<N_TACTICS;i++)entropy-=newTacticsProbs[i]*Math.log(newTacticsProbs[i]+EPS);
+    
+    const dEntropy_dLogits=new Float32Array(N_TACTICS);
+    for(let j=0;j<N_TACTICS;j++){
+      let sum=0;
+      for(let i=0;i<N_TACTICS;i++){
+        const pi=newTacticsProbs[i];
+        const dH_dp=-(Math.log(pi+EPS)+1);
+        const dp_dlogit=pi*((i===j?1:0)-newTacticsProbs[j]);
+        sum+=dH_dp*dp_dlogit;
+      }
+      dEntropy_dLogits[j]=sum;
+    }
+    for(let j=0;j<N_TACTICS;j++)dLogits[j]-=this.entropyCoef*dEntropy_dLogits[j];
+    
+    const dh_tactics=p.tacticsHead.backward(dLogits);
+    
+    // === TARGET ===
+    const newScores=new Float32Array(MAX_ENEMIES);
+    const oldScores=ex.targetScores;
+    const oldTargetIdx=ex.targetIdx;
+    const validCount=ex.validCount||0;
+    
+    for(let k=0;k<MAX_ENEMIES;k++){
+      if(!ex.enemyFeatures||!ex.enemyFeatures[k]){newScores[k]=-100;continue;}
+      const concat=new Float32Array(96+MAX_ENEMY_FEATURES);
+      for(let i=0;i<96;i++)concat[i]=h[i];
+      for(let i=0;i<MAX_ENEMY_FEATURES;i++)concat[96+i]=ex.enemyFeatures[k][i];
+      newScores[k]=p.targetHead.forward(concat)[0];
+    }
+    
+    const newTargetProbs=new Float32Array(MAX_ENEMIES);
+    const oldTargetProbs=new Float32Array(MAX_ENEMIES);
+    if(validCount>0){
+      let maxN=-Infinity,maxO=-Infinity;
+      for(let k=0;k<MAX_ENEMIES;k++){if(newScores[k]>maxN)maxN=newScores[k];if(oldScores[k]>maxO)maxO=oldScores[k];}
+      let sumN=0,sumO=0;
+      for(let k=0;k<MAX_ENEMIES;k++){
+        if(newScores[k]>-50){newTargetProbs[k]=Math.exp(newScores[k]-maxN);sumN+=newTargetProbs[k];}
+        if(oldScores[k]>-50){oldTargetProbs[k]=Math.exp(oldScores[k]-maxO);sumO+=oldTargetProbs[k];}
+      }
+      if(sumN>EPS)for(let k=0;k<MAX_ENEMIES;k++)newTargetProbs[k]/=sumN;
+      if(sumO>EPS)for(let k=0;k<MAX_ENEMIES;k++)oldTargetProbs[k]/=sumO;
+    }
+    
+    const targetRatio=newTargetProbs[oldTargetIdx]/Math.max(oldTargetProbs[oldTargetIdx],EPS);
+    const targetClippedRatio=clamp(targetRatio,1-this.clipEps,1+this.clipEps);
+    const targetLoss=-Math.min(targetRatio*adv,targetClippedRatio*adv);
+    const isTargetClipped=(targetRatio<1-this.clipEps&&adv>0)||(targetRatio>1+this.clipEps&&adv<0);
+    
+    const dTargetScores=new Float32Array(MAX_ENEMIES);
+    if(!isTargetClipped&&validCount>0&&newTargetProbs[oldTargetIdx]>0.01){
+      for(let k=0;k<MAX_ENEMIES;k++){
+        if(newTargetProbs[k]===0)continue;
+        const dp_dscore=newTargetProbs[oldTargetIdx]*((oldTargetIdx===k?1:0)-newTargetProbs[k]);
+        const dratio_dscore=targetRatio*dp_dscore/newTargetProbs[oldTargetIdx];
+        dTargetScores[k]=-adv*dratio_dscore;
+      }
+    }
+    
+    const dh_target=new Float32Array(96);
+    for(let k=0;k<MAX_ENEMIES;k++){
+      if(!ex.enemyFeatures||!ex.enemyFeatures[k])continue;
+      if(dTargetScores[k]===0)continue;
+      const concat=new Float32Array(96+MAX_ENEMY_FEATURES);
+      for(let i=0;i<96;i++)concat[i]=h[i];
+      for(let i=0;i<MAX_ENEMY_FEATURES;i++)concat[96+i]=ex.enemyFeatures[k][i];
+      p.targetHead.forward(concat);
+      const dConcat=p.targetHead.backward(new Float32Array([dTargetScores[k]]));
+      for(let i=0;i<96;i++)dh_target[i]+=dConcat[i];
+    }
+    
+    // === LOW-LEVEL ===
+    const lowMean=p.lowMeanHead.forward(h);
+    const lowLogStd=p.lowLogStdHead.forward(h);
+    const oldAction=ex.action;
+    const oldSamples=ex.actionSamples;
+    
+    if(!oldSamples){return{policy:policyLoss,value:0,entropy:0,target:targetLoss};}
+    
+    let lowLogProb=0;
+    const dMean=new Float32Array(LOW_DIM);
+    const dLogStd=new Float32Array(LOW_DIM);
+    for(let i=0;i<LOW_DIM;i++){
+      const std=Math.exp(clamp(lowLogStd[i],-5,2));
+      const sample=oldSamples[i];
+      const z=(sample-lowMean[i])/std;
+      const logP=-0.5*Math.log(2*Math.PI)-lowLogStd[i]-0.5*z*z;
+      const actionI=oldAction[i];
+      const correction=Math.log(1-actionI*actionI+EPS);
+      lowLogProb+=logP-correction;
+      dMean[i]=z/std;
+      dLogStd[i]=z*z-1;
+    }
+    
+    const oldLowLogProb=ex.lowLogProb;
+    const lowRatio=Math.exp(clamp(lowLogProb-oldLowLogProb,-10,10));
+    const lowClippedRatio=clamp(lowRatio,1-this.clipEps,1+this.clipEps);
+    const lowPolicyLoss=-Math.min(lowRatio*adv,lowClippedRatio*adv);
+    const isLowClipped=(lowRatio<1-this.clipEps&&adv>0)||(lowRatio>1+this.clipEps&&adv<0);
+    const gradScale=isLowClipped?0:-adv*lowRatio;
+    for(let i=0;i<LOW_DIM;i++){dMean[i]*=gradScale;dLogStd[i]*=gradScale;}
+    
+    const dh_lowMean=p.lowMeanHead.backward(dMean);
+    const dh_lowLogStd=p.lowLogStdHead.backward(dLogStd);
+    
+    // === VALUE ===
+    const newValue=p.valueHead.forward(h)[0];
+    const valueLoss=(newValue-ex.return_)**2;
+    const dV=2*this.valueCoef*(newValue-ex.return_);
+    const dh_value=p.valueHead.backward(new Float32Array([dV]));
+    
+    // === COMBINE ===
+    const dh=new Float32Array(96);
+    for(let i=0;i<96;i++){
+      dh[i]=dh_tactics[i]+dh_target[i]+dh_lowMean[i]+dh_lowLogStd[i]+dh_value[i];
+    }
+    const dh_pre=reluBackward(h_pre,dh);
+    const dEmb=p.policyFC.backward(dh_pre);
+    p.encoder.backward(dEmb);
+    
+    return{policy:policyLoss+lowPolicyLoss,value:valueLoss,entropy,target:targetLoss};
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 3. MATH UTILITIES — Pure functions, no side effects
-// ═══════════════════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════════
+   COMBAT AI CORE - PRODUCTION MODULES
+═══════════════════════════════════════════════════════════════════════ */
 
-const clamp = (v, mn, mx) => v < mn ? mn : v > mx ? mx : v;
-const lerp  = (a, b, t) => a + (b - a) * clamp(t, 0, 1);
-const normAngle = a => { a %= 2*Math.PI; if(a>Math.PI)a-=2*Math.PI; if(a<-Math.PI)a+=2*Math.PI; return a; };
-
-const V2 = Object.freeze({
-  create:   (x=0,y=0) => ({x,y}),
-  add:      (a,b) => ({x:a.x+b.x, y:a.y+b.y}),
-  sub:      (a,b) => ({x:a.x-b.x, y:a.y-b.y}),
-  scale:    (v,s) => ({x:v.x*s, y:v.y*s}),
-  len:      v => Math.sqrt(v.x*v.x+v.y*v.y),
-  lenSq:    v => v.x*v.x+v.y*v.y,
-  norm:     v => { const l=V2.len(v)||1; return {x:v.x/l,y:v.y/l}; },
-  dist:     (a,b) => V2.len(V2.sub(a,b)),
-  distSq:   (a,b) => V2.lenSq(V2.sub(a,b)),
-  dot:      (a,b) => a.x*b.x+a.y*b.y,
-  angle:    v => Math.atan2(v.y,v.x),
-  fromAngle:(a,l=1) => ({x:Math.cos(a)*l, y:Math.sin(a)*l}),
-  perp:     v => ({x:-v.y, y:v.x}),
-  copy:     v => ({x:v.x, y:v.y}),
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 4. DOMAIN ENTITIES — Pure data, no behavior (Single Responsibility)
-// ═══════════════════════════════════════════════════════════════════════════
-
-class TankEntity {
-  constructor(id, name, color, pos) {
-    this.id = id;
-    this.name = name;
-    this.color = color;
-    this.pos = V2.copy(pos);
-    this.prevPos = V2.copy(pos);
-    this.angle = Math.random() * Math.PI * 2;
-    this.turretAngle = this.angle;
-    this.hp = 100;
-    this.maxHp = 100;
-    this.alive = true;
-    this.reload = 0;
-    this.reloadTime = 22;
-    this.respawnTimer = 0;
-    this.cortex = null; // injected separately (D: Dependency Inversion)
-    this.kills = 0;
-    this.deaths = 0;
-    this.totalDamage = 0;
-    this.shotsFired = 0;
-    this.shotsHit = 0;
-    this.wins = 0;
-    this.lastReward = 0;
-    this.lastHitBy = null;
-    this.pendingEvents = [];
-    this.trail = [];
-    this.trailMax = 25;
+class CombatCore {
+  constructor() {
+    this.targetAssignments = new Map();
+    this.threatCache = new Map();
   }
-  get accuracy() { return this.shotsFired > 0 ? this.shotsHit / this.shotsFired : 0; }
-}
-
-class BulletEntity {
-  constructor(x, y, vx, vy, owner, dmg = 12) {
-    this.pos = {x, y};
-    this.vel = {x: vx, y: vy};
-    this.owner = owner;
-    this.life = 100;
-    this.dmg = dmg;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 5. SERVICES — Each with a single responsibility (S), narrow API (I)
-// ═══════════════════════════════════════════════════════════════════════════
-
-// ── 5a. Physics ───────────────────────────────────────────────────────────
-
-class PhysicsService {
-  constructor(w, h) { this.w = w; this.h = h; }
-
-  tryMove(pos, vel, r, walls, tanks, skipId) {
-    const nx = pos.x + vel.x, ny = pos.y + vel.y;
-    if (this.hitsWall(nx, ny, r, walls) || this.hitsTank(nx, ny, r, tanks, skipId)) return null;
-    return { x: clamp(nx, r, this.w - r), y: clamp(ny, r, this.h - r) };
-  }
-
-  trySlide(pos, vel, r, walls, tanks, skipId) {
-    return this.tryMove(pos, vel, r, walls, tanks, skipId)
-        || this.tryMove(pos, {x:vel.x,y:0}, r, walls, tanks, skipId)
-        || this.tryMove(pos, {x:0,y:vel.y}, r, walls, tanks, skipId);
-  }
-
-  hitsWall(x, y, r, walls) {
-    for (let i = 0; i < walls.length; i++) {
-      const w = walls[i];
-      const cx = clamp(x, w.x, w.x+w.w), cy = clamp(y, w.y, w.y+w.h);
-      if ((cx-x)**2 + (cy-y)**2 < r*r) return true;
+  
+  calculateLeadShot(shooter, target, bulletSpeed) {
+    let t = dist(shooter.pos, target.pos) / bulletSpeed;
+    let predX = target.pos.x + target.vel.x * t;
+    let predY = target.pos.y + target.vel.y * t;
+    
+    for (let i = 0; i < 3; i++) {
+      const newDist = Math.hypot(predX - shooter.pos.x, predY - shooter.pos.y);
+      const newT = newDist / bulletSpeed;
+      predX = target.pos.x + target.vel.x * newT;
+      predY = target.pos.y + target.vel.y * newT;
     }
-    return false;
+    
+    return Math.atan2(predY - shooter.pos.y, predX - shooter.pos.x);
   }
-
-  hitsTank(x, y, r, tanks, skipId) {
-    const rr = (r*1.8)**2;
-    for (let i = 0; i < tanks.length; i++) {
-      const t = tanks[i];
-      if (!t.alive || t.id === skipId) continue;
-      if (V2.distSq({x,y}, t.pos) < rr) return true;
+  
+  assessThreatLevel(tank, enemy, allTanks) {
+    let threat = 0;
+    const d = dist(tank.pos, enemy.pos);
+    threat += Math.max(0, 1 - d / 500) * 30;
+    
+    const aimAtMe = Math.atan2(tank.pos.y - enemy.pos.y, tank.pos.x - enemy.pos.x);
+    const aimError = Math.abs(angDiff(enemy.turret, aimAtMe));
+    threat += Math.max(0, 1 - aimError / 0.5) * 40;
+    
+    const healthFactor = enemy.hp / enemy.maxHp;
+    threat += (1 - healthFactor) * 15;
+    
+    const assignedCount = allTanks.filter(t => t.alive && t.currentTarget === enemy).length;
+    threat -= assignedCount * 8;
+    
+    const relativeVel = { x: enemy.vel.x - tank.vel.x, y: enemy.vel.y - tank.vel.y };
+    const approachSpeed = -(relativeVel.x * Math.cos(aimAtMe) + relativeVel.y * Math.sin(aimAtMe));
+    threat += Math.max(0, approachSpeed / 3) * 15;
+    
+    return Math.max(0, threat);
+  }
+  
+  assignTargetsGlobal(tanks) {
+    const alive = tanks.filter(t => t.alive);
+    const enemies = alive.filter(t => t.team === 'enemy');
+    const allies = alive.filter(t => t.team === 'ally');
+    
+    if (enemies.length === 0 || allies.length === 0) return new Map();
+    
+    const threatMatrix = [];
+    for (const ally of allies) {
+      const threats = [];
+      for (const enemy of enemies) {
+        threats.push(this.assessThreatLevel(ally, enemy, alive));
+      }
+      threatMatrix.push(threats);
     }
-    return false;
-  }
-
-  pointInWall(x, y, walls) {
-    for (const w of walls) if (x>=w.x && x<=w.x+w.w && y>=w.y && y<=w.y+w.h) return true;
-    return false;
-  }
-
-  raycast(ox, oy, dx, dy, max, walls) {
-    const steps = Math.ceil(max / 4);
-    for (let i = 1; i <= steps; i++) {
-      const t = (i/steps)*max;
-      if (this.pointInWall(ox+dx*t, oy+dy*t, walls)) return t;
+    
+    const assignments = new Map();
+    const usedEnemies = new Set();
+    const usedAllies = new Set();
+    
+    const pairs = [];
+    for (let i = 0; i < allies.length; i++) {
+      for (let j = 0; j < enemies.length; j++) {
+        pairs.push({ threat: threatMatrix[i][j], allyId: allies[i].id, enemyId: enemies[j].id });
+      }
     }
-    return max;
-  }
-
-  nearestWall(pos, walls) {
-    let best = Infinity, bx = 0, by = 0;
-    for (const w of walls) {
-      const cx = clamp(pos.x, w.x, w.x+w.w), cy = clamp(pos.y, w.y, w.y+w.h);
-      const d = V2.dist(pos, {x:cx,y:cy});
-      if (d < best) { best = d; bx = cx-pos.x; by = cy-pos.y; }
+    pairs.sort((a, b) => b.threat - a.threat);
+    
+    for (const pair of pairs) {
+      if (!usedAllies.has(pair.allyId) && !usedEnemies.has(pair.enemyId)) {
+        assignments.set(pair.allyId, pair.enemyId);
+        usedAllies.add(pair.allyId);
+        usedEnemies.add(pair.enemyId);
+      }
     }
-    return { dist: best, dx: bx, dy: by };
+    
+    return assignments;
+  }
+  
+  smartFireDecision(tank, target, bullets) {
+    if (tank.reload > 0 || !target) return 0;
+    
+    const d = dist(tank.pos, target.pos);
+    const aimAtTarget = this.calculateLeadShot(tank, target, 7);
+    const aimError = Math.abs(angDiff(tank.turret, aimAtTarget));
+    
+    if (aimError > 0.35) return 0.1;
+    if (d > 450) return 0.15;
+    
+    const incomingThreat = bullets.some(b => 
+      b.owner !== tank.id && dist(b.pos, tank.pos) < 120 && this.isBulletHeadingTowards(b, tank.pos)
+    );
+    if (incomingThreat) return 0.05;
+    
+    const threat = this.assessThreatLevel(tank, target, sim.tanks);
+    return clamp(threat / 100, 0.3, 0.95);
+  }
+  
+  isBulletHeadingTowards(bullet, pos) {
+    const toTank = {x: pos.x - bullet.pos.x, y: pos.y - bullet.pos.y};
+    const dot = toTank.x * bullet.vel.x + toTank.y * bullet.vel.y;
+    return dot > 0 && Math.hypot(toTank.x, toTank.y) < 150;
+  }
+  
+  purePursuit(tank, target) {
+    const lookaheadDist = 80;
+    const t = lookaheadDist / Math.max(dist(tank.pos, target.pos), 1);
+    const lookaheadPoint = {
+      x: target.pos.x + target.vel.x * t,
+      y: target.pos.y + target.vel.y * t
+    };
+    
+    const alpha = Math.atan2(lookaheadPoint.y - tank.pos.y, lookaheadPoint.x - tank.pos.x);
+    const d = dist(tank.pos, lookaheadPoint);
+    const curvature = 2 * Math.sin(angDiff(alpha, tank.angle)) / d;
+    
+    return {
+      steer: clamp(curvature * 50, -0.5, 0.5),
+      throttle: clamp(d / 200, 0.3, 1.0)
+    };
   }
 }
 
-// ── 5b. Cortex Adapter (D: isolates arena from brain internal API) ────────
+/* ═══════════════════════════════════════════════════════════════════════
+   ENTITIES
+═══════════════════════════════════════════════════════════════════════ */
 
-class CortexAdapter {
-  /** @param {Function} BrainCtor - the Cortex2Brain constructor */
-  constructor(BrainCtor, seed, config = {}) {
-    if (typeof BrainCtor !== 'function') {
-      throw new Error(`CortexAdapter: BrainCtor must be function, got ${typeof BrainCtor}`);
+class Tank{
+  constructor(id,name,color,pos,rng){
+    this.id=id;this.name=name;this.color=color;
+    this.pos={...pos};this.vel={x:0,y:0};
+    this.angle=rng.next()*TAU;this.turret=this.angle;
+    this.hp=100;this.maxHp=100;this.alive=true;
+    this.reload=0;this.reloadTime=22;
+    this.respawn=0;
+    this.kills=0;this.deaths=0;this.damage=0;this.shots=0;this.hits=0;
+    this.wins=0;
+    this.trail=[];this.wanderAng=rng.next()*TAU;
+    this.currentTarget=null;
+    this.lastTactic=0;
+    this.lastAction=new Float32Array(LOW_DIM);
+    this.lastTacticsProbs=new Float32Array(N_TACTICS);
+    this.lastTargetIdx=0;
+    this.lastTargetScores=new Float32Array(MAX_ENEMIES);
+    this.lastValue=0;
+    this.trajectory=[];
+    this.rng=rng.fork(id*7919+1);
+    this.recentDamage=0;
+    this.team = id < 3 ? 'ally' : 'enemy';
+  }
+}
+class Bullet{
+  constructor(x,y,vx,vy,owner,dmg,shotTick){
+    this.pos={x,y};this.vel={x:vx,y:vy};this.owner=owner;this.dmg=dmg;
+    this.life=110;this.shotTick=shotTick;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SIMULATION
+═══════════════════════════════════════════════════════════════════════ */
+
+const NAMES=['Волк','Кобра','Рысь','Шершень','Гадюка','Барс','Филин','Тайпан'];
+const COLORS=['#60a5fa','#ef4444','#22c55e','#eab308','#a855f7','#06b6d4','#f97316','#ec4899'];
+
+const sim={
+  AW:1100,AH:760,
+  tanks:[],bullets:[],walls:[],
+  tick:0,round:1,episode:0,
+  running:false,speed:2,
+  tankCount:6,selected:0,
+  trajectoryBuffer:new TrajectoryBuffer(40),
+  log:[],rng:new SeededRNG(Date.now()),
+  combatCore: new CombatCore()
+};
+
+let sharedPolicy=null,trainer=null;
+
+function initBrain(){
+  const rng=new SeededRNG(Date.now());
+  sharedPolicy=new PolicyNet(rng);
+  trainer=new PPOTrainer(sharedPolicy,0.0004);
+}
+function genWalls(rng){
+  const walls=[];const n=6;
+  for(let i=0;i<n;i++){
+    const w=60+rng.next()*120,h=14+rng.next()*18;
+    const horizontal=rng.next()>0.5;
+    const ww=horizontal?w:h,hh=horizontal?h:w;
+    walls.push({x:70+rng.next()*(sim.AW-140-ww),y:70+rng.next()*(sim.AH-140-hh),w:ww,h:hh});
+  }
+  return walls;
+}
+function findSpawn(rng){
+  for(let i=0;i<80;i++){
+    const x=70+rng.next()*(sim.AW-140),y=70+rng.next()*(sim.AH-140);
+    if(!pointInWall(x,y,sim.walls)){
+      let ok=true;
+      for(const t of sim.tanks)if(t.alive&&dist(t.pos,{x,y})<100){ok=false;break;}
+      if(ok)return{x,y};
     }
-    this._brain = new BrainCtor({
-      seed,
-      lr: config.lr ?? 0.015,
-      gamma: config.gamma ?? 0.99,
-      lambda: config.lambda ?? 0.95,
-      hebbianRate: config.hebbianRate ?? 0.002,
-      taskSpec: { inputComplexity: 0.7, temporalDepth: 0.5, socialComplexity: 0.3 },
+  }
+  return{x:sim.AW/2,y:sim.AH/2};
+}
+function initRound(){
+  sim.bullets=[];
+  sim.walls=genWalls(sim.rng.fork(sim.round*31+7));
+  sim.tanks=[];
+  for(let i=0;i<sim.tankCount;i++){
+    const pos=findSpawn(sim.rng);
+    sim.tanks.push(new Tank(i,NAMES[i%8],COLORS[i%8],pos,sim.rng));
+  }
+  sim.log.unshift({t:sim.tick,msg:`Раунд ${sim.round}: ${sim.tankCount} танков`,cls:'log-s'});
+}
+function addLog(msg,cls){sim.log.unshift({t:sim.tick,msg,cls:cls||''});if(sim.log.length>50)sim.log.pop();}
+
+const R_LIFE=0.001;
+const R_AIM=0.003;
+const R_DIST=0.002;
+const R_DODGE=0.04;
+const R_HIT=1.5;
+const R_KILL=3.0;
+const R_DAMAGE=-0.01;
+const R_DEATH=-10.0;
+const R_WIN=5.0;
+const TRAJ_MAX=1500;
+const TRAJ_CHUNK=1000;
+
+function tick(){
+  sim.tick++;
+  const alive=sim.tanks.filter(t=>t.alive);
+  
+  if(alive.length<=1){
+    if(alive.length===1){addLog(`🏆 ${alive[0].name} побеждает!`,'log-w');alive[0].wins++;}
+    endRound();
+    return;
+  }
+  
+  for(const t of sim.tanks)if(t.alive)t.recentDamage*=0.9;
+  
+  if (sim.tick % 20 === 0) {
+    sim.combatCore.targetAssignments = sim.combatCore.assignTargetsGlobal(sim.tanks);
+  }
+  
+  for(const tank of sim.tanks){
+    if(!tank.alive){if(--tank.respawn<=0)respawn(tank);continue;}
+    if(tank.reload>0)tank.reload--;
+    
+    const sensors=buildSensors(tank,sim.tanks,sim.bullets,sim.walls,sim.AW,sim.AH);
+    const decision=sharedPolicy.forward(sensors,tank.rng);
+    
+    const assignedEnemyId = sim.combatCore.targetAssignments.get(tank.id);
+    let target = null;
+    
+    if (assignedEnemyId !== undefined) {
+      target = sim.tanks.find(t => t.alive && t.id === assignedEnemyId);
+    }
+    
+    if (!target) {
+      const enemies=sim.tanks.filter(t=>t.alive&&t.id!==tank.id&&t.team!==tank.team)
+        .map(e=>({e,d:dist(tank.pos,e.pos)}))
+        .sort((a,b)=>a.d-b.d);
+      if(enemies.length>0) target = enemies[0].e;
+    }
+    
+    tank.currentTarget=target;
+    tank.lastTactic=decision.tactic;
+    tank.lastAction=decision.action.slice();
+    tank.lastTacticsProbs=decision.tacticsProbs.slice();
+    tank.lastTargetIdx=decision.targetIdx;
+    tank.lastTargetScores=decision.targetScores.slice();
+    tank.lastValue=decision.value;
+    
+    // Профессиональная доработка: использование структурированного возврата executeAction
+    const exec=executeAction(tank,decision.tactic,decision.action,target,sim.AW,sim.AH,tank.rng);
+    const targetAng=Math.atan2(exec.vy,exec.vx);
+    tank.angle+=clamp(angDiff(targetAng,tank.angle),-0.1,0.1);
+    
+    const mag=Math.hypot(exec.vx,exec.vy);
+    if(mag>0.01){
+      const nx=tank.pos.x+exec.vx,ny=tank.pos.y+exec.vy;
+      let blocked=false;
+      if(pointInWall(nx,ny,sim.walls)||nx<16||nx>sim.AW-16||ny<16||ny>sim.AH-16){
+        blocked=true;tank.wanderAng=tank.rng.next()*TAU;
+      }
+      for(const other of sim.tanks){
+        if(other.id!==tank.id&&other.alive&&dist({x:nx,y:ny},other.pos)<30){blocked=true;break;}
+      }
+      if(!blocked){tank.pos.x=nx;tank.pos.y=ny;}
+      tank.vel.x=exec.vx;tank.vel.y=exec.vy;
+    }
+    
+    // Профессиональная доработка: интеграция коррекции прицела от нейросети
+    if(target){
+      const leadAim = sim.combatCore.calculateLeadShot(tank, target, 7);
+      const desiredAim = leadAim + exec.aimOffset;
+      tank.turret += clamp(angDiff(desiredAim, tank.turret), -0.14, 0.14);
+    } else {
+      tank.turret += clamp(angDiff(exec.aimAng, tank.turret), -0.14, 0.14);
+    }
+    
+    // Профессиональная доработка: смешивание эвристики и fireBias нейросети
+    const baseFireProb = sim.combatCore.smartFireDecision(tank, target, sim.bullets);
+    const fireProb = clamp(baseFireProb * 0.3 + exec.fireBias * 0.7, 0, 1);
+    
+    if(tank.reload <= 0 && tank.rng.next() < fireProb){
+      tank.reload=tank.reloadTime;tank.shots++;
+      const bx=tank.pos.x+Math.cos(tank.turret)*24;
+      const by=tank.pos.y+Math.sin(tank.turret)*24;
+      sim.bullets.push(new Bullet(bx,by,Math.cos(tank.turret)*7,Math.sin(tank.turret)*7,tank.id,12,sim.tick));
+    }
+    
+    tank.trajectory.push({
+      state:sensors,
+      tactic:decision.tactic,
+      value:decision.value,
+      tacticsProbs:decision.tacticsProbs,
+      action:decision.action,
+      actionSamples:decision.actionSamples,
+      lowLogProb:decision.lowLogProb,
+      targetIdx:decision.targetIdx,
+      targetScores:decision.targetScores,
+      targetProbs:decision.targetProbs,
+      validCount:decision.validCount,
+      enemyFeatures:decision.enemyFeatures,
+      reward:0,tick:sim.tick
     });
-    this._brain.configurePersonality({
-      traits: {
-        bravery:    0.3 + Math.random() * 0.5,
-        aggression: 0.3 + Math.random() * 0.5,
-        curiosity:  0.3 + Math.random() * 0.4,
-        patience:   0.3 + Math.random() * 0.4,
-      },
-    });
-    this._lastForward = null;
-    logger.debug('CortexAdapter', `Created brain seed=${seed}`);
-  }
-
-  forward(sensors, reward, combatEvents = null) {
-    try {
-      this._lastForward = this._brain.forward(sensors, reward, combatEvents);
-      return this._lastForward;
-    } catch (e) {
-      logger.error('CortexAdapter', `forward() failed: ${e.message}`);
-      return { output: new Array(16).fill(0), predictionError: 0, reflexTriggered: false, emotionalStateName: null, stepCount: 0 };
+    
+    if(tank.trajectory.length>TRAJ_MAX){
+      const chunk=tank.trajectory.splice(0,TRAJ_CHUNK);
+      const bootstrap=sharedPolicy.forwardValue(chunk[chunk.length-1].state);
+      sim.trajectoryBuffer.addEpisode(chunk,bootstrap);
     }
+    
+    tank.trail.push({x:tank.pos.x,y:tank.pos.y});
+    if(tank.trail.length>25)tank.trail.shift();
   }
-
-  learnFromReward(reward) {
-    try {
-      return this._brain.tdLearn([], [], reward);
-    } catch (e) {
-      logger.error('CortexAdapter', `tdLearn() failed: ${e.message}`);
-      return { tdError: 0 };
-    }
-  }
-
-  getEmotions() {
-    try { return this._brain.getEmotions(); }
-    catch { return {}; }
-  }
-
-  getDebugInfo() {
-    try { return this._brain.getDebugInfo(); }
-    catch { return {}; }
-  }
-
-  getStats() {
-    try { return this._brain.getStats(); }
-    catch { return {}; }
-  }
-
-  getStep()             { return this._brain.step ?? 0; }
-  getCumulativeReward() { return this._brain.cumulativeReward ?? 0; }
-
-  reset() {
-    try { this._brain.resetEpisode(); }
-    catch (e) { logger.error('CortexAdapter', `reset() failed: ${e.message}`); }
-  }
-}
-
-// ── 5c. Sensor Builder (S: only builds 64-dim sensor vectors) ─────────────
-// CONTRACT: sensor indices match Cortex2Brain's default inputSchema exactly
-
-class SensorBuilder {
-  constructor(aw, ah, physics) {
-    this.aw = aw; this.ah = ah;
-    this.maxDist = Math.sqrt(aw*aw + ah*ah);
-    this.physics = physics;
-  }
-
-  /** @returns {Float32Array} 64-dim normalized sensor vector */
-  build(tank, allTanks, bullets, walls, tick) {
-    const s = new Float32Array(64);
-    const alive = allTanks.filter(o => o.alive && o.id !== tank.id);
-
-    let nearest = null, nDist = Infinity;
-    for (const o of alive) { const d = V2.dist(tank.pos, o.pos); if (d < nDist) { nDist = d; nearest = o; } }
-
-    if (nearest) {
-      const rel = V2.sub(nearest.pos, tank.pos);
-      s[0]  = rel.x / this.maxDist;
-      s[1]  = rel.y / this.maxDist;
-      s[2]  = 1 - clamp(nDist / this.maxDist, 0, 1);
-      s[3]  = nearest.hp / nearest.maxHp;
-      const aToE = V2.angle(rel);
-      const relA = normAngle(aToE - tank.turretAngle);
-      s[25] = relA / Math.PI;
-      const eToMe = V2.sub(tank.pos, nearest.pos);
-      const eRelA = normAngle(V2.angle(eToMe) - nearest.turretAngle);
-      s[26] = Math.abs(eRelA) < Math.PI/4 ? 1 : -1;
-      s[27] = Math.abs(eRelA) < Math.PI/3 ? 1 : 0;
-      s[28] = Math.abs(relA)  < Math.PI/3 ? 1 : 0;
-      s[29] = clamp((1-clamp(nDist/300,0,1))*0.6 + (Math.abs(eRelA)<Math.PI/4?0.4:0), 0, 1);
-      const toEN = V2.norm(rel), perp = V2.perp(toEN);
-      s[30] = perp.x;
-      s[31] = perp.y;
-      s[32] = normAngle(nearest.turretAngle - aToE) / Math.PI;
-      s[33] = clamp(1 - Math.abs(relA)/(Math.PI/3), -1, 1);
-      const pred = V2.add(nearest.pos, V2.fromAngle(nearest.angle, 20));
-      const pRel = V2.sub(pred, tank.pos);
-      s[35] = pRel.x / this.maxDist;
-      s[36] = pRel.y / this.maxDist;
-    }
-
-    const nw = this.physics.nearestWall(tank.pos, walls);
-    s[4]  = nw.dx / 200;
-    s[5]  = nw.dy / 200;
-    s[6]  = 1 - clamp(nw.dist / 200, 0, 1);
-    s[7]  = tank.pos.x / this.aw * 2 - 1;
-    s[8]  = tank.pos.y / this.ah * 2 - 1;
-    s[9]  = tank.hp / tank.maxHp;
-    s[10] = clamp(tank.lastReward / 5, -1, 1);
-    s[11] = clamp(tank.totalDamage / 500, 0, 1);
-    s[12] = tank.hp / tank.maxHp;
-    s[13] = tank.reload / tank.reloadTime;
-    s[14] = clamp(tick / 5000, 0, 1);
-    s[23] = clamp(tank.deaths / 10, 0, 1);
-    s[24] = alive.length <= 1 ? 1 : 0;
-    s[34] = 1 - tank.hp / tank.maxHp;
-
-    const fwd = V2.fromAngle(tank.angle);
-    s[37] = this.physics.raycast(tank.pos.x, tank.pos.y, fwd.x, fwd.y, 100, walls) < 50 ? 1 : 0;
-
-    let maxThr = 0, dodgeD = {x:0,y:0};
-    for (const b of bullets) {
-      if (b.owner === tank.id) continue;
-      const tb = V2.sub(tank.pos, b.pos);
-      const d = V2.len(tb);
-      if (d > 200) continue;
-      const bd = V2.norm(b.vel), md = V2.norm(tb);
-      const dot = V2.dot(bd, md);
-      if (dot > 0.3) { const thr = (1-d/200)*dot; if (thr > maxThr) { maxThr = thr; dodgeD = V2.perp(bd); } }
-    }
-    s[38] = maxThr;
-    s[39] = dodgeD.x;
-    s[40] = dodgeD.y;
-    s[41] = nw.dist < 40 ? 1 : clamp(nw.dist/200, 0, 1);
-    s[42] = nw.dist < 30 ? (nw.dx > 0 ? -1 : 1) : 0;
-
-    for (let i = 0; i < 5; i++) {
-      const a = tank.angle + (i-2)*Math.PI/4;
-      const dir = V2.fromAngle(a);
-      s[43+i] = 1 - clamp(this.physics.raycast(tank.pos.x, tank.pos.y, dir.x, dir.y, 120, walls)/120, 0, 1);
-    }
-
-    const sorted = alive.map(o => ({ dist: V2.dist(tank.pos,o.pos), angle: normAngle(V2.angle(V2.sub(o.pos,tank.pos))-tank.turretAngle), o })).sort((a,b) => a.dist-b.dist);
-    for (let i = 0; i < Math.min(2, sorted.length); i++) {
-      s[48+i*2] = sorted[i].angle / Math.PI;
-      s[49+i*2] = 1 - clamp(sorted[i].dist / this.maxDist, 0, 1);
-    }
-
-    s[52] = Math.cos(tank.turretAngle);
-    s[53] = Math.sin(tank.turretAngle);
-    s[54] = clamp(alive.length / 12, 0, 1);
-    s[55] = tank.reload <= 0 ? 1 : 0;
-
-    if (sorted.length > 1) {
-      const sn = sorted[1];
-      const r2 = V2.sub(sn.o.pos, tank.pos);
-      s[56] = r2.x / this.maxDist;
-      s[57] = r2.y / this.maxDist;
-      s[58] = sn.o.hp / sn.o.maxHp;
-      s[59] = sn.angle / Math.PI;
-    }
-
-    s[60] = tank.pos.x / this.aw;
-    s[61] = 1 - tank.pos.x / this.aw;
-    s[62] = tank.pos.y / this.ah;
-    s[63] = 1 - tank.pos.y / this.ah;
-
-    return s;
-  }
-}
-
-// ── 5d. Output Interpreter ────────────────────────────────────────────────
-
-class OutputInterpreter {
-  interpret(result, tank, nearest) {
-    const o = result.output;
-    let moveAngle = Math.atan2(o[1]||0, o[0]||0);
-
-    let aimAngle = tank.turretAngle;
-    if (Math.abs(o[2]||0) > 0.1 || Math.abs(o[3]||0) > 0.1) aimAngle = Math.atan2(o[3]||0, o[2]||0);
-    else if (nearest) aimAngle = V2.angle(V2.sub(nearest.pos, tank.pos));
-
-    const throttle = clamp(o[4]||0, -1, 1);
-    const speed = 0.4 + Math.abs(throttle) * 0.6;
-    const shoot = (o[6]||0) > 0.2;
-
-    moveAngle += (o[8]||0) * 0.3;
-
-    const retreat = clamp(o[10]||0, 0, 1);
-    if (retreat > 0.5 && nearest) moveAngle = lerp(moveAngle, V2.angle(V2.sub(tank.pos, nearest.pos)), retreat);
-
-    const flank = clamp(o[11]||0, 0, 1);
-    if (flank > 0.3 && nearest) moveAngle = lerp(moveAngle, V2.angle(V2.perp(V2.norm(V2.sub(nearest.pos, tank.pos)))), flank*0.5);
-
-    return { moveAngle, speed, aimAngle, shoot };
-  }
-}
-
-// ── 5e. Reward Shaper ─────────────────────────────────────────────────────
-
-class RewardShaper {
-  constructor(physics) { this.physics = physics; }
-
-  compute(tank, nearest, walls, prevPos) {
-    let r = 0.005;
-    if (nearest) {
-      const d = V2.dist(tank.pos, nearest.pos);
-      if (d > 80 && d < 250) r += 0.02;
-      else if (d < 40) r -= 0.015;
-      else if (d > 400) r -= 0.005;
-      const aimD = Math.abs(normAngle(tank.turretAngle - V2.angle(V2.sub(nearest.pos, tank.pos))));
-      if (aimD < Math.PI/6) r += 0.02;
-      else if (aimD < Math.PI/3) r += 0.008;
-      const eAimD = Math.abs(normAngle(nearest.turretAngle - V2.angle(V2.sub(tank.pos, nearest.pos))));
-      if (eAimD > Math.PI/3) r += 0.01;
-      if (eAimD > Math.PI/2) r += 0.015;
-    }
-    const nw = this.physics.nearestWall(tank.pos, walls);
-    if (nw.dist < 25) r -= 0.025;
-    const m = 30;
-    if (tank.pos.x < m || tank.pos.x > this.physics.w-m || tank.pos.y < m || tank.pos.y > this.physics.h-m) r -= 0.02;
-    if (prevPos) { if (V2.dist(tank.pos, prevPos) < 0.3) r -= 0.015; else r += 0.005; }
-    return clamp(r, -0.2, 0.2);
-  }
-}
-
-// ── 5f. Wall Generator ────────────────────────────────────────────────────
-
-class WallGenerator {
-  generate(w, h, count, seed) {
-    const walls = [];
-    let s = this._hash(seed);
-    for (let i = 0; i < count; i++) {
-      s = this._nx(s); let ww = 50 + (s/4294967296)*140;
-      s = this._nx(s); let wh = 10 + (s/4294967296)*14;
-      s = this._nx(s); if ((s/4294967296) > 0.5) [ww,wh] = [wh,ww];
-      s = this._nx(s); const wx = 60 + (s/4294967296)*(w-120-ww);
-      s = this._nx(s); const wy = 60 + (s/4294967296)*(h-120-wh);
-      walls.push({x:wx,y:wy,w:ww,h:wh});
-    }
-    return walls;
-  }
-  _hash(seed) { let h=0x811c9dc5; const s='w_'+seed; for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193)} return(h>>>0)||1; }
-  _nx(s) { s^=s<<13; s^=s>>>17; s^=s<<5; return(s>>>0)||1; }
-}
-
-// ── 5g. Particle System ───────────────────────────────────────────────────
-
-class ParticleSystem {
-  constructor() { this.items = []; }
-  emit(x,y,color,count,speed) {
-    for (let i=0;i<count;i++) { const a=Math.random()*Math.PI*2, sp=Math.random()*speed;
-      this.items.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,color,life:12+(Math.random()*20)|0,maxLife:32}); }
-  }
-  update() {
-    for (let i=this.items.length-1;i>=0;i--) {
-      const p=this.items[i]; p.x+=p.vx; p.y+=p.vy; p.vx*=.94; p.vy*=.94;
-      if(--p.life<=0) this.items.splice(i,1); }
-  }
-}
-
-// ── 5h. Event Log (battle events, separate from Logger) ───────────────────
-
-class BattleLog {
-  constructor(max=80) { this.entries=[]; this.max=max; }
-  add(type,msg,tick) { this.entries.unshift({type,msg,tick}); if(this.entries.length>this.max)this.entries.length=this.max; }
-  clear() { this.entries=[]; }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 6. GAME SIMULATION — Orchestrator (O: open for extension via services)
-//    Depends on abstractions, not concretions (D)
-// ═══════════════════════════════════════════════════════════════════════════
-
-const NAMES  = ['Apex','Bravo','Cipher','Delta','Echo','Forge','Ghost','Havoc','Iron','Jinx','Krait','Lynx'];
-const COLORS = ['#4f8eff','#e74c3c','#2ecc71','#f1c40f','#a55eea','#00d2d3','#f39c12','#fd79a8','#1abc9c','#8854d0','#eb3b5a','#78e08f'];
-
-const SIM_CFG = Object.freeze({
-  TANK_R: 14, BARREL_LEN: 22, BULLET_SPEED: 6,
-  TANK_SPEED: 2.4, TANK_ROT: 0.06, TURRET_ROT: 0.09,
-  RESPAWN: 120, BULLET_DMG: 12,
-  R_HIT: 2.0, R_KILL: 8.0, R_DAMAGED: -1.5, R_DEATH: -8.0, R_WALL_BUMP: -0.03,
-  WALL_COUNT: 7,
-});
-
-class GameSimulation {
-  constructor(aw, ah, BrainCtor) {
-    this.AW = aw; this.AH = ah;
-    this.BrainCtor = BrainCtor;
-    this.cfg = SIM_CFG;
-
-    // Inject services (D)
-    this.physics   = new PhysicsService(aw, ah);
-    this.sensors   = new SensorBuilder(aw, ah, this.physics);
-    this.interp    = new OutputInterpreter();
-    this.rewards   = new RewardShaper(this.physics);
-    this.wallGen   = new WallGenerator();
-    this.particles = new ParticleSystem();
-    this.log       = new BattleLog();
-
-    this.tanks = []; this.bullets = []; this.walls = [];
-    this.tick = 0; this.round = 1;
-    this.running = false; this.speed = 2; this.tankCount = 6;
-    this.selectedTankId = null;
-    this.leaderboard = new Map();
-
-    logger.info('Sim', `GameSimulation created ${aw}×${ah}`);
-  }
-
-  init() {
-    this.tanks = []; this.bullets = []; this.tick = 0;
-    this.walls = this.wallGen.generate(this.AW, this.AH, this.cfg.WALL_COUNT, this.round);
-    for (let i = 0; i < this.tankCount; i++) {
-      const pos = this._findSpawn();
-      const tank = new TankEntity(i, NAMES[i%12], COLORS[i%12], pos);
-      try {
-        tank.cortex = new CortexAdapter(this.BrainCtor, `t${i}_r${this.round}_${Date.now()}`, { lr: 0.012 + Math.random()*0.006 });
-      } catch (e) {
-        logger.error('Sim', `Failed to create brain for ${tank.name}: ${e.message}`);
-        throw e;
-      }
-      this.tanks.push(tank);
-      if (!this.leaderboard.has(tank.name)) this.leaderboard.set(tank.name, {kills:0,deaths:0,damage:0,wins:0});
-    }
-    this.log.add('spawn', `Round ${this.round}: ${this.tankCount} tanks deployed`, this.tick);
-    logger.info('Sim', `Round ${this.round} initialized, ${this.tankCount} tanks`);
-  }
-
-  step() {
-    if (!this.running) return;
-    for (let s = 0; s < this.speed; s++) this._tick();
-  }
-
-  _tick() {
-    this.tick++;
-    const c = this.cfg;
-    const alive = this.tanks.filter(t => t.alive);
-
-    if (alive.length <= 1) {
-      if (alive.length === 1) {
-        alive[0].wins++;
-        const lb = this.leaderboard.get(alive[0].name); if (lb) lb.wins++;
-        this.log.add('win', `🏆 ${alive[0].name} wins Round ${this.round}!`, this.tick);
-        logger.info('Sim', `${alive[0].name} wins round ${this.round}`);
-      } else { this.log.add('win', `Round ${this.round} — draw`, this.tick); }
-      this.round++; this.init(); return;
-    }
-
-    for (const tank of this.tanks) {
-      if (!tank.alive) { if (--tank.respawnTimer <= 0) this._respawn(tank); continue; }
-      if (tank.reload > 0) tank.reload--;
-
-      let nearest = null, nDist = Infinity;
-      for (const o of alive) { if (o.id === tank.id) continue; const d = V2.dist(tank.pos,o.pos); if (d < nDist){nDist=d;nearest=o;} }
-
-      const sv = this.sensors.build(tank, this.tanks, this.bullets, this.walls, this.tick);
-      const fr = this.rewards.compute(tank, nearest, this.walls, tank.prevPos);
-      tank.lastReward = fr;
-
-      const events = tank.pendingEvents.length > 0 ? tank.pendingEvents.splice(0) : null;
-      const result = tank.cortex.forward(sv, fr, events);
-      const cmd    = this.interp.interpret(result, tank, nearest);
-      tank.cortex.learnFromReward(fr);
-
-      tank.prevPos = V2.copy(tank.pos);
-      tank.angle += clamp(normAngle(cmd.moveAngle - tank.angle), -c.TANK_ROT, c.TANK_ROT);
-      tank.turretAngle += clamp(normAngle(cmd.aimAngle - tank.turretAngle), -c.TURRET_ROT, c.TURRET_ROT);
-
-      const vel = V2.fromAngle(tank.angle, c.TANK_SPEED * cmd.speed);
-      const np = this.physics.trySlide(tank.pos, vel, c.TANK_R, this.walls, this.tanks, tank.id);
-      if (np) tank.pos = np;
-      else tank.cortex.learnFromReward(c.R_WALL_BUMP);
-
-      if (cmd.shoot && tank.reload <= 0) {
-        tank.reload = tank.reloadTime; tank.shotsFired++;
-        const bx = tank.pos.x + Math.cos(tank.turretAngle)*c.BARREL_LEN;
-        const by = tank.pos.y + Math.sin(tank.turretAngle)*c.BARREL_LEN;
-        this.bullets.push(new BulletEntity(bx, by, Math.cos(tank.turretAngle)*c.BULLET_SPEED, Math.sin(tank.turretAngle)*c.BULLET_SPEED, tank.id, c.BULLET_DMG));
-        this.particles.emit(bx, by, tank.color, 3, 2);
-      }
-      tank.trail.push(V2.copy(tank.pos));
-      if (tank.trail.length > tank.trailMax) tank.trail.shift();
-    }
-
-    for (let i = this.bullets.length-1; i >= 0; i--) {
-      const b = this.bullets[i];
-      b.pos.x += b.vel.x; b.pos.y += b.vel.y;
-      if (--b.life <= 0 || b.pos.x<0 || b.pos.x>this.AW || b.pos.y<0 || b.pos.y>this.AH) { this.bullets.splice(i,1); continue; }
-      if (this.physics.pointInWall(b.pos.x, b.pos.y, this.walls)) { this.particles.emit(b.pos.x,b.pos.y,'#777',4,1.5); this.bullets.splice(i,1); continue; }
-
-      for (const tank of this.tanks) {
-        if (!tank.alive || tank.id === b.owner) continue;
-        if (V2.distSq(tank.pos, b.pos) < c.TANK_R**2) {
-          tank.hp -= b.dmg; tank.lastHitBy = b.owner;
-          tank.pendingEvents.push({ type: 'damage_received', damage: b.dmg });
-          const sh = this.tanks[b.owner];
-          if (sh) { sh.totalDamage += b.dmg; sh.shotsHit++; sh.cortex.learnFromReward(c.R_HIT); sh.pendingEvents.push({type:'hit_dealt'}); const lb=this.leaderboard.get(sh.name); if(lb)lb.damage+=b.dmg; }
-          tank.cortex.learnFromReward(c.R_DAMAGED);
-          this.particles.emit(b.pos.x, b.pos.y, tank.color, 6, 2.5);
-          this.bullets.splice(i, 1);
-          if (tank.hp <= 0) this._kill(tank, b.owner);
+  
+  for(let i=sim.bullets.length-1;i>=0;i--){
+    const b=sim.bullets[i];
+    b.pos.x+=b.vel.x;b.pos.y+=b.vel.y;
+    let dead=false;
+    if(--b.life<=0||b.pos.x<0||b.pos.x>sim.AW||b.pos.y<0||b.pos.y>sim.AH)dead=true;
+    if(!dead&&pointInWall(b.pos.x,b.pos.y,sim.walls))dead=true;
+    if(!dead){
+      for(const tank of sim.tanks){
+        if(!tank.alive||tank.id===b.owner)continue;
+        if(dist(tank.pos,b.pos)<16){
+          const shooter=sim.tanks[b.owner];
+          if(shooter){
+            shooter.damage+=b.dmg;shooter.hits++;
+            const shotTr=shooter.trajectory.find(t=>t.tick===b.shotTick);
+            if(shotTr)shotTr.reward+=R_HIT;
+            else if(shooter.trajectory.length>0)shooter.trajectory[shooter.trajectory.length-1].reward+=R_HIT;
+          }
+          if(tank.trajectory.length>0)tank.trajectory[tank.trajectory.length-1].reward+=R_DAMAGE*b.dmg;
+          tank.hp-=b.dmg;tank.recentDamage+=b.dmg;
+          dead=true;
+          if(tank.hp<=0)killTank(tank,b.owner);
           break;
         }
       }
     }
-    this.particles.update();
+    if(dead)sim.bullets.splice(i,1);
   }
-
-  _kill(tank, killerId) {
-    const c = this.cfg;
-    tank.alive = false; tank.deaths++; tank.respawnTimer = c.RESPAWN; tank.hp = 0;
-    tank.cortex.learnFromReward(c.R_DEATH);
-    tank.pendingEvents.push({ type: 'killed_by', killer: killerId });
-    const lb = this.leaderboard.get(tank.name); if (lb) lb.deaths++;
-    const killer = this.tanks[killerId];
-    if (killer) {
-      killer.kills++; killer.cortex.learnFromReward(c.R_KILL);
-      killer.pendingEvents.push({ type: 'enemy_defeated' });
-      const klb = this.leaderboard.get(killer.name); if (klb) klb.kills++;
-      this.log.add('kill', `💀 ${killer.name} → ${tank.name}`, this.tick);
+  
+  for(const tank of sim.tanks){
+    if(!tank.alive||tank.trajectory.length===0)continue;
+    const tr=tank.trajectory;
+    const last=tr[tr.length-1];
+    last.reward+=R_LIFE;
+    if(tank.currentTarget){
+      const aimAtMe=Math.atan2(tank.currentTarget.pos.y-tank.pos.y,tank.currentTarget.pos.x-tank.pos.x);
+      const aimErr=Math.abs(angDiff(tank.turret,aimAtMe));
+      const d=dist(tank.pos,tank.currentTarget.pos);
+      if(aimErr<0.25)last.reward+=R_AIM;
+      if(d>200&&d<320)last.reward+=R_DIST;
     }
-    this.particles.emit(tank.pos.x, tank.pos.y, tank.color, 20, 4);
-    this.particles.emit(tank.pos.x, tank.pos.y, '#f80', 15, 3);
-  }
-
-  _respawn(tank) {
-    const pos = this._findSpawn();
-    tank.pos = V2.copy(pos); tank.prevPos = V2.copy(pos);
-    tank.hp = tank.maxHp; tank.alive = true; tank.angle = Math.random()*Math.PI*2;
-    tank.turretAngle = tank.angle; tank.reload = 0; tank.trail = []; tank.lastReward = 0;
-    tank.cortex.reset();
-    this.log.add('spawn', `🔄 ${tank.name} respawned`, this.tick);
-  }
-
-  _findSpawn() {
-    for (let a = 0; a < 80; a++) {
-      const x = 60+Math.random()*(this.AW-120), y = 60+Math.random()*(this.AH-120);
-      if (!this.physics.hitsWall(x,y,this.cfg.TANK_R+10,this.walls) && !this.physics.hitsTank(x,y,this.cfg.TANK_R+20,this.tanks,-1)) return {x,y};
+    if(tr.length>=2){
+      const bulletThreat=tr[tr.length-1].state[BULLET_OFF+0];
+      const prevThreat=tr[tr.length-2].state[BULLET_OFF+0];
+      if(prevThreat>0.3&&bulletThreat<0.1)tr[tr.length-1].reward+=R_DODGE;
     }
-    return {x:this.AW/2, y:this.AH/2};
+  }
+  
+  if(sim.tick%40===0&&sim.trajectoryBuffer.size()>200)trainer.trainStep(sim.trajectoryBuffer);
+}
+
+function killTank(tank,killerId){
+  if(tank.trajectory.length>0)tank.trajectory[tank.trajectory.length-1].reward+=R_DEATH;
+  sim.trajectoryBuffer.addEpisode(tank.trajectory,0);
+  tank.alive=false;tank.hp=0;tank.deaths++;tank.respawn=130;tank.trajectory=[];
+  const killer=sim.tanks[killerId];
+  if(killer){
+    killer.kills++;
+    if(killer.trajectory.length>0)killer.trajectory[killer.trajectory.length-1].reward+=R_KILL;
+    addLog(`💀 ${killer.name} → ${tank.name}`,'log-k');
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 7. RENDERER (S: only draws)
-// ═══════════════════════════════════════════════════════════════════════════
+function respawn(tank){
+  const pos=findSpawn(tank.rng);
+  tank.pos={...pos};tank.hp=tank.maxHp;tank.alive=true;
+  tank.angle=tank.rng.next()*TAU;tank.turret=tank.angle;
+  tank.reload=0;tank.trail=[];tank.trajectory=[];tank.recentDamage=0;
+  addLog(`↻ ${tank.name}`,'log-s');
+}
 
-class ArenaRenderer {
-  constructor(canvas, sim) {
-    this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.sim = sim;
-    this.dpr = window.devicePixelRatio || 1;
-    this._resize();
-    window.addEventListener('resize', () => this._resize());
-  }
-
-  _resize() {
-    const w = this.canvas.parentElement.clientWidth, h = this.canvas.parentElement.clientHeight;
-    this.canvas.width = w*this.dpr; this.canvas.height = h*this.dpr;
-    this.canvas.style.width = w+'px'; this.canvas.style.height = h+'px';
-    this.scale = Math.min(w/this.sim.AW, h/this.sim.AH) * this.dpr;
-    this.ox = (w*this.dpr - this.sim.AW*this.scale)/2;
-    this.oy = (h*this.dpr - this.sim.AH*this.scale)/2;
-  }
-
-  render() {
-    const ctx=this.ctx, sim=this.sim, c=sim.cfg;
-    ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
-    ctx.save(); ctx.translate(this.ox,this.oy); ctx.scale(this.scale,this.scale);
-
-    ctx.fillStyle='#060910'; ctx.fillRect(0,0,sim.AW,sim.AH);
-    ctx.strokeStyle='#0d1117'; ctx.lineWidth=.5;
-    for(let x=0;x<=sim.AW;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,sim.AH);ctx.stroke()}
-    for(let y=0;y<=sim.AH;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(sim.AW,y);ctx.stroke()}
-    ctx.strokeStyle='#1c2537'; ctx.lineWidth=2; ctx.strokeRect(0,0,sim.AW,sim.AH);
-
-    for(const w of sim.walls){ctx.fillStyle='#1c2537';ctx.fillRect(w.x,w.y,w.w,w.h);ctx.strokeStyle='#2d3a50';ctx.lineWidth=.8;ctx.strokeRect(w.x,w.y,w.w,w.h)}
-
-    for(const t of sim.tanks){if(!t.alive||t.trail.length<2)continue;ctx.beginPath();ctx.moveTo(t.trail[0].x,t.trail[0].y);for(let i=1;i<t.trail.length;i++)ctx.lineTo(t.trail[i].x,t.trail[i].y);ctx.strokeStyle=t.color+'18';ctx.lineWidth=3;ctx.stroke()}
-
-    for(const b of sim.bullets){const o=sim.tanks[b.owner];const cl=o?o.color:'#fff';ctx.beginPath();ctx.arc(b.pos.x,b.pos.y,2.5,0,Math.PI*2);ctx.fillStyle=cl;ctx.fill();ctx.beginPath();ctx.moveTo(b.pos.x,b.pos.y);ctx.lineTo(b.pos.x-b.vel.x*3,b.pos.y-b.vel.y*3);ctx.strokeStyle=cl+'60';ctx.lineWidth=1.5;ctx.stroke()}
-
-    for(const t of sim.tanks){
-      const R=c.TANK_R;
-      if(!t.alive){ctx.save();ctx.translate(t.pos.x,t.pos.y);ctx.globalAlpha=.25;ctx.strokeStyle=t.color;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-7,-7);ctx.lineTo(7,7);ctx.stroke();ctx.beginPath();ctx.moveTo(7,-7);ctx.lineTo(-7,7);ctx.stroke();ctx.font='8px system-ui';ctx.textAlign='center';ctx.fillStyle=t.color;ctx.fillText(Math.ceil(t.respawnTimer/60)+'s',0,15);ctx.restore();continue}
-
-      ctx.save(); ctx.translate(t.pos.x,t.pos.y);
-      if(sim.selectedTankId===t.id){ctx.beginPath();ctx.arc(0,0,R+7,0,Math.PI*2);ctx.strokeStyle=t.color+'50';ctx.lineWidth=1.5;ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([])}
-
-      const em = t.cortex.getEmotions();
-      const au = (em.aggression||0)>.4?['231,76,60',em.aggression]:(em.fear||0)>.4?['241,196,15',em.fear]:(em.confidence||0)>.4?['46,204,113',em.confidence]:null;
-      if(au){ctx.beginPath();ctx.arc(0,0,R+4,0,Math.PI*2);ctx.strokeStyle=`rgba(${au[0]},${au[1]*.35})`;ctx.lineWidth=2;ctx.stroke()}
-
-      ctx.beginPath();ctx.arc(0,0,R,0,Math.PI*2);
-      const gr=ctx.createRadialGradient(0,-3,2,0,0,R);gr.addColorStop(0,t.color+'dd');gr.addColorStop(1,t.color+'77');
-      ctx.fillStyle=gr;ctx.fill();ctx.strokeStyle=t.color;ctx.lineWidth=1.2;ctx.stroke();
-
-      ctx.save();ctx.rotate(t.turretAngle);ctx.fillStyle=t.color;ctx.fillRect(R-6,-2.5,c.BARREL_LEN-R+10,5);ctx.fillStyle=t.color+'cc';ctx.beginPath();ctx.arc(0,0,5,0,Math.PI*2);ctx.fill();ctx.restore();
-
-      const hp=t.hp/t.maxHp,bw=R*2+4,bh=3,by=-R-9;
-      ctx.fillStyle='#000a';ctx.fillRect(-bw/2,by,bw,bh);
-      ctx.fillStyle=hp>.6?'#2ecc71':hp>.3?'#f1c40f':'#e74c3c';ctx.fillRect(-bw/2,by,bw*hp,bh);
-
-      if(t.reload>0){ctx.beginPath();ctx.arc(0,0,R+3,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-t.reload/t.reloadTime));ctx.strokeStyle='#ffffff20';ctx.lineWidth=1.5;ctx.stroke()}
-
-      ctx.fillStyle='#ffffffbb';ctx.font='bold 8px system-ui';ctx.textAlign='center';ctx.fillText(t.name,0,R+13);
-      ctx.restore();
+function endRound(){
+  for(const tank of sim.tanks){
+    if(tank.trajectory.length>0){
+      let bootstrap=0;
+      if(tank.alive&&tank.trajectory.length>0){
+        bootstrap=sharedPolicy.forwardValue(tank.trajectory[tank.trajectory.length-1].state);
+        tank.trajectory[tank.trajectory.length-1].reward+=R_WIN;
+      }
+      sim.trajectoryBuffer.addEpisode(tank.trajectory,bootstrap);
+      tank.trajectory=[];
     }
+  }
+  sim.round++;sim.episode++;
+  initRound();
+}
 
-    for(const p of sim.particles.items){const a=p.life/p.maxLife;ctx.beginPath();ctx.arc(p.x,p.y,1+a*2,0,Math.PI*2);ctx.fillStyle=p.color+Math.floor(a*200).toString(16).padStart(2,'0');ctx.fill()}
+function stepSim(){for(let s=0;s<sim.speed;s++)tick();}
 
+// Профессиональная доработка: структурированный возврат параметров исполнения
+function executeAction(tank,tactic,action,target,AW,AH,rng){
+  const throttle=clamp(action[0],-1,1);
+  const aimOffset=clamp(action[1],-1,1)*0.5; // Радианы коррекции прицела
+  const fireBias=(clamp(action[2],-1,1)+1)/2; // Нормализация в [0, 1] для вероятности выстрела
+  const dodgeX=clamp(action[3],-1,1);
+  const dodgeY=clamp(action[4],-1,1);
+  
+  let moveAng=tank.angle;
+  
+  if(!target){
+    moveAng=tank.wanderAng;
+    tank.wanderAng+=0.05;
+  }else{
+    const toTarget=Math.atan2(target.pos.y-tank.pos.y,target.pos.x-tank.pos.x);
+    const d=dist(tank.pos,target.pos);
+    const pursuit = sim.combatCore.purePursuit(tank, target);
+    
+    switch(tactic){
+      case 0: moveAng=toTarget; break;
+      case 1:case 2:
+        const side=tactic===1?-1:1;
+        const perp=toTarget+Math.PI/2*side;
+        moveAng=d>250?toTarget:perp;
+        break;
+      case 3:
+        const opt=240;
+        const err=(d-opt)/opt;
+        moveAng=toTarget+clamp(err,-0.5,0.5)+Math.sin(rng.next()*TAU)*0.3;
+        break;
+      case 4: moveAng=Math.atan2(dodgeY,dodgeX); break;
+      case 5: moveAng=toTarget+Math.PI; break;
+      case 6:
+        let bestA=toTarget+Math.PI,bestS=-1e9;
+        for(let a=0;a<12;a++){
+          const ang=(a/12)*TAU;
+          const away=-Math.cos(ang-toTarget);
+          const score=away-Math.abs(angDiff(ang,toTarget+Math.PI))*0.3;
+          if(score>bestS){bestS=score;bestA=ang;}
+        }
+        moveAng=bestA;
+        break;
+      case 7:
+        moveAng=tank.wanderAng;
+        tank.wanderAng+=0.03;
+        break;
+    }
+    
+    if (pursuit && tactic !== 4 && tactic !== 5) {
+      const blend = 0.6;
+      moveAng = moveAng * (1-blend) + (toTarget + pursuit.steer) * blend;
+    }
+  }
+  
+  const speed=2.4*Math.abs(throttle);
+  const vx=Math.cos(moveAng)*speed,vy=Math.sin(moveAng)*speed;
+  const aimAng = target ? tank.turret : tank.angle;
+  
+  return { vx, vy, aimAng, aimOffset, fireBias };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   RENDER
+═══════════════════════════════════════════════════════════════════════ */
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+let dpr=window.devicePixelRatio||1;
+function resize(){const wrap=document.getElementById('arena-wrap');canvas.width=wrap.clientWidth*dpr;canvas.height=wrap.clientHeight*dpr;}
+window.addEventListener('resize',resize);resize();
+
+function render(){
+  const W=canvas.width,H=canvas.height;
+  ctx.fillStyle='#030608';ctx.fillRect(0,0,W,H);
+  const scale=Math.min(W/sim.AW,H/sim.AH)*0.95;
+  const ox=(W-sim.AW*scale)/2,oy=(H-sim.AH*scale)/2;
+  ctx.save();ctx.translate(ox,oy);ctx.scale(scale,scale);
+  ctx.strokeStyle='#0a0f18';ctx.lineWidth=1/scale;
+  for(let x=0;x<=sim.AW;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,sim.AH);ctx.stroke();}
+  for(let y=0;y<=sim.AH;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(sim.AW,y);ctx.stroke();}
+  ctx.strokeStyle='#1f2937';ctx.lineWidth=2/scale;ctx.strokeRect(0,0,sim.AW,sim.AH);
+  for(const w of sim.walls){ctx.fillStyle='#1f2937';ctx.fillRect(w.x,w.y,w.w,w.h);ctx.strokeStyle='#374151';ctx.lineWidth=1/scale;ctx.strokeRect(w.x,w.y,w.w,w.h);}
+  for(const t of sim.tanks){
+    if(!t.alive||t.trail.length<2)continue;
+    ctx.beginPath();ctx.moveTo(t.trail[0].x,t.trail[0].y);
+    for(let i=1;i<t.trail.length;i++)ctx.lineTo(t.trail[i].x,t.trail[i].y);
+    ctx.strokeStyle=t.color+'33';ctx.lineWidth=3;ctx.stroke();
+  }
+  for(const b of sim.bullets){const owner=sim.tanks[b.owner];ctx.fillStyle=owner?owner.color:'#fff';ctx.beginPath();ctx.arc(b.pos.x,b.pos.y,2.5,0,TAU);ctx.fill();}
+  const selT=sim.tanks[sim.selected];
+  for(const t of sim.tanks){
+    if(!t.alive){ctx.globalAlpha=0.25;ctx.strokeStyle=t.color;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(t.pos.x-9,t.pos.y-9);ctx.lineTo(t.pos.x+9,t.pos.y+9);ctx.moveTo(t.pos.x+9,t.pos.y-9);ctx.lineTo(t.pos.x-9,t.pos.y+9);ctx.stroke();ctx.globalAlpha=1;continue;}
+    const R=15;
+    if(t===selT&&t.currentTarget&&t.currentTarget.alive){
+      ctx.strokeStyle='#60a5fa88';ctx.lineWidth=1.5;ctx.setLineDash([6,4]);
+      ctx.beginPath();ctx.moveTo(t.pos.x,t.pos.y);ctx.lineTo(t.currentTarget.pos.x,t.currentTarget.pos.y);ctx.stroke();ctx.setLineDash([]);
+    }
+    if(t===selT&&t.currentTarget){
+      const tLead=dist(t.pos,t.currentTarget.pos)/7;
+      const aimX=t.currentTarget.pos.x+t.currentTarget.vel.x*tLead*0.95;
+      const aimY=t.currentTarget.pos.y+t.currentTarget.vel.y*tLead*0.95;
+      ctx.strokeStyle='#f59e0b66';ctx.lineWidth=1;ctx.setLineDash([2,3]);
+      ctx.beginPath();ctx.moveTo(t.pos.x,t.pos.y);ctx.lineTo(aimX,aimY);ctx.stroke();ctx.setLineDash([]);
+    }
+    ctx.save();ctx.translate(t.pos.x,t.pos.y);ctx.rotate(t.angle);
+    ctx.fillStyle=t.color;ctx.fillRect(-R,-R*0.72,R*2,R*1.44);
+    ctx.fillStyle='rgba(255,255,255,.2)';ctx.fillRect(-R*0.3,-R*0.72,R*1.3,R*1.44);
     ctx.restore();
+    ctx.save();ctx.translate(t.pos.x,t.pos.y);ctx.rotate(t.turret);
+    ctx.fillStyle=t.color;ctx.fillRect(-3,-3,R+11,6);ctx.beginPath();ctx.arc(0,0,6.5,0,TAU);ctx.fill();ctx.restore();
+    const hpw=36;ctx.fillStyle='#000c';ctx.fillRect(t.pos.x-hpw/2,t.pos.y-R-15,hpw,5);
+    const hpr=t.hp/t.maxHp;ctx.fillStyle=hpr>0.6?'#22c55e':hpr>0.3?'#eab308':'#ef4444';
+    ctx.fillRect(t.pos.x-hpw/2,t.pos.y-R-15,hpw*hpr,5);
+    ctx.fillStyle='#e5e7eb';ctx.font='bold 10px -apple-system,sans-serif';ctx.textAlign='center';
+    ctx.fillText(t.name,t.pos.x,t.pos.y+R+14);
+    ctx.fillStyle=t.color;ctx.font='bold 9px monospace';
+    ctx.fillText(TACTICS_NAMES[t.lastTactic],t.pos.x,t.pos.y+R+24);
+    if(t===selT){ctx.strokeStyle=t.color+'aa';ctx.lineWidth=2;ctx.setLineDash([4,4]);ctx.beginPath();ctx.arc(t.pos.x,t.pos.y,R+10,0,TAU);ctx.stroke();ctx.setLineDash([]);}
   }
-
-  screenToArena(sx,sy){const r=this.canvas.getBoundingClientRect();return{x:(sx-r.left-this.ox/this.dpr)/(this.scale/this.dpr),y:(sy-r.top-this.oy/this.dpr)/(this.scale/this.dpr)}}
+  ctx.restore();
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 8. UI CONTROLLER (S: only manages DOM)
-// ═══════════════════════════════════════════════════════════════════════════
-
-class UIController {
-  constructor(sim, renderer) {
-    this.sim = sim; this.renderer = renderer;
-    this._fps = 0; this._frames = 0; this._lastFps = performance.now();
-    this._bind();
+/* ═══════════════════════════════════════════════════════════════════════
+   UI
+═══════════════════════════════════════════════════════════════════════ */
+function updateUI(){
+  document.getElementById('h-ep').textContent=sim.episode;
+  document.getElementById('h-rnd').textContent=sim.round;
+  document.getElementById('h-train').textContent=trainer?trainer.trainSteps:0;
+  
+  let html='';
+  for(const t of sim.tanks){
+    const hp=(t.hp/t.maxHp*100)|0;
+    const hpc=t.hp/t.maxHp>0.6?'#22c55e':t.hp/t.maxHp>0.3?'#eab308':'#ef4444';
+    html+=`<div class="tank-card ${t.id===sim.selected?'sel':''}" data-id="${t.id}">
+      <div class="tc-top"><span class="dot" style="background:${t.color}"></span>
+        <span class="tc-name">${t.name}</span>
+        <span class="mode-tag" style="background:${t.color}22;color:${t.color}">${TACTICS_NAMES[t.lastTactic]}</span></div>
+      <div class="hp-bar"><div class="hp-fill" style="width:${hp}%;background:${hpc}"></div></div>
+      <div class="tc-row"><span>K/D</span><b>${t.kills}/${t.deaths}</b></div>
+      <div class="tc-row"><span>Урон</span><b>${t.damage|0}</b></div>
+      <div class="tc-row"><span>Точность</span><b>${t.shots?((t.hits/t.shots*100)|0)+'%':'—'}</b></div>
+      <div class="tc-row"><span>Побед</span><b>${t.wins}</b></div>
+    </div>`;
   }
-
-  _bind() {
-    const sim = this.sim;
-    document.getElementById('btn-go').addEventListener('click', () => {
-      if (!sim.running) { sim.init(); sim.running = true; document.getElementById('overlay').classList.remove('show'); document.getElementById('btn-go').textContent = '⏸ PAUSE'; logger.info('UI','Started'); }
-      else { sim.running = !sim.running; document.getElementById('btn-go').textContent = sim.running ? '⏸ PAUSE' : '▶ RESUME'; }
-    });
-    document.getElementById('btn-rst').addEventListener('click', () => {
-      sim.running = false; sim.round = 1; sim.leaderboard.clear(); sim.log.clear(); sim.init();
-      document.getElementById('btn-go').textContent = '▶ START';
-      document.getElementById('overlay').classList.add('show');
-      document.getElementById('ov-title').textContent = 'CORTEX ARENA';
-      document.getElementById('ov-text').textContent = 'Press START to begin';
-      document.getElementById('load-error').innerHTML = '';
-      this.update(); logger.info('UI','Reset');
-    });
-    document.getElementById('sel-spd').addEventListener('change', e => { sim.speed = parseInt(e.target.value); });
-    document.getElementById('sel-cnt').addEventListener('change', e => { sim.tankCount = parseInt(e.target.value); if (sim.running) { sim.round++; sim.init(); } });
-    this.renderer.canvas.addEventListener('click', e => {
-      const p = this.renderer.screenToArena(e.clientX, e.clientY);
-      let cl = null, cd = 35;
-      for (const t of sim.tanks) { const d = V2.dist(t.pos, p); if (d < cd) { cd = d; cl = t.id; } }
-      sim.selectedTankId = cl;
-    });
-  }
-
-  update() {
-    this._frames++;
-    const now = performance.now();
-    if (now - this._lastFps >= 1000) { this._fps = this._frames; this._frames = 0; this._lastFps = now; }
-    const sim = this.sim;
-    document.getElementById('h-rnd').textContent = sim.round;
-    document.getElementById('h-tick').textContent = sim.tick;
-    document.getElementById('h-alive').textContent = sim.tanks.filter(t => t.alive).length;
-    document.getElementById('h-fps').textContent = this._fps;
-    this._tankList(); this._detail(); this._log(); this._globalStats(); this._lb();
-  }
-
-  _tankList() {
-    const el = document.getElementById('tank-list');
-    let h = '';
-    for (const t of this.sim.tanks) {
-      const sel = this.sim.selectedTankId === t.id;
-      const hp = (t.hp/t.maxHp*100)|0;
-      const hc = t.hp/t.maxHp>.6?'var(--green)':t.hp/t.maxHp>.3?'var(--yellow)':'var(--red)';
-      const em = t.cortex.getEmotions();
-      const top = Object.entries(em).filter(([,v])=>v>0.01).sort((a,b)=>b[1]-a[1])[0];
-      h += `<div class="card${sel?' sel':''}" data-id="${t.id}"><div class="top"><span class="dot" style="background:${t.color}"></span><span class="nm">${t.name}</span><span class="st">${t.alive?'ALIVE':'DEAD'}</span></div><div class="bar"><div class="fill" style="width:${hp}%;background:${hc}"></div></div><div class="row"><span>K/D</span><span class="v">${t.kills}/${t.deaths}</span></div><div class="row"><span>Acc</span><span class="v">${t.shotsFired>0?((t.accuracy*100)|0)+'%':'—'}</span></div><div class="row"><span>Emotion</span><span class="v">${top?top[0]+' '+((top[1]*100)|0)+'%':'calm'}</span></div></div>`;
+  document.getElementById('tank-list').innerHTML=html;
+  document.querySelectorAll('.tank-card').forEach(c=>c.onclick=()=>{sim.selected=+c.dataset.id;});
+  
+  const t=sim.tanks[sim.selected];
+  const panel=document.getElementById('brain-panel');
+  if(!t||!t.lastTacticsProbs||t.lastTacticsProbs.length===0){
+    panel.innerHTML='<div style="color:#6b7280">Нет данных</div>';
+  }else{
+    const probs=t.lastTacticsProbs;
+    let policyHtml='';
+    let bestIdx=0,bestV=-1;
+    for(let i=0;i<N_TACTICS;i++)if(probs[i]>bestV){bestV=probs[i];bestIdx=i;}
+    for(let i=0;i<N_TACTICS;i++){
+      const top=i===bestIdx?'top':'';
+      policyHtml+=`<div class="policy-row ${top}">
+        <span class="policy-label">${TACTICS_NAMES[i]}</span>
+        <div class="policy-bar"><div class="policy-fill" style="width:${probs[i]*100}%;background:${t.color}"></div></div>
+        <span class="policy-val">${(probs[i]*100).toFixed(1)}%</span>
+      </div>`;
     }
-    el.innerHTML = h;
-    el.querySelectorAll('.card').forEach(c => c.addEventListener('click', () => { this.sim.selectedTankId = parseInt(c.dataset.id); }));
-  }
-
-  _detail() {
-    const el = document.getElementById('detail');
-    if (this.sim.selectedTankId === null) { el.innerHTML = '<p style="color:var(--muted);font-size:11px">Click a tank to inspect</p>'; return; }
-    const t = this.sim.tanks[this.sim.selectedTankId]; if (!t) return;
-    const em = t.cortex.getEmotions();
-    const debug = t.cortex.getDebugInfo();
-    const stats = t.cortex.getStats();
-    let emH = '<div class="egrid">';
-    for (const [k,v] of Object.entries(em)) { const c = v>.5?'var(--red)':v>.25?'var(--yellow)':'var(--green)'; emH += `<div class="ei"><span>${k}</span><span class="ev" style="color:${c}">${(v*100)|0}</span></div>`; }
-    emH += '</div>';
-    el.innerHTML = `<div class="card sel" style="border-color:${t.color}"><div class="top"><span class="dot" style="background:${t.color}"></span><span class="nm">${t.name}</span><span class="st">${t.alive?'ALIVE':'RESPAWN '+Math.ceil(t.respawnTimer/60)+'s'}</span></div></div>
-    <div class="ptitle" style="margin-top:8px">Vitals</div>
-    <div class="row"><span>HP</span><span class="v">${t.hp|0}/${t.maxHp}</span></div><div class="bar"><div class="fill" style="width:${t.hp/t.maxHp*100}%;background:${t.hp/t.maxHp>.5?'var(--green)':'var(--red)'}"></div></div>
-    <div class="row"><span>Kills</span><span class="v">${t.kills}</span></div>
-    <div class="row"><span>Deaths</span><span class="v">${t.deaths}</span></div>
-    <div class="row"><span>Damage</span><span class="v">${t.totalDamage|0}</span></div>
-    <div class="row"><span>Accuracy</span><span class="v">${t.shotsFired>0?((t.accuracy*100)|0)+'%':'—'}</span></div>
-    <div class="row"><span>Wins</span><span class="v">${t.wins}</span></div>
-    <div class="ptitle" style="margin-top:8px">Neural</div>
-    <div class="row"><span>Brain Step</span><span class="v">${t.cortex.getStep()}</span></div>
-    <div class="row"><span>Pred Error</span><span class="v">${((debug.predictionError||0)*100).toFixed(1)}%</span></div>
-    <div class="row"><span>Cum Reward</span><span class="v">${t.cortex.getCumulativeReward().toFixed(2)}</span></div>
-    <div class="row"><span>TD Steps</span><span class="v">${stats.totalSteps??0}</span></div>
-    <div class="row"><span>Grad Clips</span><span class="v">${stats.gradientClips??0}</span></div>
-    <div class="row"><span>Memory Cons</span><span class="v">${stats.consolidationEvents??0}</span></div>
-    <div class="ptitle" style="margin-top:8px">Emotions</div>${emH}`;
-  }
-
-  _log() {
-    const el = document.getElementById('blog');
-    let h = '';
-    for (const e of this.sim.log.entries.slice(0,30)) h += `<div class="log ${e.type}">[${e.tick}] ${e.msg}</div>`;
-    // Append system logger errors
-    const sysErrors = logger.getEntries(Logger.Level.ERROR).slice(-5);
-    for (const e of sysErrors) h += `<div class="log error">[SYS] ${e.message}</div>`;
-    el.innerHTML = h;
-  }
-
-  _globalStats() {
-    const el = document.getElementById('gstats');
-    const tanks = this.sim.tanks;
-    const emMap = {threat:'Threat',frustration:'Frustrat',confidence:'Confid',aggression:'Aggress',fear:'Fear',desperation:'Desperat',vengeance:'Vengean',curiosity:'Curiosi'};
-    let h = '';
-    for (const [key,label] of Object.entries(emMap)) {
-      let sum = 0; for (const t of tanks) { const em = t.cortex.getEmotions(); sum += em[key]||0; }
-      const avg = sum/tanks.length, pct = (avg*100)|0;
-      const c = key==='confidence'?'var(--green)':avg>.4?'var(--red)':avg>.2?'var(--yellow)':'var(--cyan)';
-      h += `<div class="crow"><span class="cl">${label}</span><div class="ct"><div class="cf" style="width:${pct}%;background:${c}"></div></div><span class="cv">${pct}%</span></div>`;
+    
+    let targetHtml='<div style="color:#4b5563;font-size:9px">—</div>';
+    if(t.lastTargetScores){
+      const enemies=sim.tanks.filter(tt=>tt.alive&&tt.id!==t.id&&tt.team!==t.team)
+        .map(e=>({e,d:dist(t.pos,e.pos)})).sort((a,b)=>a.d-b.d);
+      let rows='';
+      for(let k=0;k<MAX_ENEMIES;k++){
+        if(k>=enemies.length)break;
+        const sc=t.lastTargetScores[k];
+        const e=enemies[k].e;
+        const sel=k===t.lastTargetIdx;
+        rows+=`<div class="policy-row ${sel?'top':''}">
+          <span class="policy-label" style="color:${e.color}">${e.name}</span>
+          <div class="policy-bar"><div class="policy-fill" style="width:${clamp(sc*30+50,0,100)}%;background:${e.color}"></div></div>
+          <span class="policy-val">${sc.toFixed(2)}</span>
+        </div>`;
+      }
+      if(rows)targetHtml=rows;
     }
-    const tK=tanks.reduce((s,t)=>s+t.kills,0), tS=tanks.reduce((s,t)=>s+t.shotsFired,0), tH=tanks.reduce((s,t)=>s+t.shotsHit,0);
-    h += `<div style="margin-top:6px"><div class="row"><span>Kills</span><span class="v">${tK}</span></div><div class="row"><span>Shots</span><span class="v">${tS}</span></div><div class="row"><span>Accuracy</span><span class="v">${tS>0?((tH/tS*100)|0)+'%':'—'}</span></div><div class="row"><span>Bullets</span><span class="v">${this.sim.bullets.length}</span></div></div>`;
-    el.innerHTML = h;
+    
+    const lowLabels=['Газ','Прицел','Огонь','УклонX','УклонY'];
+    let lowHtml='';
+    for(let i=0;i<LOW_DIM;i++){
+      const v=t.lastAction[i];
+      const pos=v>0;const w=Math.abs(v)*50;
+      lowHtml+=`<div class="policy-row">
+        <span class="policy-label">${lowLabels[i]}</span>
+        <div class="policy-bar" style="position:relative">
+          <div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#374151"></div>
+          <div class="policy-fill" style="position:absolute;${pos?'left':'right'}:50%;width:${w}%;background:${pos?'#22c55e':'#ef4444'}"></div>
+        </div>
+        <span class="policy-val">${v.toFixed(2)}</span>
+      </div>`;
+    }
+    
+    panel.innerHTML=`
+      <div class="bp-section"><div class="bp-title">Тактика</div>${policyHtml}</div>
+      <div class="bp-section"><div class="bp-title">Выбор цели</div>${targetHtml}</div>
+      <div class="bp-section"><div class="bp-title">Нейро-коррекции</div>${lowHtml}</div>
+      <div class="bp-section"><div class="bp-title">V(s)</div><div style="color:#e5e7eb">${t.lastValue.toFixed(3)}</div></div>
+    `;
   }
-
-  _lb() {
-    const body = document.getElementById('lb-body');
-    const rows = [...this.sim.leaderboard.entries()].map(([n,s])=>({name:n,...s}));
-    rows.sort((a,b)=>(b.kills-b.deaths)-(a.kills-a.deaths)||b.damage-a.damage);
-    let h=''; rows.forEach((r,i)=>{const t=this.sim.tanks.find(t=>t.name===r.name);const c=t?t.color:'var(--text)';h+=`<tr><td>${i+1}</td><td style="color:${c};font-weight:600">${r.name}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.damage|0}</td><td>${r.wins}</td></tr>`});
-    body.innerHTML=h;
+  
+  if(trainer){
+    const m=trainer.lastMetrics;
+    document.getElementById('metrics').innerHTML=`
+      <div class="tc-row"><span>Policy loss</span><b>${m.policyLoss.toFixed(4)}</b></div>
+      <div class="tc-row"><span>Target loss</span><b>${m.targetLoss.toFixed(4)}</b></div>
+      <div class="tc-row"><span>Value loss</span><b>${m.valueLoss.toFixed(4)}</b></div>
+      <div class="tc-row"><span>Entropy</span><b>${m.entropy.toFixed(4)}</b></div>
+      <div class="tc-row"><span>Buffer</span><b>${sim.trajectoryBuffer.size()}</b></div>
+    `;
   }
+  
+  document.getElementById('log').innerHTML=sim.log.slice(0,25).map(e=>`<div class="${e.cls}">[${e.t}] ${e.msg}</div>`).join('');
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 9. BOOTSTRAP — Async loader with full error handling
-// ═══════════════════════════════════════════════════════════════════════════
-
-async function main() {
-  const statusEl  = document.getElementById('h-cortex-status');
-  const ovText    = document.getElementById('ov-text');
-  const loadError = document.getElementById('load-error');
-  const btnGo     = document.getElementById('btn-go');
-
-  logger.info('Boot', 'Starting Cortex Arena v4');
-  logger.info('Boot', `URL: ${window.location.href}`);
-  logger.info('Boot', `User Agent: ${navigator.userAgent}`);
-
-  let BrainCtor;
-  try {
-    BrainCtor = await CortexLoader.load();
-    statusEl.textContent = '✓ Cortex loaded';
-    statusEl.style.color = 'var(--green)';
-    ovText.textContent = 'Neural engine ready. Press START to begin.';
-    btnGo.disabled = false;
-    logger.info('Boot', `Cortex2Brain loaded, constructor: ${BrainCtor.name || 'anonymous'}`);
-  } catch (e) {
-    statusEl.textContent = '✗ Load failed';
-    statusEl.style.color = 'var(--red)';
-    document.getElementById('ov-title').textContent = 'LOAD ERROR';
-    ovText.innerHTML = 'Could not load <code>cortex.js</code>. Ensure the file is in the correct location.';
-    loadError.innerHTML = `<div class="err">${e.message}</div><div class="paths">Expected file structure on GitHub Pages:<br><br>  your-repo/<br>  ├── index.html  (this file)<br>  └── cortex.js   (neural engine)</div>`;
-    logger.error('Boot', 'Fatal: failed to load cortex.js', e);
-    return; // Stop — don't start game loop
-  }
-
-  // Verify brain works end-to-end
-  try {
-    const testBrain = new BrainCtor({ seed: '__integration_test__' });
-    const testResult = testBrain.forward(new Array(64).fill(0), 0);
-    if (!testResult || !Array.isArray(testResult.output) || testResult.output.length < 16) {
-      throw new Error(`forward() returned invalid result: output length ${testResult?.output?.length}`);
-    }
-    const testLearn = testBrain.tdLearn([], [], 1.0);
-    logger.info('Boot', `Integration test passed: output[0]=${testResult.output[0].toFixed(4)}, tdError=${testLearn?.tdError?.toFixed(4) ?? 'N/A'}`);
-  } catch (e) {
-    statusEl.textContent = '✗ Brain test failed';
-    statusEl.style.color = 'var(--red)';
-    loadError.innerHTML = `<div class="err">cortex.js loaded but integration test failed:\n${e.message}\n\nThis usually means the Cortex2Brain API has changed.</div>`;
-    logger.error('Boot', 'Integration test failed', e);
-    return;
-  }
-
-  // Create game
-  const sim = new GameSimulation(1200, 800, BrainCtor);
-  const renderer = new ArenaRenderer(document.getElementById('c'), sim);
-  const ui = new UIController(sim, renderer);
-
-  // Global error handler for runtime errors
-  window.addEventListener('error', (e) => {
-    logger.error('Runtime', `${e.message} at ${e.filename}:${e.lineno}:${e.colno}`);
-  });
-  window.addEventListener('unhandledrejection', (e) => {
-    logger.error('Runtime', `Unhandled promise rejection: ${e.reason}`);
-  });
-
-  let uiCounter = 0;
-  function gameLoop() {
-    requestAnimationFrame(gameLoop);
-    try {
-      sim.step();
-      renderer.render();
-    } catch (e) {
-      logger.error('GameLoop', `Tick error: ${e.message}`);
-      sim.running = false;
-      document.getElementById('btn-go').textContent = '▶ RESUME';
-    }
-    if (++uiCounter % 6 === 0) {
-      try { ui.update(); }
-      catch (e) { logger.error('UI', `Update error: ${e.message}`); }
-    }
-  }
-
-  gameLoop();
-  logger.info('Boot', 'Game loop running. Ready to play.');
+/* ═══════════════════════════════════════════════════════════════════════
+   LOOP
+═══════════════════════════════════════════════════════════════════════ */
+let fps=0,frames=0,lastFps=performance.now(),uiCounter=0;
+function loop(){
+  requestAnimationFrame(loop);
+  if(sim.running)stepSim();
+  render();
+  frames++;
+  const now=performance.now();
+  if(now-lastFps>=1000){fps=frames;frames=0;lastFps=now;document.getElementById('h-fps').textContent=fps;}
+  if(++uiCounter%6===0)updateUI();
 }
 
-main().catch(e => {
-  console.error('Fatal bootstrap error:', e);
-  document.getElementById('ov-text').innerHTML = `<span style="color:var(--red)">Fatal error: ${e.message}</span>`;
+document.getElementById('btn-go').onclick=function(){
+  sim.running=!sim.running;
+  this.textContent=sim.running?'⏸ ПАУЗА':'▶ БОЙ';
+  this.classList.toggle('primary',!sim.running);
+};
+document.getElementById('btn-train').onclick=()=>{
+  if(sim.trajectoryBuffer.size()<200){alert('Мало данных в буфере.');return;}
+  for(let i=0;i<10;i++)trainer.trainStep(sim.trajectoryBuffer);
+  addLog(`🧠 +10 train steps`,'log-l');updateUI();
+};
+document.getElementById('btn-rst').onclick=()=>{
+  sim.running=false;sim.round=1;sim.episode=0;sim.tick=0;sim.log=[];
+  sim.trajectoryBuffer.clear();initBrain();
+  document.getElementById('btn-go').textContent='▶ БОЙ';
+  document.getElementById('btn-go').classList.add('primary');
+  initRound();
+};
+document.getElementById('sel-spd').onchange=e=>{sim.speed=+e.target.value;};
+
+canvas.addEventListener('click',e=>{
+  const r=canvas.getBoundingClientRect();
+  const scale=Math.min(canvas.width/sim.AW,canvas.height/sim.AH)*0.95;
+  const ox=(canvas.width-sim.AW*scale)/2,oy=(canvas.height-sim.AH*scale)/2;
+  const x=((e.clientX-r.left)*dpr-ox)/scale;
+  const y=((e.clientY-r.top)*dpr-oy)/scale;
+  let best=null,bd=40;
+  for(const t of sim.tanks){const d=dist(t.pos,{x,y});if(d<bd){bd=d;best=t;}}
+  if(best)sim.selected=best.id;
 });
+
+initBrain();initRound();updateUI();loop();
 </script>
 </body>
 </html>
